@@ -2,9 +2,11 @@
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: encrypt decrypt password
-;; URL: todo
+;; URL: http://github.com/mhayashi1120/Emacs-aes/raw/master/aes.el
 ;; Emacs: GNU Emacs 22 or later
 ;; Version 0.8.0
+
+(defconst aes-version "0.8.0")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -52,13 +54,16 @@
 ;; (aes-decrypt-string my-secret)
 
 ;;; TODO:
+;; * calculate s-box
+
+;; * about algorithm
+;; http://csrc.nist.gov/archive/aes/index.html
+;; Rijndael algorithm
 
 ;;; Code:
 
 (eval-when-compile
   (require 'cl))
-
-;; http://csrc.nist.gov/archive/aes/index.html
 
 (defcustom aes-algorithm "aes-256-cbc"
   "Cipher algorithm to encrypt a message.
@@ -81,7 +86,9 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
    (aes-decrypt-unibytes encrypted)
    aes-multibyte-encoding))
 
-(defun aes-encrypt-unibytes (string)
+(defun aes-encrypt-unibytes (unibyte-string)
+  (when (multibyte-string-p unibyte-string)
+    (error "Multibyte string is not supported"))
   (let* ((salt (aes--create-salt))
          (pass (aes--read-passwd "Password: " t)))
     (aes--proc aes-algorithm
@@ -94,12 +101,14 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
             (append
              (string-to-list aes--openssl-magic-word)
              salt
-             (funcall aes--Enc string key iv)))))))))
+             (funcall aes--Enc unibyte-string key iv)))))))))
 
 (defun aes-decrypt-unibytes (encrypted)
-  (let* ((algorithm (aref encrypted 0))
-         (raw (symbol-value (aref encrypted 0))))
-    (aes--proc (symbol-name algorithm)
+  (unless (vectorp encrypted)
+    (error "Not a encrypted object"))
+  (let* ((algorithm (symbol-value (intern "algorithm" encrypted)))
+         (raw (symbol-value (intern "encrypted" encrypted))))
+    (aes--proc algorithm
       (destructuring-bind (salt encrypted-string) (aes--parse-salt raw)
         (let ((pass (aes--read-passwd "Password: ")))
           (destructuring-bind (raw-key iv) (aes--bytes-to-key pass salt)
@@ -112,8 +121,9 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
   (string-to-vector (read-passwd prompt confirm)))
 
 (defun aes--create-encrypted (algorithm string)
-  (let ((vec (make-vector 1 nil)))
-    (set (intern algorithm vec) string)
+  (let ((vec (make-vector 2 nil)))
+    (set (intern "algorithm" vec) algorithm)
+    (set (intern "encrypted" vec) string)
     vec))
 
 ;;
@@ -152,14 +162,14 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
   (loop for w1 across state-1
         for w2 across state0
         for i from 0
-        with state = (make-vector aes--state-Row nil)
+        with state = (make-vector aes--Row nil)
         do (aset state i (aes--word-xor w1 w2))
         finally return state))
 
 ;; check End-Of-Block bytes
 (defun aes--check-end-of-decrypted (eob-bytes)
   (let* ((pad (car (last eob-bytes)))
-         (valid-len (- aes--state-Block pad)))
+         (valid-len (- aes--Block pad)))
     (when (or (> valid-len (length eob-bytes))
               (< valid-len 0))
       (error "Bad decrypt"))
@@ -173,7 +183,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
           collect u)))
 
 (defun aes--check-encrypted-string (string)
-  (unless (= (mod (length string) aes--state-Block) 0)
+  (unless (= (mod (length string) aes--Block) 0)
     (error "Bad decrypt")))
 
 (defun aes--ecb-encrypt (unibyte-string key &rest dummy)
@@ -210,23 +220,23 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 
 (defun aes--parse-unibytes (unibyte-string)
   (let* ((len (length unibyte-string))
-         (sep (min len aes--state-Block))
+         (sep (min len aes--Block))
          (state (aes--unibytes-to-state (substring unibyte-string 0 sep)))
-         (rest (if (< len aes--state-Block) nil (substring unibyte-string sep))))
+         (rest (if (< len aes--Block) nil (substring unibyte-string sep))))
     (list state rest)))
 
 (defun aes--parse-encrypted (encrypted-string)
   (let* ((len (length encrypted-string))
-         (sep (min len aes--state-Block))
+         (sep (min len aes--Block))
          (state (aes--unibytes-to-state (substring encrypted-string 0 sep)))
-         (rest (if (= len aes--state-Block) nil (substring encrypted-string sep))))
+         (rest (if (= len aes--Block) nil (substring encrypted-string sep))))
     (list state rest)))
 
 (defun aes--unibytes-to-state (unibytes)
-  (loop for r from 0 below aes--state-Row
-        with state = (make-vector aes--state-Row nil)
+  (loop for r from 0 below aes--Row
+        with state = (make-vector aes--Row nil)
         with len = (length unibytes)
-        with suffix-len = (- aes--state-Block len)
+        with suffix-len = (- aes--Block len)
         do (loop for c from 0 below aes--Nb
                  with from = (* aes--Nb r)
                  with word = (make-vector aes--Nb suffix-len)
@@ -239,9 +249,9 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
         finally return state))
 
 (defun aes--state-to-bytes (state)
-  (loop for i from 0 below (* aes--state-Row aes--Nb)
+  (loop for i from 0 below (* aes--Row aes--Nb)
         collect 
-        (let ((r (/ i aes--state-Row))
+        (let ((r (/ i aes--Row))
               (c (% i aes--Nb)))
           (aref (aref state r) c))))
 
@@ -273,7 +283,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 ;; Emulate openssl EVP_BytesToKey function
 ;; return '(key iv)
 (defun aes--bytes-to-key (data &optional salt)
-  (let ((iv (make-vector aes--state-IV nil))
+  (let ((iv (make-vector aes--IV nil))
         (key (make-vector (* aes--Nk aes--Nb) nil))
         ;;md5 hash size
         (hash (make-vector 16 nil))
@@ -342,7 +352,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
         do (aset table byte 
                  (if (< byte ?\x80)
                      (lsh byte 1)
-                   (mod (logxor (lsh byte 1) ?\x11b) ?\x100)))
+                   (logand (logxor (lsh byte 1) ?\x11b) ?\xff)))
         finally return table))
 
 (defun aes--xtime (byte)
@@ -464,7 +474,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
   state)
 
 (defun aes--round-key (key n)
-  (loop repeat aes--state-Row
+  (loop repeat aes--Row
         for ki from n
         for ri from 0
         with rk = (make-vector aes--Nb nil)
@@ -473,13 +483,13 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 
 ;; section 5.1.3
 (defun aes--mix-columns (state)
-  (loop for row from 0 below aes--state-Row
+  (loop for row from 0 below aes--Row
         do (aes--mix-column state row '(?\x2 ?\x3 ?\x1 ?\x1)))
   state)
 
 ;; section 5.3.3
 (defun aes--inv-mix-columns (state)
-  (loop for row from 0 below aes--state-Row
+  (loop for row from 0 below aes--Row
         do (aes--mix-column state row '(?\xe ?\xb ?\xd ?\x9)))
   state)
 
@@ -504,7 +514,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 ;; section 5.1.2
 (defun aes--shift-rows (state)
   ;; ignore first row
-  (loop for row from 1 below aes--state-Row
+  (loop for row from 1 below aes--Row
         do
         (aes--shift-row state row row))
   state)
@@ -512,7 +522,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 ;; section 5.3.1
 (defun aes--inv-shift-rows (state)
   ;; ignore first row
-  (loop for row from 1 below aes--state-Row
+  (loop for row from 1 below aes--Row
         do
         (aes--shift-row state row (- aes--Nb row)))
   state)
@@ -557,24 +567,11 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 
 ;; section 5.3.2
 (defconst aes--inv-S-box
-  [
-   ?\x52 ?\x09 ?\x6a ?\xd5 ?\x30 ?\x36 ?\xa5 ?\x38 ?\xbf ?\x40 ?\xa3 ?\x9e ?\x81 ?\xf3 ?\xd7 ?\xfb
-   ?\x7c ?\xe3 ?\x39 ?\x82 ?\x9b ?\x2f ?\xff ?\x87 ?\x34 ?\x8e ?\x43 ?\x44 ?\xc4 ?\xde ?\xe9 ?\xcb
-   ?\x54 ?\x7b ?\x94 ?\x32 ?\xa6 ?\xc2 ?\x23 ?\x3d ?\xee ?\x4c ?\x95 ?\x0b ?\x42 ?\xfa ?\xc3 ?\x4e
-   ?\x08 ?\x2e ?\xa1 ?\x66 ?\x28 ?\xd9 ?\x24 ?\xb2 ?\x76 ?\x5b ?\xa2 ?\x49 ?\x6d ?\x8b ?\xd1 ?\x25
-   ?\x72 ?\xf8 ?\xf6 ?\x64 ?\x86 ?\x68 ?\x98 ?\x16 ?\xd4 ?\xa4 ?\x5c ?\xcc ?\x5d ?\x65 ?\xb6 ?\x92
-   ?\x6c ?\x70 ?\x48 ?\x50 ?\xfd ?\xed ?\xb9 ?\xda ?\x5e ?\x15 ?\x46 ?\x57 ?\xa7 ?\x8d ?\x9d ?\x84
-   ?\x90 ?\xd8 ?\xab ?\x00 ?\x8c ?\xbc ?\xd3 ?\x0a ?\xf7 ?\xe4 ?\x58 ?\x05 ?\xb8 ?\xb3 ?\x45 ?\x06
-   ?\xd0 ?\x2c ?\x1e ?\x8f ?\xca ?\x3f ?\x0f ?\x02 ?\xc1 ?\xaf ?\xbd ?\x03 ?\x01 ?\x13 ?\x8a ?\x6b
-   ?\x3a ?\x91 ?\x11 ?\x41 ?\x4f ?\x67 ?\xdc ?\xea ?\x97 ?\xf2 ?\xcf ?\xce ?\xf0 ?\xb4 ?\xe6 ?\x73
-   ?\x96 ?\xac ?\x74 ?\x22 ?\xe7 ?\xad ?\x35 ?\x85 ?\xe2 ?\xf9 ?\x37 ?\xe8 ?\x1c ?\x75 ?\xdf ?\x6e
-   ?\x47 ?\xf1 ?\x1a ?\x71 ?\x1d ?\x29 ?\xc5 ?\x89 ?\x6f ?\xb7 ?\x62 ?\x0e ?\xaa ?\x18 ?\xbe ?\x1b
-   ?\xfc ?\x56 ?\x3e ?\x4b ?\xc6 ?\xd2 ?\x79 ?\x20 ?\x9a ?\xdb ?\xc0 ?\xfe ?\x78 ?\xcd ?\x5a ?\xf4
-   ?\x1f ?\xdd ?\xa8 ?\x33 ?\x88 ?\x07 ?\xc7 ?\x31 ?\xb1 ?\x12 ?\x10 ?\x59 ?\x27 ?\x80 ?\xec ?\x5f
-   ?\x60 ?\x51 ?\x7f ?\xa9 ?\x19 ?\xb5 ?\x4a ?\x0d ?\x2d ?\xe5 ?\x7a ?\x9f ?\x93 ?\xc9 ?\x9c ?\xef
-   ?\xa0 ?\xe0 ?\x3b ?\x4d ?\xae ?\x2a ?\xf5 ?\xb0 ?\xc8 ?\xeb ?\xbb ?\x3c ?\x83 ?\x53 ?\x99 ?\x61
-   ?\x17 ?\x2b ?\x04 ?\x7e ?\xba ?\x77 ?\xd6 ?\x26 ?\xe1 ?\x69 ?\x14 ?\x63 ?\x55 ?\x21 ?\x0c ?\x7d
-   ])
+  (loop for s across aes--S-box
+        for i from 0
+        with inv = (make-vector ?\x100 nil)
+        do (aset inv s i)
+        finally return inv))
 
 (defun aes--inv-sub-bytes (state)
   (loop for w across state
@@ -597,7 +594,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 (defconst aes--block-algorithm-alist
   '(
     (ecb aes--ecb-encrypt aes--ecb-decrypt 0)
-    (cbc aes--cbc-encrypt aes--cbc-decrypt aes--state-Block)
+    (cbc aes--cbc-encrypt aes--cbc-decrypt aes--Block)
     ))
 
 ;; section 6.3
@@ -614,12 +611,13 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 
 (defvar aes--Enc)
 (defvar aes--Dec)
-(defvar aes--state-IV)
 
 ;; count of row in State
-(defconst aes--state-Row 4)
+(defconst aes--Row 4)
 ;; size of State
-(defvar aes--state-Block)
+(defvar aes--Block)
+;; size of IV (Initial Vector)
+(defvar aes--IV)
 
 (defun aes--parse-algorithm (name)
   (unless (string-match "^\\(aes-\\(?:128\\|192\\|256\\)\\)-\\(ecb\\|cbc\\)$" name)
@@ -636,7 +634,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
        (let* ((aes--Nk (nth 1 ,cell))
               (aes--Nb (nth 2 ,cell))
               (aes--Nr (nth 3 ,cell))
-              (aes--state-Block (* aes--Nb aes--state-Row)))
+              (aes--Block (* aes--Nb aes--Row)))
          ,@form))))
 
 (defmacro aes--block-algorithm (algorithm &rest form)
@@ -647,7 +645,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
          (error "%s is not supported" ,algorithm))
        (let* ((aes--Enc (nth 1 ,cell))
               (aes--Dec (nth 2 ,cell))
-              (aes--state-IV (eval (nth 3 ,cell))))
+              (aes--IV (eval (nth 3 ,cell))))
          ,@form))))
 
 (defmacro aes--proc (algorithm &rest form)
