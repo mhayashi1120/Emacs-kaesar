@@ -189,10 +189,10 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 (defun aes--cbc-encrypt (unibyte-string key iv)
   (loop with rest = unibyte-string
         with state-1 = (aes--unibytes-to-state iv)
-        append (let* ((parse (aes--parse-unibytes rest))
-                      (state-d0 (aes--cbc-state-xor state-1 (nth 0 parse)))
+        append (let* ((parsed (aes--parse-unibytes rest))
+                      (state-d0 (aes--cbc-state-xor state-1 (nth 0 parsed)))
                       (state-e0 (aes--cipher state-d0 key)))
-                 (setq rest (nth 1 parse))
+                 (setq rest (nth 1 parsed))
                  (setq state-1 state-e0)
                  (aes--state-to-bytes state-e0))
         while rest))
@@ -201,13 +201,13 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
   (aes--check-encrypted-string encrypted-string)
   (loop with rest = encrypted-string
         with state-1 = (aes--unibytes-to-state iv)
-        append (let* ((parse (aes--parse-encrypted rest))
-                      (state-e (nth 0 parse))
-                      ;; Clone state `aes--inv-cipher' have side-effect
+        append (let* ((parsed (aes--parse-encrypted rest))
+                      (state-e (nth 0 parsed))
+                      ;; Clone state cause of `aes--inv-cipher' have side-effect
                       (state-e0 (aes--state-clone state-e))
                       (state-d0 (aes--cbc-state-xor state-1 (aes--inv-cipher state-e key)))
                       (bytes (aes--state-to-bytes state-d0)))
-                 (setq rest (nth 1 parse))
+                 (setq rest (nth 1 parsed))
                  (setq state-1 state-e0)
                  (unless rest
                    (setq bytes (aes--check-end-of-decrypted bytes)))
