@@ -1,7 +1,7 @@
 ;;; aes.el --- Encrypt/Decrypt string with password.
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
-;; Keywords: encrypt decrypt password
+;; Keywords: encrypt decrypt password Rijndael
 ;; URL: http://github.com/mhayashi1120/Emacs-aes/raw/master/aes.el
 ;; Emacs: GNU Emacs 22 or later
 ;; Version 0.8.0
