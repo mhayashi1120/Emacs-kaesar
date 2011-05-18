@@ -126,6 +126,62 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
     (set (intern "encrypted" vec) string)
     vec))
 
+;; Basic utilities
+
+(defun aes--word-xor (word1 word2)
+  (loop for b1 across word1
+        for b2 across word2
+        for i from 0
+        with w = (make-vector aes--Nb nil)
+        do (aset w i (logxor b1 b2))
+        finally return w))
+
+(defun aes--rot (list count)
+  (let ((len (length list)))
+    (loop for i from 0 below len
+          collect (nth (mod (+ i count) len) list))))
+
+;; Algorithm specifications
+
+;; section 5
+;; AES-128: Nk 4 Nb 4 Nr 10
+;; AES-192: Nk 6 Nb 4 Nr 12
+;; AES-256: Nk 8 Nb 4 Nr 14
+(defconst aes--cipher-algorithm-alist
+  '(
+    (aes-128 4 4 10)
+    (aes-192 6 4 12)
+    (aes-256 8 4 14)
+    ))
+
+(defconst aes--block-algorithm-alist
+  '(
+    (ecb aes--ecb-encrypt aes--ecb-decrypt 0)
+    (cbc aes--cbc-encrypt aes--cbc-decrypt aes--Block)
+    ))
+
+;; section 6.3
+;; Block size
+(defvar aes--Nb 4)
+
+;; section 6.3
+;; Key length
+(defvar aes--Nk)
+
+;; section 6.3
+;; Number of rounds
+(defvar aes--Nr)
+
+(defvar aes--Enc)
+(defvar aes--Dec)
+
+;; count of row in State
+(defconst aes--Row 4)
+;; size of State
+(defvar aes--Block)
+;; size of IV (Initial Vector)
+(defvar aes--IV)
+
 ;;
 ;; Block mode Algorithm 
 ;;
@@ -361,7 +417,6 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 (defun aes--multiply (byte1 byte2)
   (aref (aref multiply--cache-table byte1) byte2))
 
-
 (defconst aes--multiply-table
   (loop for i from 0 to ?\xff
         with table = (make-vector ?\x100 nil)
@@ -484,27 +539,37 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 ;; section 5.1.3
 (defun aes--mix-columns (state)
   (loop for row from 0 below aes--Row
-        do (aes--mix-column state row '(?\x2 ?\x3 ?\x1 ?\x1)))
+        do (aes--mix-column state row aes--mix-columns-coefficients))
   state)
+
+(defconst aes--mix-columns-coefficients
+  (loop with coef = '(?\x2 ?\x3 ?\x1 ?\x1)
+        for i from 0 below aes--Nb
+        collect (aes--rot coef (- i))))
 
 ;; section 5.3.3
 (defun aes--inv-mix-columns (state)
   (loop for row from 0 below aes--Row
-        do (aes--mix-column state row '(?\xe ?\xb ?\xd ?\x9)))
+        do (aes--mix-column state row aes--inv-mix-columns-coefficients))
   state)
 
-(defun aes--mix-column (state row rotate)
-  (let ((columns (loop for i from 0 below aes--Nb
-                       collect
-                       (loop for a in (aes--rot rotate (- i))
-                             for c across (aref state row)
-                             with acc = 0
-                             do (setq acc (aes--add (aes--multiply a c) acc))
-                             finally return acc))))
+(defconst aes--inv-mix-columns-coefficients
+  (loop with coef = '(?\xe ?\xb ?\xd ?\x9)
+        for i from 0 below aes--Nb
+        collect (aes--rot coef (- i))))
+
+(defun aes--mix-column (state row coefs)
+  (let* ((word (aref state row))
+         (columns (loop for coef in coefs
+                        collect
+                        (loop for a in coef
+                              for c across word
+                              with acc = 0
+                              do (setq acc (aes--add (aes--multiply a c) acc))
+                              finally return acc))))
     (loop for c in columns
           for i from 0
-          with vec = (aref state row)
-          do (aset vec i c))
+          do (aset word i c))
     state))
 
 (defvar aes--Rcon
@@ -580,45 +645,6 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
                  do (aset w c (aref aes--inv-S-box b))))
   state)
 
-;; section 5
-;; AES-128: Nk 4 Nb 4 Nr 10
-;; AES-192: Nk 6 Nb 4 Nr 12
-;; AES-256: Nk 8 Nb 4 Nr 14
-(defconst aes--cipher-algorithm-alist
-  '(
-    (aes-128 4 4 10)
-    (aes-192 6 4 12)
-    (aes-256 8 4 14)
-    ))
-
-(defconst aes--block-algorithm-alist
-  '(
-    (ecb aes--ecb-encrypt aes--ecb-decrypt 0)
-    (cbc aes--cbc-encrypt aes--cbc-decrypt aes--Block)
-    ))
-
-;; section 6.3
-;; Block size
-(defvar aes--Nb 4)
-
-;; section 6.3
-;; Key length
-(defvar aes--Nk)
-
-;; section 6.3
-;; Number of rounds
-(defvar aes--Nr)
-
-(defvar aes--Enc)
-(defvar aes--Dec)
-
-;; count of row in State
-(defconst aes--Row 4)
-;; size of State
-(defvar aes--Block)
-;; size of IV (Initial Vector)
-(defvar aes--IV)
-
 (defun aes--parse-algorithm (name)
   (unless (string-match "^\\(aes-\\(?:128\\|192\\|256\\)\\)-\\(ecb\\|cbc\\)$" name)
     (error "%s is not supported" name))
@@ -656,19 +682,6 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
        (aes--cipher-algorithm cipher
          (aes--block-algorithm block
            ,@form)))))
-
-(defun aes--word-xor (word1 word2)
-  (loop for b1 across word1
-        for b2 across word2
-        for i from 0
-        with w = (make-vector aes--Nb nil)
-        do (aset w i (logxor b1 b2))
-        finally return w))
-
-(defun aes--rot (list count)
-  (let ((len (length list)))
-    (loop for i from 0 below len
-          collect (nth (mod (+ i count) len) list))))
 
 (provide 'aes)
 
