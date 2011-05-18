@@ -299,7 +299,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
             (setq context (append context data nil))
             (when salt
               (setq context (append context salt nil)))
-            (aes--key-digest hash context)
+            (aes--key-md5-digest hash context)
             (let ((i 0))
               (loop for j from ki below (length key)
                     while (< i (length hash))
@@ -316,7 +316,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
     (fillarray data nil)
     (list key iv)))
 
-(defun aes--key-digest (hash data)
+(defun aes--key-md5-digest (hash data)
   (loop for v across (aes--hex-to-vector (md5 (apply 'aes--unibyte-string data)))
         for i from 0
         do (aset hash i v)))
