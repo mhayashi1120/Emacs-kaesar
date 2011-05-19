@@ -188,6 +188,44 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 ;; size of IV (Initial Vector)
 (defvar aes--IV)
 
+(defun aes--parse-algorithm (name)
+  (unless (string-match "^\\(aes-\\(?:128\\|192\\|256\\)\\)-\\(ecb\\|cbc\\)$" name)
+    (error "%s is not supported" name))
+  (list (intern (match-string 1 name)) 
+        (intern (match-string 2 name))))
+
+(defmacro aes--cipher-algorithm (algorithm &rest form)
+  (declare (indent 1))
+  (let ((cell (gensym)))
+    `(let ((,cell (assq ,algorithm aes--cipher-algorithm-alist)))
+       (unless ,cell
+         (error "%s is not supported" ,algorithm))
+       (let* ((aes--Nk (nth 1 ,cell))
+              (aes--Nb (nth 2 ,cell))
+              (aes--Nr (nth 3 ,cell))
+              (aes--Block (* aes--Nb aes--Row)))
+         ,@form))))
+
+(defmacro aes--block-algorithm (algorithm &rest form)
+  (declare (indent 1))
+  (let ((cell (gensym)))
+    `(let ((,cell (assq ,algorithm aes--block-algorithm-alist)))
+       (unless ,cell
+         (error "%s is not supported" ,algorithm))
+       (let* ((aes--Enc (nth 1 ,cell))
+              (aes--Dec (nth 2 ,cell))
+              (aes--IV (eval (nth 3 ,cell))))
+         ,@form))))
+
+(defmacro aes--proc (algorithm &rest form)
+  (declare (indent 1))
+  (let ((cipher (gensym))
+        (block-mode (gensym)))
+    `(destructuring-bind (cipher block) (aes--parse-algorithm ,algorithm)
+       (aes--cipher-algorithm cipher
+         (aes--block-algorithm block
+           ,@form)))))
+
 ;;
 ;; Block mode Algorithm 
 ;;
@@ -383,11 +421,6 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
         for i from 0
         do (aset hash i v)))
 
-(defun aes--clone-vector (vector)
-  (apply 'vector
-         (loop for v across vector
-               collect v)))
-
 (defun aes--hex-to-vector (hex-string)
   (vconcat
    (loop for i from 0 below (length hex-string) by 2
@@ -558,8 +591,8 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 
 ;; section 5.1.3
 (defun aes--mix-columns (state)
-  (loop for row from 0 below aes--Row
-        do (aes--mix-column state row aes--mix-columns-coefficients))
+  (loop for word across state
+        do (aes--mix-column word aes--mix-columns-coefficients))
   state)
 
 (defconst aes--mix-columns-coefficients
@@ -569,8 +602,8 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 
 ;; section 5.3.3
 (defun aes--inv-mix-columns (state)
-  (loop for row from 0 below aes--Row
-        do (aes--mix-column state row aes--inv-mix-columns-coefficients))
+  (loop for word across state
+        do (aes--mix-column word aes--inv-mix-columns-coefficients))
   state)
 
 (defconst aes--inv-mix-columns-coefficients
@@ -578,9 +611,8 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
         for i from 0 below aes--Nb
         collect (aes--rot coef (- i))))
 
-(defun aes--mix-column (state row coefs)
-  (let* ((word (aref state row))
-         (columns (loop for coef in coefs
+(defun aes--mix-column (word coefs)
+  (let* ((columns (loop for coef in coefs
                         collect
                         (loop for a in coef
                               for c across word
@@ -589,8 +621,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
                               finally return acc))))
     (loop for c in columns
           for i from 0
-          do (aset word i c))
-    state))
+          do (aset word i c))))
 
 (defvar aes--Rcon
   [[?\x01 0 0 0] [?\x02 0 0 0] [?\x04 0 0 0] [?\x08 0 0 0] [?\x10 0 0 0]
@@ -660,44 +691,6 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
                  for c from 0
                  do (aset w c (aref aes--inv-S-box b))))
   state)
-
-(defun aes--parse-algorithm (name)
-  (unless (string-match "^\\(aes-\\(?:128\\|192\\|256\\)\\)-\\(ecb\\|cbc\\)$" name)
-    (error "%s is not supported" name))
-  (list (intern (match-string 1 name)) 
-        (intern (match-string 2 name))))
-
-(defmacro aes--cipher-algorithm (algorithm &rest form)
-  (declare (indent 1))
-  (let ((cell (gensym)))
-    `(let ((,cell (assq ,algorithm aes--cipher-algorithm-alist)))
-       (unless ,cell
-         (error "%s is not supported" ,algorithm))
-       (let* ((aes--Nk (nth 1 ,cell))
-              (aes--Nb (nth 2 ,cell))
-              (aes--Nr (nth 3 ,cell))
-              (aes--Block (* aes--Nb aes--Row)))
-         ,@form))))
-
-(defmacro aes--block-algorithm (algorithm &rest form)
-  (declare (indent 1))
-  (let ((cell (gensym)))
-    `(let ((,cell (assq ,algorithm aes--block-algorithm-alist)))
-       (unless ,cell
-         (error "%s is not supported" ,algorithm))
-       (let* ((aes--Enc (nth 1 ,cell))
-              (aes--Dec (nth 2 ,cell))
-              (aes--IV (eval (nth 3 ,cell))))
-         ,@form))))
-
-(defmacro aes--proc (algorithm &rest form)
-  (declare (indent 1))
-  (let ((cipher (gensym))
-        (block-mode (gensym)))
-    `(destructuring-bind (cipher block) (aes--parse-algorithm ,algorithm)
-       (aes--cipher-algorithm cipher
-         (aes--block-algorithm block
-           ,@form)))))
 
 (provide 'aes)
 
