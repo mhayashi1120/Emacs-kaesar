@@ -137,9 +137,9 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
         finally return w))
 
 (defun aes--rot (list count)
-  (let ((len (length list)))
-    (loop for i from 0 below len
-          collect (nth (mod (+ i count) len) list))))
+  (loop with len = (length list)
+        for i from 0 below len
+        collect (nth (mod (+ i count) len) list)))
 
 (defun aes--byte-rot (byte count)
   (let ((v (lsh byte count)))
@@ -592,10 +592,10 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 ;; section 5.1.3
 (defun aes--mix-columns (state)
   (loop for word across state
-        do (aes--mix-column word aes--mix-columns-coefficients))
+        do (aes--mix-column word aes--mix-columns-matrix))
   state)
 
-(defconst aes--mix-columns-coefficients
+(defconst aes--mix-columns-matrix
   (loop with coef = '(?\x2 ?\x3 ?\x1 ?\x1)
         for i from 0 below aes--Nb
         collect (aes--rot coef (- i))))
@@ -603,25 +603,23 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 ;; section 5.3.3
 (defun aes--inv-mix-columns (state)
   (loop for word across state
-        do (aes--mix-column word aes--inv-mix-columns-coefficients))
+        do (aes--mix-column word aes--inv-mix-columns-matrix))
   state)
 
-(defconst aes--inv-mix-columns-coefficients
+(defconst aes--inv-mix-columns-matrix
   (loop with coef = '(?\xe ?\xb ?\xd ?\x9)
         for i from 0 below aes--Nb
         collect (aes--rot coef (- i))))
 
 (defun aes--mix-column (word coefs)
-  (let* ((columns (loop for coef in coefs
-                        collect
-                        (loop for a in coef
-                              for c across word
-                              with acc = 0
-                              do (setq acc (aes--add (aes--multiply a c) acc))
-                              finally return acc))))
-    (loop for c in columns
-          for i from 0
-          do (aset word i c))))
+  (loop for coef in coefs
+        for i from 0
+        with word2 = (vconcat word)
+        do (loop for a in coef
+                 for c across word2
+                 with acc = 0
+                 do (setq acc (aes--add (aes--multiply a c) acc))
+                 finally (aset word i acc))))
 
 (defvar aes--Rcon
   [[?\x01 0 0 0] [?\x02 0 0 0] [?\x04 0 0 0] [?\x08 0 0 0] [?\x10 0 0 0]
@@ -651,7 +649,6 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
           for new-row in new-rows
           do
           (aset (aref state col) row new-row))))
-
 
 ;; section 5.1.1
 (defun aes--s-box-0 (byte)
