@@ -592,18 +592,31 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 ;; section 5.1.3
 (defun aes--mix-columns (state)
   (loop for word across state
-        do (aes--mix-column word aes--mix-columns-matrix))
+        do (aes--mix-column word))
   state)
 
-(defconst aes--mix-columns-matrix
-  (loop with coef = '(?\x2 ?\x3 ?\x1 ?\x1)
-        for i from 0 below aes--Nb
-        collect (aes--rot coef (- i))))
+(defun aes--mix-column (word)
+  (let ((w1 (vconcat word))
+        (w2 (vconcat (mapcar 
+                      (lambda (b) 
+                        (if (>= b 128)
+                            (logxor ?\x11b (lsh b 1))
+                          (lsh b 1)))
+                      word))))
+    ;; Coefficients of word Matrix
+    ;; 2 3 1 1
+    ;; 1 2 3 1
+    ;; 1 1 2 3
+    ;; 3 1 1 2
+    (aset word 0 (logxor (aref w2 0) (aref w2 1) (aref w1 1) (aref w1 2) (aref w1 3)))
+    (aset word 1 (logxor (aref w1 0) (aref w2 1) (aref w1 2) (aref w2 2) (aref w1 3)))
+    (aset word 2 (logxor (aref w1 0) (aref w1 1) (aref w2 2) (aref w1 3) (aref w2 3)))
+    (aset word 3 (logxor (aref w1 0) (aref w2 0) (aref w1 1) (aref w1 2) (aref w2 3)))))
 
 ;; section 5.3.3
 (defun aes--inv-mix-columns (state)
   (loop for word across state
-        do (aes--mix-column word aes--inv-mix-columns-matrix))
+        do (aes--inv-mix-column word aes--inv-mix-columns-matrix))
   state)
 
 (defconst aes--inv-mix-columns-matrix
@@ -611,7 +624,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
         for i from 0 below aes--Nb
         collect (aes--rot coef (- i))))
 
-(defun aes--mix-column (word coefs)
+(defun aes--inv-mix-column (word coefs)
   (loop for coef in coefs
         for i from 0
         with word2 = (vconcat word)
