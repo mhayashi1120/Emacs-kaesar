@@ -86,7 +86,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
    (encode-coding-string string aes-multibyte-encoding)))
 
 (defun aes-decrypt-string (encrypted)
-  "Decrypt a ENCRYPTED object which is encrypted by `aes-encrypt-string'"
+  "Decrypt a ENCRYPTED object which was encrypted by `aes-encrypt-string'"
   (decode-coding-string
    (aes-decrypt-unibytes encrypted)
    aes-multibyte-encoding))
@@ -98,7 +98,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
    (aes-encrypt unibyte-string aes-algorithm)))
 
 (defun aes-decrypt-unibytes (encrypted)
-  "Decrypt a ENCRYPTED object which is encrypted by `aes-encrypt-unibytes'"
+  "Decrypt a ENCRYPTED object which was encrypted by `aes-encrypt-unibytes'"
   (unless (vectorp encrypted)
     (error "Not a encrypted object"))
   (let* ((algorithm (symbol-value (intern "algorithm" encrypted)))
@@ -123,7 +123,7 @@ See `aes-algorithm' list the supported ALGORITHM ."
             (funcall aes--Enc unibyte-string key iv))))))))
 
 (defun aes-decrypt (encrypted-string algorithm)
-  "Decrypt a ENCRYPTED-STRING which is encrypted by `aes-encrypt'"
+  "Decrypt a ENCRYPTED-STRING which was encrypted by `aes-encrypt'"
   (when (multibyte-string-p encrypted-string)
     (error "Not a encrypted string"))
   (aes--proc algorithm
