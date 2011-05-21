@@ -4,9 +4,9 @@
 ;; Keywords: encrypt decrypt password Rijndael
 ;; URL: http://github.com/mhayashi1120/Emacs-aes/raw/master/aes.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version 0.8.0
+;; Version 0.8.1
 
-(defconst aes-version "0.8.0")
+(defconst aes-version "0.8.1")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -441,7 +441,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 
 ;; 4.2 Multiplication
 ;; 4.2.1 xtime
-(defconst aes--xtime-table
+(defconst aes--xtime-cache
   (loop for byte from 0 below ?\x100
         with table = (make-vector ?\x100 nil)
         do (aset table byte 
@@ -451,12 +451,9 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
         finally return table))
 
 (defun aes--xtime (byte)
-  (aref aes--xtime-table byte))
+  (aref aes--xtime-cache byte))
 
-(defun aes--multiply (byte1 byte2)
-  (aref (aref multiply--cache-table byte1) byte2))
-
-(defconst aes--multiply-table
+(defconst aes--multiply-log
   (loop for i from 0 to ?\xff
         with table = (make-vector ?\x100 nil)
         do 
@@ -472,32 +469,35 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
         finally return table))
 
 (defun aes--multiply-0 (byte1 byte2)
-  (let ((table (aref aes--multiply-table byte1)))
+  (let ((table (aref aes--multiply-log byte1)))
     (apply 'aes--add
            (loop for i from 0 to 7
-                 if (/= (logand byte2 (lsh 1 i)) 0)
+                 unless (zerop (logand byte2 (lsh 1 i)))
                  collect (aref table i)))))
 
-(defconst multiply--cache-table 
+(defconst aes--multiply-cache 
   (vconcat
    (loop for b1 from 0 to ?\xff
          collect 
          (vconcat (loop for b2 from 0 to ?\xff
                         collect (aes--multiply-0 b1 b2))))))
 
-(defun aes--inv-multiply (byte)
-  (aref aes--multiply-inv-table byte))
+(defun aes--multiply (byte1 byte2)
+  (aref (aref aes--multiply-cache byte1) byte2))
 
-(defconst aes--multiply-inv-table
+(defconst aes--inv-multiply-cache
   (loop with v = (make-vector 256 nil)
         for byte from 0 to 255
         do (aset v byte
-                 (loop for b across (aref multiply--cache-table byte)
+                 (loop for b across (aref aes--multiply-cache byte)
                        for i from 0
                        if (= b 1)
                        return i
                        finally return 0))
         finally return v))
+
+(defun aes--inv-multiply (byte)
+  (aref aes--inv-multiply-cache byte))
 
 ;; section 5.2
 (defun aes--key-expansion (key)
@@ -606,21 +606,28 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
     ;; 1 2 3 1
     ;; 1 1 2 3
     ;; 3 1 1 2
-    (aset word 0 (logxor (aref w2 0) (aref w2 1) (aref w1 1) (aref w1 2) (aref w1 3)))
-    (aset word 1 (logxor (aref w1 0) (aref w2 1) (aref w1 2) (aref w2 2) (aref w1 3)))
-    (aset word 2 (logxor (aref w1 0) (aref w1 1) (aref w2 2) (aref w1 3) (aref w2 3)))
-    (aset word 3 (logxor (aref w1 0) (aref w2 0) (aref w1 1) (aref w1 2) (aref w2 3)))))
+    (aset word 0 (logxor (aref w2 0) 
+                         (aref w2 1) (aref w1 1)
+                         (aref w1 2) 
+                         (aref w1 3)))
+    (aset word 1 (logxor (aref w1 0)
+                         (aref w2 1)
+                         (aref w1 2) (aref w2 2)
+                         (aref w1 3)))
+    (aset word 2 (logxor (aref w1 0)
+                         (aref w1 1) 
+                         (aref w2 2)
+                         (aref w1 3) (aref w2 3)))
+    (aset word 3 (logxor (aref w1 0) (aref w2 0)
+                         (aref w1 1)
+                         (aref w1 2)
+                         (aref w2 3)))))
 
 ;; section 5.3.3
 (defun aes--inv-mix-columns (state)
   (loop for word across state
         do (aes--inv-mix-column word))
   state)
-
-(defconst aes--inv-mix-columns-matrix
-  (loop with coef = '(?\xe ?\xb ?\xd ?\x9)
-        for i from 0 below aes--Nb
-        collect (aes--rot coef (- i))))
 
 (defun aes--inv-mix-column (word)
   (let ((w1 (vconcat word))
@@ -663,8 +670,8 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 (defvar aes--Rcon
   (vconcat
    (loop repeat 10
-         with v = 1
-         collect (prog1 (vector v 0 0 0) (setq v (aes--xtime v))))))
+         for v = 1 then (aes--xtime v)
+         collect (vector v 0 0 0))))
 
 ;; section 5.1.2
 (defun aes--shift-rows (state)
