@@ -4,9 +4,9 @@
 ;; Keywords: encrypt decrypt password Rijndael
 ;; URL: http://github.com/mhayashi1120/Emacs-aes/raw/master/aes.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version 0.8.1
+;; Version 0.8.2
 
-(defconst aes-version "0.8.1")
+(defconst aes-version "0.8.2")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -35,9 +35,12 @@
 ;; * To encode a well encoded string (High level API)
 ;; `aes-encrypt-string' <-> `aes-decrypt-string'
 ;;
-;; * To encode a binary string (Low level API)
+;; * To encode a binary string (Middle level API)
 ;; `aes-encrypt-unibytes' <-> `aes-decrypt-unibytes'
 
+;; * To encode a unibyte string with algorithm (Low level API)
+;; `aes-encrypt' <-> `aes-decrypt'
+;;
 ;;; Sample:
 
 ;; * To encrypt my secret
@@ -54,11 +57,11 @@
 ;; (aes-decrypt-string my-secret)
 
 ;;; TODO:
-;; * calculate s-box
-
 ;; * about algorithm
 ;; http://csrc.nist.gov/archive/aes/index.html
 ;; Rijndael algorithm
+
+;; * cleanup temporary vector? or simply garbage-collect?
 
 ;;; Code:
 
@@ -78,44 +81,59 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 (defvar aes-multibyte-encoding (terminal-coding-system))
 
 (defun aes-encrypt-string (string)
+  "Encrypt a well encoded STRING to encrypted object which can be decrypted by `aes-decrypt-string'."
   (aes-encrypt-unibytes
    (encode-coding-string string aes-multibyte-encoding)))
 
 (defun aes-decrypt-string (encrypted)
+  "Decrypt a ENCRYPTED object which is encrypted by `aes-encrypt-string'"
   (decode-coding-string
    (aes-decrypt-unibytes encrypted)
    aes-multibyte-encoding))
 
 (defun aes-encrypt-unibytes (unibyte-string)
-  (when (multibyte-string-p unibyte-string)
-    (error "Multibyte string is not supported"))
-  (let* ((salt (aes--create-salt))
-         (pass (aes--read-passwd "Password: " t)))
-    (aes--proc aes-algorithm
-      (destructuring-bind (raw-key iv) (aes--bytes-to-key pass salt)
-        (let ((key (aes--key-expansion raw-key)))
-          (aes--create-encrypted
-           aes-algorithm
-           (apply
-            'aes--unibyte-string
-            (append
-             (string-to-list aes--openssl-magic-word)
-             salt
-             (funcall aes--Enc unibyte-string key iv)))))))))
+  "Encrypt a UNIBYTE-STRING to encrypted object which can be decrypted by `aes-decrypt-unibytes'"
+  (aes--create-encrypted
+   aes-algorithm
+   (aes-encrypt unibyte-string aes-algorithm)))
 
 (defun aes-decrypt-unibytes (encrypted)
+  "Decrypt a ENCRYPTED object which is encrypted by `aes-encrypt-unibytes'"
   (unless (vectorp encrypted)
     (error "Not a encrypted object"))
   (let* ((algorithm (symbol-value (intern "algorithm" encrypted)))
          (raw (symbol-value (intern "encrypted" encrypted))))
-    (aes--proc algorithm
-      (destructuring-bind (salt encrypted-string) (aes--parse-salt raw)
-        (let ((pass (aes--read-passwd "Password: ")))
-          (destructuring-bind (raw-key iv) (aes--bytes-to-key pass salt)
-            (let ((key (aes--key-expansion raw-key)))
-              (apply 
-               'aes--unibyte-string
-               (funcall aes--Dec encrypted-string key iv)))))))))
+    (aes-decrypt raw algorithm)))
+
+(defun aes-encrypt (unibyte-string &optional algorithm)
+  "Encrypt a UNIBYTE-STRING with ALGORITHM.
+See `aes-algorithm' list the supported ALGORITHM ."
+  (when (multibyte-string-p unibyte-string)
+    (error "Not a unibyte string"))
+  (let* ((salt (aes--create-salt))
+         (pass (aes--read-passwd "Password: " t)))
+    (aes--proc (or algorithm aes-algorithm)
+      (destructuring-bind (raw-key iv) (aes--bytes-to-key pass salt)
+        (let ((key (aes--key-expansion raw-key)))
+          (apply
+           'aes--unibyte-string
+           (append
+            (string-to-list aes--openssl-magic-word)
+            salt
+            (funcall aes--Enc unibyte-string key iv))))))))
+
+(defun aes-decrypt (encrypted-string algorithm)
+  "Decrypt a ENCRYPTED-STRING which is encrypted by `aes-encrypt'"
+  (when (multibyte-string-p encrypted-string)
+    (error "Not a encrypted string"))
+  (aes--proc algorithm
+    (destructuring-bind (salt encrypted-string) (aes--parse-salt encrypted-string)
+      (let ((pass (aes--read-passwd "Password: ")))
+        (destructuring-bind (raw-key iv) (aes--bytes-to-key pass salt)
+          (let ((key (aes--key-expansion raw-key)))
+            (apply 
+             'aes--unibyte-string
+             (funcall aes--Dec encrypted-string key iv))))))))
 
 (defun aes--read-passwd (prompt &optional confirm)
   (string-to-vector (read-passwd prompt confirm)))
@@ -273,7 +291,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
     (when (or (> valid-len (length eob-bytes))
               (< valid-len 0))
       (error "Bad decrypt"))
-    ;; check non pad byte exists
+    ;; check non padding byte exists
     ;; o aaa => '(97 97 97 13 13 .... 13)
     ;; x aaa => '(97 97 97 13 10 .... 13)
     (when (remove pad (nthcdr valid-len eob-bytes))
@@ -366,10 +384,10 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 (defconst aes--openssl-magic-word "Salted__")
 
 (defun aes--create-salt ()
-  (let ((salt (make-vector aes--pkcs5-salt-length nil)))
-    (loop for i from 0 below aes--pkcs5-salt-length
-          do (aset salt i (random ?\x100)))
-    salt))
+  (loop for i from 0 below aes--pkcs5-salt-length
+        with salt = (make-vector aes--pkcs5-salt-length nil)
+        do (aset salt i (random ?\x100))
+        finally return salt))
 
 (defun aes--parse-salt (unibyte-string)
   (let ((regexp (format "^%s\\([\000-\377]\\{%d\\}\\)"
