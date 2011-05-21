@@ -598,10 +598,8 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 (defun aes--mix-column (word)
   (let ((w1 (vconcat word))
         (w2 (vconcat (mapcar 
-                      (lambda (b) 
-                        (if (>= b 128)
-                            (logxor ?\x11b (lsh b 1))
-                          (lsh b 1)))
+                      (lambda (b)
+                        (aes--multiply b 2))
                       word))))
     ;; Coefficients of word Matrix
     ;; 2 3 1 1
@@ -616,7 +614,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 ;; section 5.3.3
 (defun aes--inv-mix-columns (state)
   (loop for word across state
-        do (aes--inv-mix-column word aes--inv-mix-columns-matrix))
+        do (aes--inv-mix-column word))
   state)
 
 (defconst aes--inv-mix-columns-matrix
@@ -624,19 +622,49 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
         for i from 0 below aes--Nb
         collect (aes--rot coef (- i))))
 
-(defun aes--inv-mix-column (word coefs)
-  (loop for coef in coefs
-        for i from 0
-        with word2 = (vconcat word)
-        do (loop for a in coef
-                 for c across word2
-                 with acc = 0
-                 do (setq acc (aes--add (aes--multiply a c) acc))
-                 finally (aset word i acc))))
+(defun aes--inv-mix-column (word)
+  (let ((w1 (vconcat word))
+        (w2 (vconcat (mapcar (lambda (b) (aes--multiply b 2)) word)))
+        (w4 (vconcat (mapcar (lambda (b) (aes--multiply b 4)) word)))
+        (w8 (vconcat (mapcar (lambda (b) (aes--multiply b 8)) word))))
+    ;; Coefficients of word Matrix
+    ;; 14 11 13  9
+    ;;  9 14 11 13
+    ;; 13  9 14 11
+    ;; 11 13  9 14
+
+    ;;  9 <- 8     1
+    ;; 11 <- 8   2 1
+    ;; 13 <- 8 4   1
+    ;; 14 <- 8 4 2
+
+    (aset word 0 (logxor 
+                  (aref w8 0) (aref w4 0) (aref w2 0) ; 14
+                  (aref w8 1) (aref w2 1) (aref w1 1) ; 11
+                  (aref w8 2) (aref w4 2) (aref w1 2) ; 13
+                  (aref w8 3) (aref w1 3)))           ;  9
+    (aset word 1 (logxor 
+                  (aref w8 0) (aref w1 0)               ;  9
+                  (aref w8 1) (aref w4 1) (aref w2 1)   ; 14
+                  (aref w8 2) (aref w2 2) (aref w1 2)   ; 11
+                  (aref w8 3) (aref w4 3) (aref w1 3))) ; 13
+    (aset word 2 (logxor 
+                  (aref w8 0) (aref w4 0) (aref w1 0)   ; 13
+                  (aref w8 1) (aref w1 1)               ;  9
+                  (aref w8 2) (aref w4 2) (aref w2 2)   ; 14
+                  (aref w8 3) (aref w2 3) (aref w1 3))) ; 11
+    (aset word 3 (logxor
+                  (aref w8 0) (aref w2 0) (aref w1 0)   ; 11
+                  (aref w8 1) (aref w4 1) (aref w1 1)   ; 13
+                  (aref w8 2) (aref w1 2)               ;  9
+                  (aref w8 3) (aref w4 3) (aref w2 3))) ; 14
+    ))
 
 (defvar aes--Rcon
-  [[?\x01 0 0 0] [?\x02 0 0 0] [?\x04 0 0 0] [?\x08 0 0 0] [?\x10 0 0 0]
-   [?\x20 0 0 0] [?\x40 0 0 0] [?\x80 0 0 0] [?\x1B 0 0 0] [?\x36 0 0 0]])
+  (vconcat
+   (loop repeat 10
+         with v = 1
+         collect (prog1 (vector v 0 0 0) (setq v (aes--xtime v))))))
 
 ;; section 5.1.2
 (defun aes--shift-rows (state)
