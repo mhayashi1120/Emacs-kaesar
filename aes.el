@@ -118,8 +118,12 @@ See `aes-algorithm' list the supported ALGORITHM ."
                'aes--unibyte-string
                (funcall aes--Dec encrypted-string key iv)))))))))
 
+(defvar aes-password nil)
 (defun aes--read-passwd (prompt &optional confirm)
-  (string-to-vector (read-passwd prompt confirm)))
+  (or (and (vectorp aes-password)
+           ;; do not clear external password.
+           (vconcat aes-password))
+      (string-to-vector (read-passwd prompt confirm))))
 
 ;; Basic utilities
 
@@ -357,11 +361,11 @@ See `aes-algorithm' list the supported ALGORITHM ."
           (aref (aref state r) c))))
 
 (defun aes--state-clone (state)
-  (vconcat
-   (loop for r across state
-         collect (vconcat
-                  (loop for c across r
-                        collect c)))))
+  (loop for r across state
+        for i from 0
+        with v = (vconcat state)
+        do (aset v i (vconcat r))
+        finally return v))
 
 (defconst aes--pkcs5-salt-length 8)
 (defconst aes--openssl-magic-word "Salted__")
