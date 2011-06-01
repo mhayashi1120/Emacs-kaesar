@@ -7,7 +7,7 @@
   (mapc
    (lambda (col)
      (insert (mapconcat (lambda (v) (format "?\\x%02X" v)) col " ") "\n"))
-   (loop for row from 0 below aes--state-Row
+   (loop for row from 0 below aes--Row
          collect
          (loop for col from 0 below aes--Nb
                collect (aref (aref state col) row)))))
@@ -274,14 +274,14 @@
 
 (defun aes--test-unibytes-to-state (string)
   (aes--cipher-algorithm 'aes-256
-    (car (aes--parse-unibytes string))))
+    (car (aes--parse-unibytes string 0))))
 
 (defun aes--test-view-to-state (array)
-  (let ((ret (make-vector (* aes--state-Row aes--Nb) nil)))
+  (let ((ret (make-vector (* aes--Row aes--Nb) nil)))
     (loop for i from 0 
           for v across array
           do (aset ret (+ (/ i aes--Nb)
-                          (* (mod i aes--state-Row) aes--state-Row)) v))
+                          (* (mod i aes--Row) aes--Row)) v))
     (aes--test-unibytes-to-state (concat ret))))
 
 
@@ -352,10 +352,10 @@
     (loop repeat 16
           do (let ((bytes (aes--test-random-bytes))
                    results)
-               (setq results (openssl-cipher-decrypt-unibytes (aes-encrypt-unibytes bytes)))
+               (setq results (openssl-cipher-decrypt-unibytes (aes-encrypt bytes)))
                (unless (equal bytes results)
                  (error "Expect elisp -> openssl `%s' but `%s'" bytes results))
-               (setq results (aes-decrypt-unibytes (openssl-cipher-encrypt-unibytes bytes)))
+               (setq results (aes-decrypt (openssl-cipher-encrypt-unibytes bytes)))
                (unless (equal bytes results)
                  (error "Expect openssl -> elisp `%s' but `%s'" bytes results))))))
 
@@ -401,40 +401,40 @@
           (aes--cipher (aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP") key)
           key)))))
 
-  (expect '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] "q")
+  (expect '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
     (aes--cipher-algorithm 'aes-256
-      (aes--parse-unibytes "abcdefghijklmnopq")))
+      (aes--parse-unibytes "abcdefghijklmnopq" 0)))
 
-  (expect '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] "")
+  (expect '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
     (aes--cipher-algorithm 'aes-256
-      (aes--parse-unibytes "abcdefghijklmnop")))
+      (aes--parse-unibytes "abcdefghijklmnop" 0)))
 
   (expect '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 1]] nil)
     (aes--cipher-algorithm 'aes-256
-      (aes--parse-unibytes "abcdefghijklmno")))
+      (aes--parse-unibytes "abcdefghijklmno" 0)))
 
   (expect '([[97 98 99 100] [101 102 103 104] [105 106 107 5] [5 5 5 5]] nil)
     (aes--cipher-algorithm 'aes-256
-      (aes--parse-unibytes "abcdefghijk")))
+      (aes--parse-unibytes "abcdefghijk" 0)))
 
   (expect (aes--test-openssl-key&iv "aes-128-cbc" "d")
     (aes--proc "aes-128-cbc"
-      (destructuring-bind (key iv) (aes--bytes-to-key (string-to-vector "d"))
+      (destructuring-bind (key iv) (aes--bytes-to-key (vconcat "d"))
         (list (aes--test-unibytes-to-hex key) (aes--test-unibytes-to-hex iv)))))
 
   (expect (aes--test-openssl-key&iv "aes-128-ecb" "d")
     (aes--proc "aes-128-ecb"
-      (destructuring-bind (key iv) (aes--bytes-to-key (string-to-vector "d"))
+      (destructuring-bind (key iv) (aes--bytes-to-key (vconcat "d"))
         (list (aes--test-unibytes-to-hex key) (aes--test-unibytes-to-hex iv)))))
 
   (expect (aes--test-openssl-key&iv "aes-256-ecb" "pass")
     (aes--proc "aes-256-ecb"
-      (destructuring-bind (key iv) (aes--bytes-to-key (string-to-vector "pass"))
+      (destructuring-bind (key iv) (aes--bytes-to-key (vconcat "pass"))
         (list (aes--test-unibytes-to-hex key) (aes--test-unibytes-to-hex iv)))))
 
   (expect (aes--test-openssl-key&iv "aes-256-cbc" "pass")
     (aes--proc "aes-256-cbc"
-      (destructuring-bind (key iv) (aes--bytes-to-key (string-to-vector "pass"))
+      (destructuring-bind (key iv) (aes--bytes-to-key (vconcat "pass"))
         (list (aes--test-unibytes-to-hex key) (aes--test-unibytes-to-hex iv)))))
 
   ;; Appendix A.1
@@ -483,20 +483,32 @@
       (aes--cipher (aes--test-view-to-state aes--test-appendix-b-input-state)
                    (aes--key-expansion aes--test-appendix-b-key))))
 
+  (expect "a"
+    (flet ((read-passwd (&rest dummy) (copy-seq "d")))
+      (aes-decrypt (aes-encrypt (vconcat "a")) aes-algorithm)))
+
+  (expect "abcdefghijklmnop"
+    (flet ((read-passwd (&rest dummy) (copy-seq "d")))
+      (aes-decrypt (aes-encrypt "abcdefghijklmnop") aes-algorithm)))
+
+  (expect "ABCDEFGHIJKLMNOP"
+    (flet ((read-passwd (&rest dummy) (copy-seq "d")))
+      (aes-decrypt (aes-encrypt "ABCDEFGHIJKLMNOP" "aes-128-ecb") "aes-128-ecb")))
+
   ;; Random test
   (expect nil
     (let ((aes-algorithm "aes-256-cbc"))
       (loop repeat 256
             do 
             (flet ((read-passwd (&rest dummy) (copy-seq "d")))
-              (aes-decrypt-unibytes (aes-encrypt-unibytes (aes--test-random-bytes)))))))
+              (aes-decrypt (aes-encrypt (aes--test-random-bytes)))))))
 
   (expect nil
     (let ((aes-algorithm "aes-256-ecb"))
       (loop repeat 256
             do 
             (flet ((read-passwd (&rest dummy) (copy-seq "d")))
-              (aes-decrypt-unibytes (aes-encrypt-unibytes (aes--test-random-bytes)))))))
+              (aes-decrypt (aes-encrypt (aes--test-random-bytes)))))))
 
   ;; Test with openssl command
 
@@ -513,6 +525,6 @@
       (aes--test-block-random-test)))
   )
 
-(expectations-execute)
+;; (expectations-execute)
 
 (provide 'aes-test)
