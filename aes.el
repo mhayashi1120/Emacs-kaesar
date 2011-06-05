@@ -60,8 +60,6 @@
 
 ;; * cleanup temporary vector? or simply garbage-collect?
 
-;; * refactor aes--parse-unibytes/aes--parse-encrypted
-
 ;;; Code:
 
 (eval-when-compile
@@ -263,11 +261,11 @@ See `aes-algorithm' list the supported ALGORITHM ."
                    nil end-pos)))
     (list state rest)))
 
-(defsubst aes--parse-encrypted (encrypted-string)
+(defsubst aes--parse-encrypted (encrypted-string pos)
   (let* ((len (length encrypted-string))
-         (sep (min len aes--Block))
-         (state (aes--unibytes-to-state (substring encrypted-string 0 sep)))
-         (rest (if (= len aes--Block) nil (substring encrypted-string sep))))
+         (end-pos (min len (+ pos aes--Block)))
+         (state (aes--unibytes-to-state (substring encrypted-string pos end-pos)))
+         (rest (if (= len end-pos) nil end-pos)))
     (list state rest)))
 
 (defsubst aes--state-to-bytes (state)
@@ -647,12 +645,11 @@ See `aes-algorithm' list the supported ALGORITHM ."
              (aes--shift-rows state)
              (aes--mix-columns state)
              (aes--add-round-key 
-              state 
-              (aes--round-key key (* round aes--Nb)))))
+              state (aes--round-key key (* round aes--Nb)))))
   (aes--sub-bytes state)
   (aes--shift-rows state)
-  (aes--add-round-key state 
-                      (aes--round-key key (* aes--Nr aes--Nb)))
+  (aes--add-round-key
+   state (aes--round-key key (* aes--Nr aes--Nb)))
   state)
 
 ;; section 5.3 
@@ -664,12 +661,12 @@ See `aes-algorithm' list the supported ALGORITHM ."
              (aes--inv-shift-rows state)
              (aes--inv-sub-bytes state)
              (aes--add-round-key 
-              state 
-              (aes--round-key key (* round aes--Nb)))
+              state (aes--round-key key (* round aes--Nb)))
              (aes--inv-mix-columns state)))
   (aes--inv-shift-rows state)
   (aes--inv-sub-bytes state)
-  (aes--add-round-key state (aes--round-key key 0))
+  (aes--add-round-key
+   state (aes--round-key key 0))
   state)
 
 ;;
@@ -689,20 +686,20 @@ See `aes-algorithm' list the supported ALGORITHM ."
 
 (defun aes--cbc-decrypt (encrypted-string key iv)
   (aes--check-encrypted-string encrypted-string)
-  (loop with rest = encrypted-string
+  (loop with pos = 0
         with state-1 = (aes--unibytes-to-state iv)
-        append (let* ((parsed (aes--parse-encrypted rest))
+        append (let* ((parsed (aes--parse-encrypted encrypted-string pos))
                       (state-e (nth 0 parsed))
                       ;; Clone state cause of `aes--inv-cipher' have side-effect
                       (state-e0 (aes--state-clone state-e))
                       (state-d0 (aes--cbc-state-xor state-1 (aes--inv-cipher state-e key)))
                       (bytes (aes--state-to-bytes state-d0)))
-                 (setq rest (nth 1 parsed))
+                 (setq pos (nth 1 parsed))
                  (setq state-1 state-e0)
-                 (unless rest
+                 (unless pos
                    (setq bytes (aes--check-end-of-decrypted bytes)))
                  (append bytes nil))
-        while rest))
+        while pos))
 
 (defun aes--cbc-state-xor (state-1 state0)
   (loop for w1 across state-1
@@ -743,16 +740,16 @@ See `aes-algorithm' list the supported ALGORITHM ."
 
 (defun aes--ecb-decrypt (encrypted-string key &rest dummy)
   (aes--check-encrypted-string encrypted-string)
-  (loop with rest = encrypted-string
-        append (let* ((parse (aes--parse-encrypted rest))
+  (loop with pos = 0
+        append (let* ((parse (aes--parse-encrypted encrypted-string pos))
                       (in-state (nth 0 parse))
                       (out-state (aes--inv-cipher in-state key))
                       (bytes (aes--state-to-bytes out-state)))
-                 (setq rest (nth 1 parse))
-                 (unless rest
+                 (setq pos (nth 1 parse))
+                 (unless pos
                    (setq bytes (aes--check-end-of-decrypted bytes)))
                  (append bytes nil))
-        while rest))
+        while pos))
 
 (provide 'aes)
 
