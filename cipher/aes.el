@@ -2,11 +2,11 @@
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: encrypt decrypt password Rijndael
-;; URL: http://github.com/mhayashi1120/Emacs-aes/raw/master/aes.el
+;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/cipher/aes.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version 0.8.4
+;; Version 0.8.5
 
-(defconst cipher/aes-version "0.8.4")
+(defconst cipher/aes-version "0.8.5")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -25,7 +25,8 @@
 
 ;;; Install:
 
-;; Put this file into load-path'ed directory, and **BYTE COMPILE IT**. 
+;; Put this file into load-path'ed directory, and 
+;; !!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!
 ;; And put the following expression into your .emacs.
 ;;
 ;;     (require 'cipher/aes)
@@ -76,11 +77,11 @@ Following algorithms are supported.
 aes-256-ecb, aes-192-ecb, aes-128-ecb,
 aes-256-cbc, aes-192-cbc, aes-128-cbc
 "
-  :group 'aes
+  :group 'cipher/aes
   :type 'string)
 
 (defun cipher/aes-encrypt-string (string)
-  "Encrypt a well encoded STRING to encrypted object 
+  "Encrypt a well encoded STRING to encrypted string 
 which can be decrypted by `cipher/aes-decrypt-string'."
   (cipher/aes-encrypt (encode-coding-string string default-terminal-coding-system)))
 
@@ -123,7 +124,7 @@ See `cipher/aes-algorithm' list the supported ALGORITHM ."
                (funcall cipher/aes--Dec encrypted-string key iv)))))))))
 
 (defvar cipher/aes-password nil
-  "Hiding parameter hold password to suppress minibuffer prompt.")
+  "Hiding parameter which hold password to suppress minibuffer prompt.")
 
 (defun cipher/aes--read-passwd (prompt &optional confirm)
   (or (and (vectorp cipher/aes-password)
