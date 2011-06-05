@@ -39,7 +39,7 @@
 (eval-when-compile
   (require 'cl))
 
-(require 'aes)
+(require 'cipher/aes)
 
 (defgroup aes-mode nil
   "AES cipher User Interface.")
@@ -158,10 +158,10 @@
   (auto-save-mode nil))
 
 (defconst aes-mode--salted-regexp 
-  (format "^%s\\(\\(?:.\\|\n\\)\\{16\\}\\)" aes--openssl-magic-word))
+  (format "^%s\\(\\(?:.\\|\n\\)\\{16\\}\\)" cipher/aes--openssl-magic-word))
 
 (defconst aes-mode--block-size
-  (* aes--Nb aes--Row))
+  (* cipher/aes--Nb cipher/aes--Row))
 
 ;;TODO
 (defvar aes-mode-cache-password nil)
@@ -181,7 +181,7 @@
     (save-restriction
       (widen)
       (goto-char (point-min))
-      (looking-at aes--openssl-magic-word))))
+      (looking-at cipher/aes--openssl-magic-word))))
 
 (defun aes-mode--file-guessed-encrypted-p ()
   (and buffer-file-name
