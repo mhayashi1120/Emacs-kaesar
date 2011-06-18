@@ -1,52 +1,13 @@
 
-(require 'el-expectations)
 (require 'cipher/aes)
 (require 'openssl-cipher nil t)
-
-(defun cipher/aes--test-dump-state (state)
-  (mapc
-   (lambda (col)
-     (insert (mapconcat (lambda (v) (format "?\\x%02X" v)) col " ") "\n"))
-   (loop for row from 0 below cipher/aes--Row
-         collect
-         (loop for col from 0 below cipher/aes--Nb
-               collect (aref (aref state col) row)))))
+(require 'ert)
 
 (defun cipher/aes--test-random-bytes ()
   (let ((s (make-string (random 200) ?\000)))
     (loop for i from 0 below (length s)
           do (aset s i (random 256)))
     s))
-
-(defun cipher/aes--test-random-string ()
-  (let ((s (make-string (random 200) ?\000)))
-    (loop for i from 0 below (length s)
-          do (aset s i (loop with c = nil
-                             do (setq c (random 65535))
-                             while (not (decode-char 'ucs c))
-                             finally return c)))
-    s))
-
-(defun cipher/aes--test-dump-word (word)
-  (format "%02X%02X%02X%02X" 
-          (nth 0 word)
-          (nth 1 word)
-          (nth 2 word)
-          (nth 3 word)))
-
-(defun cipher/aes--test-dump-words (words)
-  (loop for word on words by (lambda (x) (nthcdr 4 x))
-        collect (cipher/aes--test-dump-word word)))
-
-(defun cipher/aes--test-dump-expanded-key (key)
-  (loop for pair on key by (lambda (x) (nthcdr 4 x))
-        for i from 0
-        do (insert (format "%02d: %02X%02X%02X%02X\n" 
-                           i
-                           (nth 0 pair)
-                           (nth 1 pair)
-                           (nth 2 pair)
-                           (nth 3 pair)))))
 
 (defun cipher/aes--test-unibytes-to-hex (unibytes)
   (apply 'concat
@@ -57,13 +18,6 @@
   (unless (= (length hex-string) 8)
     (error "args out of range"))
   (cipher/aes--hex-to-vector hex-string))
-
-(defun cipher/aes--test-hex-to-words (hex-string)
-  (unless (= (mod (length hex-string) 8) 0)
-    (error "args out of range"))
-  (vconcat
-   (loop for i from 0 below (length hex-string) by 8
-         collect (cipher/aes--test-hex-to-word (substring hex-string i (+ i 8))))))
 
 (defun cipher/aes--test-openssl-key&iv (algorithm pass)
   (let ((key&iv (shell-command-to-string 
@@ -347,184 +301,208 @@
    ?\x1d ?\xfb ?\x97 ?\x32
    ])
 
+(defmacro cipher/aes-test-should (expected-form test-form)
+  (declare (indent 1))
+  `(should (equal ,expected-form ,test-form)))
+
 (defun cipher/aes--test-block-random-test ()
   (flet ((read-passwd (&rest dummy) (copy-seq "d")))
     (loop repeat 16
           do (let ((bytes (cipher/aes--test-random-bytes))
                    results)
                (setq results (openssl-cipher-decrypt-unibytes (cipher/aes-encrypt bytes)))
-               (unless (equal bytes results)
-                 (error "Expect elisp -> openssl `%s' but `%s'" bytes results))
+               (cipher/aes-test-should results bytes)
                (setq results (cipher/aes-decrypt (openssl-cipher-encrypt-unibytes bytes)))
-               (unless (equal bytes results)
-                 (error "Expect openssl -> elisp `%s' but `%s'" bytes results))))))
+               (cipher/aes-test-should results bytes)))))
 
-(expectations
-  (expect '(4 1 2 3) (cipher/aes--rot '(1 2 3 4) -1))
-  (expect '(2 3 4 1) (cipher/aes--rot '(1 2 3 4) 1))
+(defun cipher/aes-test-enc/dec (raw-bytes &optional algorithm)
+  (flet ((read-passwd (&rest dummy) (copy-seq "d")))
+    (cipher/aes-test-should raw-bytes
+      (cipher/aes-decrypt (cipher/aes-encrypt raw-bytes algorithm) algorithm))))
 
+(ert-deftest cipher/aes-test--rot ()
+  :tags '(cipher/aes)
+  (cipher/aes-test-should '(4 1 2 3) (cipher/aes--rot '(1 2 3 4) -1))
+  (cipher/aes-test-should '(2 3 4 1) (cipher/aes--rot '(1 2 3 4) 1))
+  )
+
+(ert-deftest cipher/aes-test--basic ()
+  :tags '(cipher/aes)
   ;; 4.1 Addition
-  (expect ?\xd4 (cipher/aes--add ?\x57 ?\x83))
+  (cipher/aes-test-should ?\xd4 (cipher/aes--add ?\x57 ?\x83))
 
   ;; 4.2 Multiplication
   ;; section 4.2
-  (expect ?\xc1 (cipher/aes--multiply ?\x57 ?\x83))
+  (cipher/aes-test-should ?\xc1 (cipher/aes--multiply ?\x57 ?\x83))
 
   ;; section 4.2.1
-  (expect ?\xfe (cipher/aes--multiply ?\x57 ?\x13))
+  (cipher/aes-test-should ?\xfe (cipher/aes--multiply ?\x57 ?\x13))
 
-  (expect [[65 70 75 80] [69 74 79 68] [73 78 67 72] [77 66 71 76]]
-    (cipher/aes--cipher-algorithm 'aes-256
-      (cipher/aes--shift-rows (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
+  )
 
-  (expect [[65 78 75 72] [69 66 79 76] [73 70 67 80] [77 74 71 68]] 
-    (cipher/aes--cipher-algorithm 'aes-256
-      (cipher/aes--inv-shift-rows (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
+(ert-deftest cipher/aes-test--inner-functions ()
+  :tags '(cipher/aes)
+  (cipher/aes--cipher-algorithm 'aes-256
+    (cipher/aes-test-should [[65 70 75 80] [69 74 79 68] [73 78 67 72] [77 66 71 76]]
+      (cipher/aes--shift-rows (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP")))
 
-  (expect (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
-    (cipher/aes--cipher-algorithm 'aes-256
-      (cipher/aes--inv-shift-rows (cipher/aes--shift-rows (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP")))))
+    (cipher/aes-test-should [[65 78 75 72] [69 66 79 76] [73 70 67 80] [77 74 71 68]] 
+      (cipher/aes--inv-shift-rows (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP")))
 
-  (expect (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
-    (cipher/aes--cipher-algorithm 'aes-256
-      (cipher/aes--inv-sub-bytes (cipher/aes--sub-bytes (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP")))))
+    (cipher/aes-test-should (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
+      (cipher/aes--inv-shift-rows (cipher/aes--shift-rows (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
 
-  (expect (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
-    (cipher/aes--cipher-algorithm 'aes-256
-      (cipher/aes--inv-mix-columns (cipher/aes--mix-columns (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP")))))
+    (cipher/aes-test-should (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
+      (cipher/aes--inv-sub-bytes (cipher/aes--sub-bytes (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
 
-  (expect (string-to-list "ABCDEFGHIJKLMNOP")
-    (cipher/aes--cipher-algorithm 'aes-256
+    (cipher/aes-test-should (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
+      (cipher/aes--inv-mix-columns (cipher/aes--mix-columns (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
+
+    (cipher/aes-test-should (string-to-list "ABCDEFGHIJKLMNOP")
       (let ((key (cipher/aes--key-expansion cipher/aes--test-aes256-key)))
         (cipher/aes--state-to-bytes
          (cipher/aes--inv-cipher
           (cipher/aes--cipher (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP") key)
-          key)))))
+          key))))))
 
-  (expect '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
-    (cipher/aes--cipher-algorithm 'aes-256
-      (cipher/aes--parse-unibytes "abcdefghijklmnopq" 0)))
+(ert-deftest cipher/aes-test--parser-functions ()
+  :tags '(cipher/aes)
+  
+  (cipher/aes--cipher-algorithm 'aes-256
+    (cipher/aes-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
+      (cipher/aes--parse-unibytes "abcdefghijklmnopq" 0))
 
-  (expect '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
-    (cipher/aes--cipher-algorithm 'aes-256
-      (cipher/aes--parse-unibytes "abcdefghijklmnop" 0)))
+    (cipher/aes-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
+      (cipher/aes--parse-unibytes "abcdefghijklmnop" 0))
 
-  (expect '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 1]] nil)
-    (cipher/aes--cipher-algorithm 'aes-256
-      (cipher/aes--parse-unibytes "abcdefghijklmno" 0)))
+    (cipher/aes-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 1]] nil)
+      (cipher/aes--parse-unibytes "abcdefghijklmno" 0))
+    
+    (cipher/aes-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 5] [5 5 5 5]] nil)
+      (cipher/aes--parse-unibytes "abcdefghijk" 0))
+    ))
 
-  (expect '([[97 98 99 100] [101 102 103 104] [105 106 107 5] [5 5 5 5]] nil)
-    (cipher/aes--cipher-algorithm 'aes-256
-      (cipher/aes--parse-unibytes "abcdefghijk" 0)))
+(ert-deftest cipher/aes-test--openssl-compatibility ()
+  :tags '(cipher/aes)
 
-  (expect (cipher/aes--test-openssl-key&iv "aes-128-cbc" "d")
+  (cipher/aes-test-should (cipher/aes--test-openssl-key&iv "aes-128-cbc" "d")
     (cipher/aes--proc "aes-128-cbc"
       (destructuring-bind (key iv) (cipher/aes--bytes-to-key (vconcat "d"))
         (list (cipher/aes--test-unibytes-to-hex key) (cipher/aes--test-unibytes-to-hex iv)))))
 
-  (expect (cipher/aes--test-openssl-key&iv "aes-128-ecb" "d")
+  (cipher/aes-test-should (cipher/aes--test-openssl-key&iv "aes-128-ecb" "d")
     (cipher/aes--proc "aes-128-ecb"
       (destructuring-bind (key iv) (cipher/aes--bytes-to-key (vconcat "d"))
         (list (cipher/aes--test-unibytes-to-hex key) (cipher/aes--test-unibytes-to-hex iv)))))
 
-  (expect (cipher/aes--test-openssl-key&iv "aes-256-ecb" "pass")
+  (cipher/aes-test-should (cipher/aes--test-openssl-key&iv "aes-256-ecb" "pass")
     (cipher/aes--proc "aes-256-ecb"
       (destructuring-bind (key iv) (cipher/aes--bytes-to-key (vconcat "pass"))
         (list (cipher/aes--test-unibytes-to-hex key) (cipher/aes--test-unibytes-to-hex iv)))))
 
-  (expect (cipher/aes--test-openssl-key&iv "aes-256-cbc" "pass")
+  (cipher/aes-test-should (cipher/aes--test-openssl-key&iv "aes-256-cbc" "pass")
     (cipher/aes--proc "aes-256-cbc"
       (destructuring-bind (key iv) (cipher/aes--bytes-to-key (vconcat "pass"))
         (list (cipher/aes--test-unibytes-to-hex key) (cipher/aes--test-unibytes-to-hex iv)))))
 
+  ;; ECB
+  (let ((cipher/aes-algorithm "aes-128-ecb")
+        (openssl-cipher-algorithm "aes-128-ecb"))
+    (cipher/aes--test-block-random-test))
+
+  ;; CBC
+  (let ((cipher/aes-algorithm "aes-128-cbc")
+        (openssl-cipher-algorithm "aes-128-cbc"))
+    (cipher/aes--test-block-random-test))
+  )
+
+
+(ert-deftest cipher/aes-test--appendix ()
+  :tags '(cipher/aes)
   ;; Appendix A.1
-  (expect cipher/aes--test-aes128-results
+  (cipher/aes-test-should cipher/aes--test-aes128-results
     (cipher/aes--cipher-algorithm 'aes-128 
       (cipher/aes--key-expansion cipher/aes--test-aes128-key)))
 
   ;; Appendix A.2
-  (expect cipher/aes--test-aes192-results
+  (cipher/aes-test-should cipher/aes--test-aes192-results
     (cipher/aes--cipher-algorithm 'aes-192 
       (cipher/aes--key-expansion cipher/aes--test-aes192-key)))
 
   ;; Appendix A.3
-  (expect cipher/aes--test-aes256-results
+  (cipher/aes-test-should cipher/aes--test-aes256-results
     (cipher/aes--cipher-algorithm 'aes-256
       (cipher/aes--key-expansion cipher/aes--test-aes256-key)))
 
   ;; Appendix B 
-  (expect [[?\x2b ?\x7e ?\x15 ?\x16] [?\x28 ?\xae ?\xd2 ?\xa6] [?\xab ?\xf7 ?\x15 ?\x88] [?\x09 ?\xcf ?\x4f ?\x3c]]
-    (cipher/aes--cipher-algorithm 'aes-128
-      (cipher/aes--round-key (cipher/aes--key-expansion cipher/aes--test-appendix-b-key) 0)))
+  (cipher/aes--cipher-algorithm 'aes-128
+    (cipher/aes-test-should [[?\x2b ?\x7e ?\x15 ?\x16] [?\x28 ?\xae ?\xd2 ?\xa6] [?\xab ?\xf7 ?\x15 ?\x88] [?\x09 ?\xcf ?\x4f ?\x3c]]
+                   (cipher/aes--round-key (cipher/aes--key-expansion cipher/aes--test-appendix-b-key) 0))
 
-  (expect (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-1)
-    (cipher/aes--cipher-algorithm 'aes-128
-      (cipher/aes--add-round-key (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-input-state) 
-                          (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-first-round-key))))
+    (cipher/aes-test-should (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-1)
+                   (cipher/aes--add-round-key (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-input-state) 
+                                              (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-first-round-key)))
 
-  (expect (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-2)
-    (cipher/aes--cipher-algorithm 'aes-128
-      (cipher/aes--sub-bytes (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-1))))
+    (cipher/aes-test-should (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-2)
+      (cipher/aes--sub-bytes (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-1)))
 
-  (expect (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-3)
-    (cipher/aes--cipher-algorithm 'aes-128
-      (cipher/aes--shift-rows (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-2))))
+    (cipher/aes-test-should (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-3)
+                   (cipher/aes--shift-rows (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-2)))
 
-  (expect (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-4)
-    (cipher/aes--cipher-algorithm 'aes-128
-      (cipher/aes--mix-columns (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-3))))
+    (cipher/aes-test-should (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-4)
+      (cipher/aes--mix-columns (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-3)))
 
-  (expect (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-round-key)
-    (cipher/aes--cipher-algorithm 'aes-128
-      (cipher/aes--round-key (cipher/aes--key-expansion cipher/aes--test-appendix-b-key) (* 1 cipher/aes--Nb))))
-
-  (expect (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-last-output)
-    (cipher/aes--cipher-algorithm 'aes-128
+    (cipher/aes-test-should (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-round-key)
+      (cipher/aes--round-key (cipher/aes--key-expansion cipher/aes--test-appendix-b-key) (* 1 cipher/aes--Nb)))
+    
+    (cipher/aes-test-should (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-last-output)
       (cipher/aes--cipher (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-input-state)
-                   (cipher/aes--key-expansion cipher/aes--test-appendix-b-key))))
+                          (cipher/aes--key-expansion cipher/aes--test-appendix-b-key)))
+    ))
 
-  (expect "a"
+(ert-deftest cipher/aes-test--enc/dec ()
+  :tags '(cipher/aes)
+
+  ;; check accept vector
+  (cipher/aes-test-should "abcdefg"
     (flet ((read-passwd (&rest dummy) (copy-seq "d")))
-      (cipher/aes-decrypt (cipher/aes-encrypt (vconcat "a")) cipher/aes-algorithm)))
+      (cipher/aes-decrypt (cipher/aes-encrypt (vconcat "abcdefg")))))
 
-  (expect "abcdefghijklmnop"
-    (flet ((read-passwd (&rest dummy) (copy-seq "d")))
-      (cipher/aes-decrypt (cipher/aes-encrypt "abcdefghijklmnop") cipher/aes-algorithm)))
+  ;; less than block size
+  (cipher/aes-test-enc/dec "abcdefghijklmno" "aes-128-ecb")
+  (cipher/aes-test-enc/dec "abcdefghijklmno" "aes-192-ecb")
+  (cipher/aes-test-enc/dec "abcdefghijklmno" "aes-256-ecb")
+  (cipher/aes-test-enc/dec "abcdefghijklmno" "aes-128-cbc")
+  (cipher/aes-test-enc/dec "abcdefghijklmno" "aes-192-cbc")
+  (cipher/aes-test-enc/dec "abcdefghijklmno" "aes-256-cbc")
 
-  (expect "ABCDEFGHIJKLMNOP"
-    (flet ((read-passwd (&rest dummy) (copy-seq "d")))
-      (cipher/aes-decrypt (cipher/aes-encrypt "ABCDEFGHIJKLMNOP" "aes-128-ecb") "aes-128-ecb")))
+  ;; equals block size
+  (cipher/aes-test-enc/dec "abcdefghijklmnop" "aes-128-ecb")
+  (cipher/aes-test-enc/dec "abcdefghijklmnop" "aes-192-ecb")
+  (cipher/aes-test-enc/dec "abcdefghijklmnop" "aes-256-ecb")
+  (cipher/aes-test-enc/dec "abcdefghijklmnop" "aes-128-cbc")
+  (cipher/aes-test-enc/dec "abcdefghijklmnop" "aes-192-cbc")
+  (cipher/aes-test-enc/dec "abcdefghijklmnop" "aes-256-cbc")
 
-  ;; Random test
-  (expect nil
-    (let ((cipher/aes-algorithm "aes-256-cbc"))
-      (loop repeat 256
-            do 
-            (flet ((read-passwd (&rest dummy) (copy-seq "d")))
-              (cipher/aes-decrypt (cipher/aes-encrypt (cipher/aes--test-random-bytes)))))))
+  ;; exceed block size
+  (cipher/aes-test-enc/dec "abcdefghijklmnopq" "aes-128-ecb")
+  (cipher/aes-test-enc/dec "abcdefghijklmnopq" "aes-192-ecb")
+  (cipher/aes-test-enc/dec "abcdefghijklmnopq" "aes-256-ecb")
+  (cipher/aes-test-enc/dec "abcdefghijklmnopq" "aes-128-cbc")
+  (cipher/aes-test-enc/dec "abcdefghijklmnopq" "aes-192-cbc")
+  (cipher/aes-test-enc/dec "abcdefghijklmnopq" "aes-256-cbc")
 
-  (expect nil
-    (let ((cipher/aes-algorithm "aes-256-ecb"))
-      (loop repeat 256
-            do 
-            (flet ((read-passwd (&rest dummy) (copy-seq "d")))
-              (cipher/aes-decrypt (cipher/aes-encrypt (cipher/aes--test-random-bytes)))))))
-
-  ;; Test with openssl command
-
-  ;; ECB
-  (expect nil
-    (let ((cipher/aes-algorithm "aes-128-ecb")
-          (openssl-cipher-algorithm "aes-128-ecb"))
-      (cipher/aes--test-block-random-test)))
-
-  ;; CBC
-  (expect nil
-    (let ((cipher/aes-algorithm "aes-128-cbc")
-          (openssl-cipher-algorithm "aes-128-cbc"))
-      (cipher/aes--test-block-random-test)))
   )
 
-;; (expectations-execute)
+(ert-deftest cipher/aes-test--random ()
+  :tags '(cipher/aes)
+
+  (loop repeat 256
+        do 
+        (cipher/aes-test-enc/dec (cipher/aes--test-random-bytes) "aes-256-cbc"))
+
+  (loop repeat 256
+        do 
+        (cipher/aes-test-enc/dec (cipher/aes--test-random-bytes) "aes-256-ecb")))
 
 (provide 'cipher/aes-test)
