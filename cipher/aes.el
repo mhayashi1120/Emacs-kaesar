@@ -93,35 +93,37 @@ which can be decrypted by `cipher/aes-decrypt-string'."
 (defun cipher/aes-encrypt (unibyte-string &optional algorithm)
   "Encrypt a UNIBYTE-STRING with ALGORITHM.
 See `cipher/aes-algorithm' list the supported ALGORITHM ."
-  (when (and (stringp unibyte-string)
-             (multibyte-string-p unibyte-string))
-    (error "Not a unibyte string"))
+  (cipher/aes--check-unibytes unibyte-string)
   (let* ((salt (cipher/aes--create-salt))
          (pass (cipher/aes--read-passwd "Password: " t)))
     (cipher/aes--proc algorithm
       (destructuring-bind (raw-key iv) (cipher/aes--bytes-to-key pass salt)
         (let ((key (cipher/aes--key-expansion raw-key)))
-          (cipher/aes--create-encrypted
-           (apply
-            'cipher/aes--unibyte-string
-            (append
-             (string-to-list cipher/aes--openssl-magic-word)
-             salt
-             (funcall cipher/aes--Enc unibyte-string key iv)))))))))
+          (cipher/aes--encrypt-0 unibyte-string key salt iv))))))
 
 (defun cipher/aes-decrypt (encrypted-string &optional algorithm)
   "Decrypt a ENCRYPTED-STRING which was encrypted by `cipher/aes-encrypt'"
-  (when (multibyte-string-p encrypted-string)
-    (error "Not a encrypted string"))
+  (cipher/aes--check-encrypted encrypted-string)
   (let ((algorithm (or algorithm (get-text-property 0 'encrypted-algorithm encrypted-string))))
     (cipher/aes--proc algorithm
       (destructuring-bind (salt encrypted-string) (cipher/aes--parse-salt encrypted-string)
         (let ((pass (cipher/aes--read-passwd "Password: ")))
           (destructuring-bind (raw-key iv) (cipher/aes--bytes-to-key pass salt)
             (let ((key (cipher/aes--key-expansion raw-key)))
-              (apply 
-               'cipher/aes--unibyte-string
-               (funcall cipher/aes--Dec encrypted-string key iv)))))))))
+              (cipher/aes--decrypt-0 encrypted-string key iv))))))))
+
+(defun cipher/aes-encrypt-by-key (unibyte-string algorithm key)
+  "Encrypt a UNIBYTE-STRING with ALGORITHM and KEY.
+See `cipher/aes-algorithm' list the supported ALGORITHM ."
+  (cipher/aes--check-unibytes unibyte-string)
+  (cipher/aes--proc algorithm
+    (cipher/aes--encrypt-0 unibyte-string key)))
+
+(defun cipher/aes-decrypt-by-key (encrypted-string algorithm key)
+  "Decrypt a ENCRYPTED-STRING which was encrypted by `cipher/aes-encrypt' with KEY."
+  (cipher/aes--check-encrypted encrypted-string)
+  (cipher/aes--proc algorithm
+    (cipher/aes--decrypt-0 encrypted-string key)))
 
 (defvar cipher/aes-password nil
   "Hiding parameter which hold password to suppress minibuffer prompt.")
@@ -131,6 +133,33 @@ See `cipher/aes-algorithm' list the supported ALGORITHM ."
            ;; do not clear external password.
            (vconcat cipher/aes-password))
       (vconcat (read-passwd prompt confirm))))
+
+(defun cipher/aes--encrypt-0 (unibyte-string key &optional salt iv)
+  (cipher/aes--create-encrypted
+   (apply
+    'cipher/aes--unibyte-string
+    (append
+     (string-to-list cipher/aes--openssl-magic-word)
+     salt
+     (funcall cipher/aes--Enc unibyte-string key iv)))))
+
+(defun cipher/aes--decrypt-0 (encrypted-string key &optional iv)
+  (apply 
+   'cipher/aes--unibyte-string
+   (funcall cipher/aes--Dec encrypted-string key iv)))
+
+(defun cipher/aes--check-unibytes (unibytes)
+  (cond
+   ((stringp unibytes)
+    (when (multibyte-string-p unibytes)
+      (error "Not a unibyte string")))
+   ((vectorp unibytes))))
+
+(defun cipher/aes--check-encrypted (encrypted-string)
+  (cond
+   ((stringp encrypted-string)
+    (when (multibyte-string-p encrypted-string)
+      (error "Not a encrypted string")))))
 
 ;; Basic utilities
 
