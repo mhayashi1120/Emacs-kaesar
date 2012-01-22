@@ -61,6 +61,8 @@
 
 ;; * cleanup temporary vector? or simply garbage-collect?
 
+;; * CTR mode
+
 ;;; Code:
 
 (eval-when-compile
