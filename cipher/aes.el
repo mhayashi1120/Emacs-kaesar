@@ -128,7 +128,8 @@ See `cipher/aes-algorithm' list the supported ALGORITHM ."
     (cipher/aes--decrypt-0 encrypted-string key)))
 
 (defvar cipher/aes-password nil
-  "Hiding parameter which hold password to suppress minibuffer prompt.")
+  "To suppress the minibuffer prompt. 
+This is a hiding parameter which hold password as vector.")
 
 (defun cipher/aes--read-passwd (prompt &optional confirm)
   (or (and (vectorp cipher/aes-password)
