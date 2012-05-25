@@ -33,6 +33,7 @@
 ;;; Usage:
 
 ;; TODO
+;; revert-buffer
 
 ;;; Code:
 
@@ -108,7 +109,8 @@
       (loop for b in (find-backup-file-name file)
             do (when (and (file-exists-p b)
                           (eq (car (file-attributes b)) nil))
-                 (delete-file b))))))
+                 (let ((delete-by-moving-to-trash nil))
+                   (delete-file b)))))))
 
 (defun aes-mode--encrypt (bytes)
   (let ((aes-password (aes-mode--password t)))

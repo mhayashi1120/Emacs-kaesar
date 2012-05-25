@@ -4,9 +4,9 @@
 ;; Keywords: encrypt decrypt password Rijndael
 ;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/cipher/aes.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version 0.8.5
+;; Version 0.8.6
 
-(defconst cipher/aes-version "0.8.5")
+(defconst cipher/aes-version "0.8.6")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -82,16 +82,19 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
   :group 'cipher/aes
   :type 'string)
 
+;;;###autoload
 (defun cipher/aes-encrypt-string (string)
   "Encrypt a well encoded STRING to encrypted string 
 which can be decrypted by `cipher/aes-decrypt-string'."
   (cipher/aes-encrypt (encode-coding-string string default-terminal-coding-system)))
 
+;;;###autoload
 (defun cipher/aes-decrypt-string (encrypted-string)
   "Decrypt a ENCRYPTED-STRING which was encrypted by `cipher/aes-encrypt-string'"
   (decode-coding-string
    (cipher/aes-decrypt encrypted-string) default-terminal-coding-system))
 
+;;;###autoload
 (defun cipher/aes-encrypt (unibyte-string &optional algorithm)
   "Encrypt a UNIBYTE-STRING with ALGORITHM.
 See `cipher/aes-algorithm' list the supported ALGORITHM ."
@@ -103,17 +106,21 @@ See `cipher/aes-algorithm' list the supported ALGORITHM ."
         (let ((key (cipher/aes--key-expansion raw-key)))
           (cipher/aes--encrypt-0 unibyte-string key salt iv))))))
 
+;;;###autoload
 (defun cipher/aes-decrypt (encrypted-string &optional algorithm)
   "Decrypt a ENCRYPTED-STRING which was encrypted by `cipher/aes-encrypt'"
   (cipher/aes--check-encrypted encrypted-string)
-  (let ((algorithm (or algorithm (get-text-property 0 'encrypted-algorithm encrypted-string))))
+  (let ((algorithm (or algorithm
+                       (get-text-property 0 'encrypted-algorithm encrypted-string))))
     (cipher/aes--proc algorithm
-      (destructuring-bind (salt encrypted-string) (cipher/aes--parse-salt encrypted-string)
+      (destructuring-bind (salt encrypted-string) 
+          (cipher/aes--parse-salt encrypted-string)
         (let ((pass (cipher/aes--read-passwd "Password: ")))
           (destructuring-bind (raw-key iv) (cipher/aes--bytes-to-key pass salt)
             (let ((key (cipher/aes--key-expansion raw-key)))
               (cipher/aes--decrypt-0 encrypted-string key iv))))))))
 
+;;;###autoload
 (defun cipher/aes-encrypt-by-key (unibyte-string algorithm key)
   "Encrypt a UNIBYTE-STRING with ALGORITHM and KEY.
 See `cipher/aes-algorithm' list the supported ALGORITHM ."
@@ -121,6 +128,7 @@ See `cipher/aes-algorithm' list the supported ALGORITHM ."
   (cipher/aes--proc algorithm
     (cipher/aes--encrypt-0 unibyte-string key)))
 
+;;;###autoload
 (defun cipher/aes-decrypt-by-key (encrypted-string algorithm key)
   "Decrypt a ENCRYPTED-STRING which was encrypted by `cipher/aes-encrypt' with KEY."
   (cipher/aes--check-encrypted encrypted-string)
@@ -746,25 +754,30 @@ This is a hiding parameter which hold password as vector.")
         do (aset state i (cipher/aes--word-xor w1 w2))
         finally return state))
 
+(put 'cipher/aes-decryption-failed 
+     'error-conditions '(cipher/aes-decryption-failed error))
+(put 'cipher/aes-decryption-failed 
+     'error-message "Bad decrypt")
+
 ;; check End-Of-Block bytes
 (defun cipher/aes--check-end-of-decrypted (eob-bytes)
   (let* ((pad (car (last eob-bytes)))
          (valid-len (- cipher/aes--Block pad)))
     (when (or (> valid-len (length eob-bytes))
               (< valid-len 0))
-      (error "Bad decrypt"))
+      (signal 'cipher/aes-decryption-failed nil))
     ;; check non padding byte exists
     ;; o aaa => '(97 97 97 13 13 .... 13)
     ;; x aaa => '(97 97 97 13 10 .... 13)
     (when (remove pad (nthcdr valid-len eob-bytes))
-      (error "Bad decrypt"))
+      (signal 'cipher/aes-decryption-failed nil))
     (loop for i from 0 below valid-len
           for u in eob-bytes
           collect u)))
 
 (defun cipher/aes--check-encrypted-string (string)
   (unless (= (mod (length string) cipher/aes--Block) 0)
-    (error "Bad decrypt")))
+    (signal 'cipher/aes-decryption-failed nil)))
 
 (defun cipher/aes--ecb-encrypt (unibyte-string key &rest dummy)
   (loop with pos = 0
