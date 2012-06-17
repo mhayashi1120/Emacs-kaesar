@@ -6,7 +6,7 @@
 ;; Emacs: GNU Emacs 22 or later
 ;; Version 0.8.8
 
-(defconst cipher/aes-version "0.8.6")
+(defconst cipher/aes-version "0.8.8")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -62,8 +62,6 @@
 ;; * cleanup temporary vector? or simply garbage-collect?
 
 ;; * CTR mode
-
-;; * change password prompt
 
 ;;; Code:
 
