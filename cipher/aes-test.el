@@ -568,9 +568,46 @@
                          (ct (cdr (assoc "CT" test)))
                          (raw-key (cipher/aes-test--hex-to-vector key))
                          (enc (cipher/aes-encrypt-by-key data algo raw-key))
-                         (hex (cipher/aes--test-unibytes-to-hex (vconcat enc)))
+                         (hex (cipher/aes--test-unibytes-to-hex enc))
                          (test-target (substring hex 0 (length ct))))
                     (cipher/aes-test-should ct test-target)))))))
+
+(ert-deftest cipher/aes-test--variable-text ()
+  :tags '(cipher/aes)
+  (let* ((file (cipher/aes-test--locate-test-data "ecb_vt.txt"))
+         (suites (cipher/aes--parse-test-values file)))
+    (loop for (keysize suite) in suites
+          do
+          (let* ((algo (format "aes-%d-ecb" keysize))
+                 (key (cdr (assoc "KEY" (car suite))))
+                 (raw-key (cipher/aes-test--hex-to-vector key)))
+            (loop for test in (cdr suite)
+                  do
+                  (let* ((data (cipher/aes-test--hex-to-vector (cdr (assoc "PT" test))))
+                         (ct (cdr (assoc "CT" test)))
+                         (enc (cipher/aes-encrypt-by-key data algo raw-key))
+                         (hex (cipher/aes--test-unibytes-to-hex enc))
+                         (test-target (substring hex 0 (length ct))))
+                    (cipher/aes-test-should ct test-target)))))))
+
+(ert-deftest cipher/aes-test--tables ()
+  :tags '(cipher/aes)
+  (let* ((file (cipher/aes-test--locate-test-data "ecb_tbl.txt"))
+         (suites (cipher/aes--parse-test-values file)))
+    (loop for (keysize suite) in suites
+          do
+          (let* ((algo (format "aes-%d-ecb" keysize)))
+            (loop for test in suite
+                  do
+                  (let* ((raw-key (cipher/aes-test--hex-to-vector (cdr (assoc "KEY" test))))
+                         (data (cipher/aes-test--hex-to-vector (cdr (assoc "PT" test))))
+                         (ct (cdr (assoc "CT" test)))
+                         (enc (cipher/aes-encrypt-by-key data algo raw-key))
+                         (hex (cipher/aes--test-unibytes-to-hex enc))
+                         (test-target (substring hex 0 (length ct))))
+                    (cipher/aes-test-should ct test-target)))))))
+
+;; TODO ecb_iv.txt
 
 
 (provide 'cipher/aes-test)
