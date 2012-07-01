@@ -555,6 +555,7 @@
         (expand-file-name name datadir)))))
 
 (ert-deftest cipher/aes-test--variable-key ()
+  "Known Answer Test (Variable Key)"
   :tags '(cipher/aes)
   (let* ((file (cipher/aes-test--locate-test-data "ecb_vk.txt"))
          (suites (cipher/aes--parse-test-values file)))
@@ -573,6 +574,7 @@
                     (cipher/aes-test-should ct test-target)))))))
 
 (ert-deftest cipher/aes-test--variable-text ()
+  "Known Answer Test (Variable Text)"
   :tags '(cipher/aes)
   (let* ((file (cipher/aes-test--locate-test-data "ecb_vt.txt"))
          (suites (cipher/aes--parse-test-values file)))
@@ -591,6 +593,7 @@
                     (cipher/aes-test-should ct test-target)))))))
 
 (ert-deftest cipher/aes-test--tables ()
+  "Known Answer Tests"
   :tags '(cipher/aes)
   (let* ((file (cipher/aes-test--locate-test-data "ecb_tbl.txt"))
          (suites (cipher/aes--parse-test-values file)))
@@ -608,6 +611,55 @@
                     (cipher/aes-test-should ct test-target)))))))
 
 ;; TODO ecb_iv.txt
+
+(defun cipher/aes-test--ecb-mct (func hex-key hex-data algo)
+  (let* ((raw-key (cipher/aes-test--hex-to-vector hex-key))
+         (data (cipher/aes-test--hex-to-vector hex-data)))
+    (cipher/aes--proc algo
+      (loop with key = (cipher/aes--key-expansion raw-key)
+            with state = (cipher/aes--unibytes-to-state data)
+            repeat 10000
+            do (setq state (funcall func state key))
+            finally return (let* ((bytes (cipher/aes--state-to-bytes state))
+                                  (unibytes (vconcat bytes))
+                                  (hex (cipher/aes--test-unibytes-to-hex unibytes)))
+                             hex)))))
+
+;;TODO too slow
+;; (ert-deftest cipher/aes-test--ecb-encrypt ()
+;;   "Monte Carlo Test ECB mode decryption"
+;;   :tags '(cipher/aes)
+;;   (let* ((file (cipher/aes-test--locate-test-data "ecb_e_m.txt"))
+;;          (suites (cipher/aes--parse-test-values file)))
+;;     (loop for (keysize suite) in suites
+;;           do
+;;           (let* ((algo (format "aes-%d-ecb" keysize)))
+;;             (loop for test in suite
+;;                   do
+;;                   (let* ((hex-key (cdr (assoc "KEY" test)))
+;;                          (hex-data (cdr (assoc "PT" test)))
+;;                          (ct (cdr (assoc "CT" test)))
+;;                          (enc (cipher/aes-test--ecb-mct 'cipher/aes--cipher hex-key hex-data algo)))
+;;                     (cipher/aes-test-should ct enc)))))))
+
+;;TODO too slow
+;; (ert-deftest cipher/aes-test--ecb-decrypt ()
+;;   "Monte Carlo Test ECB mode decryption"
+;;   :tags '(cipher/aes)
+;;   (let* ((file (cipher/aes-test--locate-test-data "ecb_d_m.txt"))
+;;          (suites (cipher/aes--parse-test-values file)))
+;;     (loop for (keysize suite) in suites
+;;           do
+;;           (let* ((algo (format "aes-%d-ecb" keysize)))
+;;             (loop for test in suite
+;;                   do
+;;                   (let* ((hex-key (cdr (assoc "KEY" test)))
+;;                          (hex-data (cdr (assoc "CT" test)))
+;;                          (pt (cdr (assoc "PT" test)))
+;;                          (dec (cipher/aes-test--ecb-mct 'cipher/aes--inv-cipher hex-key hex-data algo)))
+;;                     (cipher/aes-test-should pt dec)))))))
+
+
 
 
 (provide 'cipher/aes-test)
