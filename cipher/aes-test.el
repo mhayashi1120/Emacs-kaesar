@@ -505,4 +505,73 @@
         do 
         (cipher/aes-test-enc/dec (cipher/aes--test-random-bytes) "aes-256-ecb")))
 
+(defun cipher/aes--parse-test-values (file)
+  (with-temp-buffer
+    (insert-file-contents file)
+    (goto-char (point-min))
+    (re-search-forward "^==========$" nil t)
+    (let (res)
+      (while (and (not (eobp))
+                  (re-search-forward "^KEYSIZE=\\([0-9]+\\)$" nil t))
+        (let ((keysize (string-to-number (match-string 1)))
+              (start (line-beginning-position 2))
+              block data end)
+          (setq end (or (and (re-search-forward "^==========$" nil t)
+                             (line-beginning-position))
+                        (point-max)))
+          (save-restriction
+            (narrow-to-region start end)
+            (goto-char (point-min))
+            (while (not (eobp))
+              (cond
+               ((looking-at "^\\([^=\n]+\\)=\\(.*\\)$")
+                (let ((line (cons (match-string 1) (match-string 2))))
+                  (setq block (cons line block))))
+               ((looking-at "^$")
+                (when block
+                  (setq data (cons (nreverse block) data))
+                  (setq block nil))))
+              (forward-line 1))
+            (setq res (cons (list keysize (nreverse data)) res)))))
+      (nreverse res))))
+
+(defun cipher/aes-test--hex-to-vector (hex)
+  (loop with len = (length hex)
+        with vec = (make-vector (/ len 2) nil)
+        for i from 0 below len by 2
+        for j from 0
+        collect (let* ((s (substring hex i (+ i 2)))
+                       (n (string-to-number s 16)))
+                  (aset vec j n))
+        finally return vec))
+
+(defun cipher/aes-test--locate-test-data (name)
+  (let ((hist (car (member-if 
+                    (lambda (x) (string-match "aes-test.el" (car x)))
+                    load-history))))
+    (when hist
+      (let* ((top (expand-file-name "../.." (car hist)))
+             (datadir (expand-file-name "test/aes-test-values" top)))
+        (expand-file-name name datadir)))))
+
+(ert-deftest cipher/aes-test--variable-key ()
+  :tags '(cipher/aes)
+  (let* ((file (cipher/aes-test--locate-test-data "ecb_vk.txt"))
+         (suites (cipher/aes--parse-test-values file)))
+    (loop for (keysize suite) in suites
+          do
+          (let ((algo (format "aes-%d-ecb" keysize))
+                (data (cipher/aes-test--hex-to-vector (cdr (assoc "PT" (car suite))))))
+            (loop for test in (cdr suite)
+                  do
+                  (let* ((key (cdr (assoc "KEY" test)))
+                         (ct (cdr (assoc "CT" test)))
+                         (raw-key (cipher/aes-test--hex-to-vector key))
+                         (enc (cipher/aes-encrypt-by-key data algo raw-key))
+                         (hex (cipher/aes--test-unibytes-to-hex (vconcat enc)))
+                         (test-target (substring hex 0 (length ct))))
+                    (cipher/aes-test-should ct test-target)))))))
+
+
 (provide 'cipher/aes-test)
+
