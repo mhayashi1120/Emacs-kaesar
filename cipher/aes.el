@@ -4,9 +4,9 @@
 ;; Keywords: encrypt decrypt password Rijndael
 ;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/cipher/aes.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version 0.8.8
+;; Version 0.9.0
 
-(defconst cipher/aes-version "0.8.8")
+(defconst cipher/aes-version "0.9.0")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -56,12 +56,15 @@
 
 ;;; TODO:
 ;; * about algorithm
-;; http://csrc.nist.gov/archive/aes/index.html
+;; http://csrc.nist.gov/archive/aes/rijndael/wsdindex.html
 ;; Rijndael algorithm
 
 ;; * cleanup temporary vector? or simply garbage-collect?
 
 ;; * CTR mode
+
+;; * validation -> AESAVS.pdf
+;;    
 
 ;;; Code:
 
@@ -96,13 +99,14 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 (defun cipher/aes-encrypt-string (string)
   "Encrypt a well encoded STRING to encrypted string
 which can be decrypted by `cipher/aes-decrypt-string'."
-  (cipher/aes-encrypt (encode-coding-string string default-terminal-coding-system)))
+  (let ((unibytes (encode-coding-string string default-terminal-coding-system)))
+    (cipher/aes-encrypt unibytes)))
 
 ;;;###autoload
 (defun cipher/aes-decrypt-string (encrypted-string)
   "Decrypt a ENCRYPTED-STRING which was encrypted by `cipher/aes-encrypt-string'"
-  (decode-coding-string
-   (cipher/aes-decrypt encrypted-string) default-terminal-coding-system))
+  (let ((unibytes (cipher/aes-decrypt encrypted-string)))
+    (decode-coding-string unibytes default-terminal-coding-system)))
 
 ;;;###autoload
 (defun cipher/aes-encrypt (unibyte-string &optional algorithm)
@@ -194,7 +198,6 @@ This is a hiding parameter which hold password as vector.")
 
 ;; Algorithm specifications
 
-;; section 5
 ;; AES-128: Nk 4 Nb 4 Nr 10
 ;; AES-192: Nk 6 Nb 4 Nr 12
 ;; AES-256: Nk 8 Nb 4 Nr 14
@@ -211,15 +214,12 @@ This is a hiding parameter which hold password as vector.")
     (cbc cipher/aes--cbc-encrypt cipher/aes--cbc-decrypt cipher/aes--Block)
     ))
 
-;; section 6.3
 ;; Block size
 (defvar cipher/aes--Nb 4)
 
-;; section 6.3
 ;; Key length
 (defvar cipher/aes--Nk)
 
-;; section 6.3
 ;; Number of rounds
 (defvar cipher/aes--Nr)
 
@@ -234,6 +234,9 @@ This is a hiding parameter which hold password as vector.")
 (defvar cipher/aes--IV)
 
 (defvar cipher/aes--Algorithm)
+
+(defconst cipher/aes--pkcs5-salt-length 8)
+(defconst cipher/aes--openssl-magic-word "Salted__")
 
 (defun cipher/aes--encrypt-0 (unibyte-string key &optional salt iv)
   (cipher/aes--create-encrypted
@@ -341,9 +344,6 @@ This is a hiding parameter which hold password as vector.")
         do (aset v i (vconcat r))
         finally return v))
 
-(defconst cipher/aes--pkcs5-salt-length 8)
-(defconst cipher/aes--openssl-magic-word "Salted__")
-
 (defun cipher/aes--create-salt ()
   (loop for i from 0 below cipher/aes--pkcs5-salt-length
         with salt = (make-vector cipher/aes--pkcs5-salt-length nil)
@@ -359,9 +359,19 @@ This is a hiding parameter which hold password as vector.")
      (vconcat (match-string 1 unibyte-string))
      (substring unibyte-string (match-end 0)))))
 
-;; Emulate openssl EVP_BytesToKey function
+(defcustom cipher/aes-password-to-key-function
+  'cipher/aes--openssl-evp-bytes-to-key
+  "Function which accepts password and optional salt,
+to create AES key and initial vector."
+  :group 'cipher/aes
+  :type 'function)
+
 ;; return '(key iv)
 (defun cipher/aes--bytes-to-key (data &optional salt)
+  (funcall cipher/aes-password-to-key-function data salt))
+
+;; Emulate openssl EVP_BytesToKey function
+(defun cipher/aes--openssl-evp-bytes-to-key (data &optional salt)
   (let ((iv (make-vector cipher/aes--IV nil))
         (key (make-vector (* cipher/aes--Nk cipher/aes--Nb) nil))
         ;;md5 hash size
@@ -396,7 +406,9 @@ This is a hiding parameter which hold password as vector.")
     (list key iv)))
 
 (defun cipher/aes--key-md5-digest (hash data)
-  (loop for v across (cipher/aes--hex-to-vector (md5 (apply 'cipher/aes--unibyte-string data)))
+  (loop with unibytes = (apply 'cipher/aes--unibyte-string data)
+        with md5-hash = (md5 unibytes)
+        for v across (cipher/aes--hex-to-vector md5-hash)
         for i from 0
         do (aset hash i v)))
 
@@ -478,7 +490,30 @@ This is a hiding parameter which hold password as vector.")
 (defsubst cipher/aes--inv-multiply (byte)
   (aref cipher/aes--inv-multiply-cache byte))
 
-;; section 5.2
+(defconst cipher/aes--S-box
+  (loop with boxing = (lambda (byte)
+                     (let* ((inv (cipher/aes--inv-multiply byte))
+                            (s inv)
+                            (x inv))
+                       (loop repeat 4
+                             do (progn
+                                  (setq s (cipher/aes--byte-rot s 1))
+                                  (setq x (logxor s x))))
+                       (logxor x ?\x63)))
+        for b from 0 to ?\xff
+        with box = (make-vector ?\x100 nil)
+        do (aset box b (funcall boxing b))
+        finally return box))
+
+(defsubst cipher/aes--sub-bytes (state)
+  (loop for w across state
+        do (progn
+             (aset w 0 (aref cipher/aes--S-box (aref w 0)))
+             (aset w 1 (aref cipher/aes--S-box (aref w 1)))
+             (aset w 2 (aref cipher/aes--S-box (aref w 2)))
+             (aset w 3 (aref cipher/aes--S-box (aref w 3)))))
+  state)
+
 (defsubst cipher/aes--rot-word (word)
   (vector
    (aref word 1)
@@ -492,6 +527,12 @@ This is a hiding parameter which hold password as vector.")
    (aref cipher/aes--S-box (aref word 1))
    (aref cipher/aes--S-box (aref word 2))
    (aref cipher/aes--S-box (aref word 3))))
+
+(defconst cipher/aes--Rcon
+  (vconcat
+   (loop repeat 10
+         for v = 1 then (cipher/aes--xtime v)
+         collect (vector v 0 0 0))))
 
 (defun cipher/aes--key-expansion (key)
   (let (res)
@@ -522,7 +563,6 @@ This is a hiding parameter which hold password as vector.")
                           res))))
     (nreverse res)))
 
-;; section 5.1.4
 (defsubst cipher/aes--add-round-key (state key)
   (aset state 0 (cipher/aes--word-xor (aref state 0) (aref key 0)))
   (aset state 1 (cipher/aes--word-xor (aref state 1) (aref key 1)))
@@ -538,7 +578,6 @@ This is a hiding parameter which hold password as vector.")
      (nth 2 rest)
      (nth 3 rest))))
 
-;; section 5.1.3
 (defsubst cipher/aes--mix-column (word)
   (let ((w1 (vconcat word))
         (w2 (vconcat (mapcar
@@ -574,7 +613,6 @@ This is a hiding parameter which hold password as vector.")
   (cipher/aes--mix-column (aref state 3))
   state)
 
-;; section 5.3.3
 (defsubst cipher/aes--inv-mix-column (word)
   (let ((w1 (vconcat word))
         (w2 (vconcat (mapcar (lambda (b) (cipher/aes--multiply b 2)) word)))
@@ -620,23 +658,17 @@ This is a hiding parameter which hold password as vector.")
   (cipher/aes--inv-mix-column (aref state 3))
   state)
 
-(defvar cipher/aes--Rcon
-  (vconcat
-   (loop repeat 10
-         for v = 1 then (cipher/aes--xtime v)
-         collect (vector v 0 0 0))))
-
-;; for section 5.1.2, 5.3.1
 (defsubst cipher/aes--shift-row (state row count)
   (let ((new-rows (loop for col from 0 below cipher/aes--Nb
                         collect
-                        (aref (aref state (mod (+ col count) cipher/aes--Nb)) row))))
+                        (let* ((index (mod (+ col count) cipher/aes--Nb))
+                               (col (aref state index)))
+                          (aref col row)))))
     (loop for col from 0 below cipher/aes--Nb
           for new-row in new-rows
           do
           (aset (aref state col) row new-row))))
 
-;; section 5.1.2
 (defsubst cipher/aes--shift-rows (state)
   ;; ignore first row
   (cipher/aes--shift-row state 1 1)
@@ -644,7 +676,6 @@ This is a hiding parameter which hold password as vector.")
   (cipher/aes--shift-row state 3 3)
   state)
 
-;; section 5.3.1
 (defsubst cipher/aes--inv-shift-rows (state)
   ;; ignore first row
   (cipher/aes--shift-row state 1 3)
@@ -652,33 +683,6 @@ This is a hiding parameter which hold password as vector.")
   (cipher/aes--shift-row state 3 1)
   state)
 
-;; section 5.1.1
-(defun cipher/aes--s-box-0 (byte)
-  (let* ((inv (cipher/aes--inv-multiply byte))
-         (s inv)
-         (x inv))
-    (loop repeat 4
-          do (progn
-               (setq s (cipher/aes--byte-rot s 1))
-               (setq x (logxor s x))))
-    (logxor x ?\x63)))
-
-(defconst cipher/aes--S-box
-  (loop for b from 0 to ?\xff
-        with box = (make-vector ?\x100 nil)
-        do (aset box b (cipher/aes--s-box-0 b))
-        finally return box))
-
-(defsubst cipher/aes--sub-bytes (state)
-  (loop for w across state
-        do (progn
-             (aset w 0 (aref cipher/aes--S-box (aref w 0)))
-             (aset w 1 (aref cipher/aes--S-box (aref w 1)))
-             (aset w 2 (aref cipher/aes--S-box (aref w 2)))
-             (aset w 3 (aref cipher/aes--S-box (aref w 3)))))
-  state)
-
-;; section 5.3.2
 (defconst cipher/aes--inv-S-box
   (loop for s across cipher/aes--S-box
         for b from 0
@@ -695,7 +699,6 @@ This is a hiding parameter which hold password as vector.")
              (aset w 3 (aref cipher/aes--inv-S-box (aref w 3)))))
   state)
 
-;; section 5.1
 (defsubst cipher/aes--cipher (state key)
   (cipher/aes--add-round-key state (cipher/aes--round-key key 0))
   (loop for round from 1 to (1- cipher/aes--Nr)
@@ -711,7 +714,6 @@ This is a hiding parameter which hold password as vector.")
    state (cipher/aes--round-key key (* cipher/aes--Nr cipher/aes--Nb)))
   state)
 
-;; section 5.3
 (defsubst cipher/aes--inv-cipher (state key)
   (cipher/aes--add-round-key state
                       (cipher/aes--round-key key (* cipher/aes--Nr cipher/aes--Nb)))
@@ -751,7 +753,8 @@ This is a hiding parameter which hold password as vector.")
                       (state-e (nth 0 parsed))
                       ;; Clone state cause of `cipher/aes--inv-cipher' have side-effect
                       (state-e0 (cipher/aes--state-clone state-e))
-                      (state-d0 (cipher/aes--cbc-state-xor state-1 (cipher/aes--inv-cipher state-e key)))
+                      (state-d0 (cipher/aes--cbc-state-xor
+                                 state-1 (cipher/aes--inv-cipher state-e key)))
                       (bytes (cipher/aes--state-to-bytes state-d0)))
                  (setq pos (nth 1 parsed))
                  (setq state-1 state-e0)
