@@ -516,7 +516,7 @@
         (let ((keysize (string-to-number (match-string 1)))
               (start (line-beginning-position 2))
               block data end)
-          (setq end (or (and (re-search-forward "^==========$" nil t)
+          (setq end (or (and (re-search-forward "^=+$" nil t)
                              (line-beginning-position))
                         (point-max)))
           (save-restriction
@@ -636,17 +636,96 @@
 ;;           (let* ((algo (format "aes-%d-ecb" keysize)))
 ;;             (loop for test in suite
 ;;                   do
-;;                   (let* ((hex-key (cdr (assoc "KEY" test)))
-;;                          (hex-data (cdr (assoc "PT" test)))
-;;                          (ct (cdr (assoc "CT" test)))
-;;                          (enc (cipher/aes-test--ecb-mct 'cipher/aes--cipher hex-key hex-data algo)))
-;;                     (cipher/aes-test-should ct enc)))))))
+;;                   (condition-case err
+;;                       (let* ((hex-key (cdr (assoc "KEY" test)))
+;;                              (hex-data (cdr (assoc "PT" test)))
+;;                              (ct (cdr (assoc "CT" test)))
+;;                              (enc (cipher/aes-test--ecb-mct 'cipher/aes--cipher hex-key hex-data algo)))
+;;                         (cipher/aes-test-should ct enc))
+;;                     (error
+;;                      (message "%s" test)
+;;                      (signal (car err) (cdr err)))))))))
 
 ;;TODO too slow
 ;; (ert-deftest cipher/aes-test--ecb-decrypt ()
 ;;   "Monte Carlo Test ECB mode decryption"
 ;;   :tags '(cipher/aes)
 ;;   (let* ((file (cipher/aes-test--locate-test-data "ecb_d_m.txt"))
+;;          (suites (cipher/aes--parse-test-values file)))
+;;     (loop for (keysize suite) in suites
+;;           do
+;;           (let* ((algo (format "aes-%d-ecb" keysize)))
+;;             (loop for test in suite
+;;                   do
+;;                   (let* ((hex-key (cdr (assoc "KEY" test)))
+;;                          (hex-data (cdr (assoc "CT" test)))
+;;                          (pt (cdr (assoc "PT" test)))
+;;                          (dec (cipher/aes-test--ecb-mct 'cipher/aes--inv-cipher hex-key hex-data algo)))
+;;                     (cipher/aes-test-should pt dec)))))))
+
+
+(defun cipher/aes-test--cbc-mct (hex-key hex-pt hex-iv algo)
+  (let* ((raw-key (cipher/aes-test--hex-to-vector hex-key))
+         (pt (cipher/aes-test--hex-to-vector hex-pt))
+         (iv (cipher/aes-test--hex-to-vector hex-iv))
+         (cv iv))
+    (cipher/aes--proc algo
+      (loop with key = (cipher/aes--key-expansion raw-key)
+            with cv = (cipher/aes--unibytes-to-state cv)
+            with pt = (cipher/aes--unibytes-to-state pt)
+            with ct-1 = nil
+            with ct = nil
+            repeat 10000
+            do (let* ((tmp (cipher/aes--cbc-state-xor pt cv)))
+                 (setq ct (cipher/aes--cipher tmp key))
+                 (if (null ct-1)
+                     (setq pt cv)
+                   (setq pt ct-1))
+                 (setq cv ct)
+                 (setq ct-1 ct))
+            finally return
+            (list (cipher/aes--test-state-to-hex ct)
+                  (cipher/aes--test-state-to-hex pt))))))
+
+(defun cipher/aes--test-state-to-hex (state)
+  (let* ((bytes (cipher/aes--state-to-bytes state))
+         (unibytes (vconcat bytes))
+         (hex (cipher/aes--test-unibytes-to-hex unibytes)))
+    hex))
+
+;;TODO too slow
+;; (ert-deftest cipher/aes-test--ecb-encrypt ()
+;;   "Monte Carlo Test CBC mode encryption"
+;;   :tags '(cipher/aes)
+;;   (let* ((file (cipher/aes-test--locate-test-data "cbc_e_m.txt"))
+;;          (suites (cipher/aes--parse-test-values file)))
+;;     (loop for (keysize suite) in suites ;TODO
+;;           do
+;;           (let* ((algo (format "aes-%d-cbc" keysize))
+;;                  prev-pt)
+;;             (loop for test in (list (car suite) (cadr suite)) ;; TODO
+;;                   do
+;;                   (condition-case err
+;;                       (let* ((hex-key (cdr (assoc "KEY" test)))
+;;                              (hex-iv (cdr (assoc "IV" test)))
+;;                              (hex-pt (cdr (assoc "PT" test)))
+;;                              (hex-ct (cdr (assoc "CT" test))))
+;;                         (when prev-pt
+;;                           (cipher/aes-test-should hex-pt prev-pt))
+;;                         (destructuring-bind (res-ct res-pt)
+;;                             (cipher/aes-test--cbc-mct hex-key hex-pt hex-iv algo)
+;;                           (cipher/aes-test-should hex-ct res-ct)
+;;                           (setq prev-pt res-pt))
+;;                         (message "%s" test))
+;;                     (error
+;;                      (message "Error: %s" test)
+;;                      (signal (car err) (cdr err)))))))))
+
+;;TODO too slow not yet implement
+;; (ert-deftest cipher/aes-test--ecb-decrypt ()
+;;   "Monte Carlo Test CBC mode decryption"
+;;   :tags '(cipher/aes)
+;;   (let* ((file (cipher/aes-test--locate-test-data "cbc_d_m.txt"))
 ;;          (suites (cipher/aes--parse-test-values file)))
 ;;     (loop for (keysize suite) in suites
 ;;           do
