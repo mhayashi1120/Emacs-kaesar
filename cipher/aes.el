@@ -764,7 +764,7 @@ to create AES key and initial vector."
   (loop with pos = 0
         with state-1 = (cipher/aes--unibytes-to-state iv)
         append (let* ((parsed (cipher/aes--parse-unibytes unibyte-string pos))
-                      (state-d0 (cipher/aes--cbc-state-xor state-1 (nth 0 parsed)))
+                      (state-d0 (cipher/aes--cbc-state-xor (nth 0 parsed) state-1))
                       (state-e0 (cipher/aes--cipher state-d0 key)))
                  (setq pos (nth 1 parsed))
                  (setq state-1 state-e0)
@@ -780,7 +780,7 @@ to create AES key and initial vector."
                       ;; Clone state cause of `cipher/aes--inv-cipher' have side-effect
                       (state-e0 (cipher/aes--state-clone state-e))
                       (state-d0 (cipher/aes--cbc-state-xor
-                                 state-1 (cipher/aes--inv-cipher state-e key)))
+                                 (cipher/aes--inv-cipher state-e key) state-1))
                       (bytes (cipher/aes--state-to-bytes state-d0)))
                  (setq pos (nth 1 parsed))
                  (setq state-1 state-e0)
@@ -789,13 +789,12 @@ to create AES key and initial vector."
                  (append bytes nil))
         while pos))
 
-(defun cipher/aes--cbc-state-xor (state-1 state0)
+(defun cipher/aes--cbc-state-xor (state0 state-1)
   (loop for w1 across state-1
         for w2 across state0
         for i from 0
-        with state = (make-vector cipher/aes--Row nil)
-        do (aset state i (cipher/aes--word-xor w1 w2))
-        finally return state))
+        do (aset state0 i (cipher/aes--word-xor w1 w2))
+        finally return state0))
 
 (put 'cipher/aes-decryption-failed
      'error-conditions '(cipher/aes-decryption-failed error))
