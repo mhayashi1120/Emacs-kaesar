@@ -420,9 +420,10 @@ to create AES key and initial vector."
         do (aset hash i v)))
 
 (defun cipher/aes--hex-to-vector (hex-string)
-  (vconcat
-   (loop for i from 0 below (length hex-string) by 2
-         collect (string-to-number (substring hex-string i (+ i 2)) 16))))
+  (loop for i from 0 below (length hex-string) by 2
+        collect (string-to-number (substring hex-string i (+ i 2)) 16)
+        into res
+        finally return (vconcat res)))
 
 (if (fboundp 'unibyte-string)
     (defalias 'cipher/aes--unibyte-string 'unibyte-string)
@@ -474,11 +475,13 @@ to create AES key and initial vector."
                  collect (aref table i)))))
 
 (defconst cipher/aes--multiply-cache
-  (vconcat
-   (loop for b1 from 0 to ?\xff
-         collect
-         (vconcat (loop for b2 from 0 to ?\xff
-                        collect (cipher/aes--multiply-0 b1 b2))))))
+  (loop for b1 from 0 to ?\xff
+        collect
+        (loop for b2 from 0 to ?\xff
+              collect (cipher/aes--multiply-0 b1 b2) into res
+              finally return (vconcat res))
+        into res
+        finally return (vconcat res)))
 
 (defsubst cipher/aes--multiply (byte1 byte2)
   (aref (aref cipher/aes--multiply-cache byte1) byte2))
@@ -532,10 +535,10 @@ to create AES key and initial vector."
    (aref cipher/aes--S-box (aref word 3))))
 
 (defconst cipher/aes--Rcon
-  (vconcat
-   (loop repeat 10
-         for v = 1 then (cipher/aes--xtime v)
-         collect (vector v 0 0 0))))
+  (loop repeat 10
+        for v = 1 then (cipher/aes--xtime v)
+        collect (vector v 0 0 0) into res
+        finally return (vconcat res)))
 
 (defun cipher/aes--key-expansion (key)
   (let (res)
