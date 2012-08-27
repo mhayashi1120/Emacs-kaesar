@@ -129,8 +129,7 @@ See `cipher/aes-algorithm' list the supported ALGORITHM ."
                     "Password to encrypt: ") t)))
     (cipher/aes--proc algorithm
       (destructuring-bind (raw-key iv) (cipher/aes--bytes-to-key pass salt)
-        (let ((key (cipher/aes--key-expansion raw-key)))
-          (cipher/aes--encrypt-0 unibyte-string key salt iv))))))
+        (cipher/aes--encrypt-0 unibyte-string raw-key salt iv)))))
 
 ;;;###autoload
 (defun cipher/aes-decrypt (encrypted-string &optional algorithm)
@@ -145,12 +144,11 @@ See `cipher/aes-algorithm' list the supported ALGORITHM ."
                      (or cipher/aes-decrypt-prompt
                          "Password to decrypt: "))))
           (destructuring-bind (raw-key iv) (cipher/aes--bytes-to-key pass salt)
-            (let ((key (cipher/aes--key-expansion raw-key)))
-              (cipher/aes--decrypt-0 encrypted-string key iv))))))))
+            (cipher/aes--decrypt-0 encrypted-string raw-key iv)))))))
 
 ;;;###autoload
 (defun cipher/aes-encrypt-by-key (unibyte-string algorithm key)
-  "Encrypt a UNIBYTE-STRING with ALGORITHM and KEY.
+  "Encrypt a UNIBYTE-STRING with ALGORITHM and KEY (Before expansion).
 See `cipher/aes-algorithm' list the supported ALGORITHM ."
   (cipher/aes--check-unibytes unibyte-string)
   (cipher/aes--proc algorithm
@@ -158,7 +156,8 @@ See `cipher/aes-algorithm' list the supported ALGORITHM ."
 
 ;;;###autoload
 (defun cipher/aes-decrypt-by-key (encrypted-string algorithm key)
-  "Decrypt a ENCRYPTED-STRING which was encrypted by `cipher/aes-encrypt' with KEY."
+  "Decrypt a ENCRYPTED-STRING which was encrypted by `cipher/aes-encrypt' with KEY.
+KEY before expansion"
   (cipher/aes--check-encrypted encrypted-string)
   (cipher/aes--proc algorithm
     (cipher/aes--decrypt-0 encrypted-string key)))
@@ -248,15 +247,17 @@ This is a hiding parameter which hold password as vector.")
 (defconst cipher/aes--pkcs5-salt-length 8)
 (defconst cipher/aes--openssl-magic-word "Salted__")
 
-(defun cipher/aes--encrypt-0 (unibyte-string key &optional salt iv)
-  (let* ((salt-magic (string-to-list cipher/aes--openssl-magic-word))
+(defun cipher/aes--encrypt-0 (unibyte-string raw-key &optional salt iv)
+  (let* ((key (cipher/aes--key-expansion raw-key))
+         (salt-magic (string-to-list cipher/aes--openssl-magic-word))
          (encrypted (funcall cipher/aes--Enc unibyte-string key iv))
          (full-data (append salt-magic salt encrypted))
          (unibytes (apply 'cipher/aes--unibyte-string full-data)))
     (cipher/aes--create-encrypted unibytes)))
 
-(defun cipher/aes--decrypt-0 (encrypted-string key &optional iv)
-  (let ((decrypted (funcall cipher/aes--Dec encrypted-string key iv)))
+(defun cipher/aes--decrypt-0 (encrypted-string raw-key &optional iv)
+  (let* ((key (cipher/aes--key-expansion raw-key))
+         (decrypted (funcall cipher/aes--Dec encrypted-string key iv)))
     (apply 'cipher/aes--unibyte-string decrypted)))
 
 (defun cipher/aes--parse-algorithm (name)
