@@ -95,6 +95,16 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
   :group 'cipher/aes
   :type 'string)
 
+(defmacro cipher/aes--proc (algorithm &rest form)
+  (declare (indent 1))
+  (let ((cipher (make-symbol "cipher"))
+        (block-mode (make-symbol "block-mode")))
+    `(let ((cipher/aes--Algorithm (or ,algorithm cipher/aes-algorithm)))
+       (destructuring-bind (cipher block) (cipher/aes--parse-algorithm cipher/aes--Algorithm)
+         (cipher/aes--cipher-algorithm cipher
+           (cipher/aes--block-algorithm block
+             ,@form))))))
+
 ;;;###autoload
 (defun cipher/aes-encrypt-string (string)
   "Encrypt a well encoded STRING to encrypted string
@@ -239,18 +249,15 @@ This is a hiding parameter which hold password as vector.")
 (defconst cipher/aes--openssl-magic-word "Salted__")
 
 (defun cipher/aes--encrypt-0 (unibyte-string key &optional salt iv)
-  (cipher/aes--create-encrypted
-   (apply
-    'cipher/aes--unibyte-string
-    (append
-     (string-to-list cipher/aes--openssl-magic-word)
-     salt
-     (funcall cipher/aes--Enc unibyte-string key iv)))))
+  (let* ((salt-magic (string-to-list cipher/aes--openssl-magic-word))
+         (encrypted (funcall cipher/aes--Enc unibyte-string key iv))
+         (full-data (append salt-magic salt encrypted))
+         (unibytes (apply 'cipher/aes--unibyte-string full-data)))
+    (cipher/aes--create-encrypted unibytes)))
 
 (defun cipher/aes--decrypt-0 (encrypted-string key &optional iv)
-  (apply
-   'cipher/aes--unibyte-string
-   (funcall cipher/aes--Dec encrypted-string key iv)))
+  (let ((decrypted (funcall cipher/aes--Dec encrypted-string key iv)))
+    (apply 'cipher/aes--unibyte-string decrypted)))
 
 (defun cipher/aes--parse-algorithm (name)
   (unless (string-match "^\\(aes-\\(?:128\\|192\\|256\\)\\)-\\(ecb\\|cbc\\)$" name)
@@ -283,16 +290,6 @@ This is a hiding parameter which hold password as vector.")
               (cipher/aes--Dec (nth 2 ,cell))
               (cipher/aes--IV (eval (nth 3 ,cell))))
          ,@form))))
-
-(defmacro cipher/aes--proc (algorithm &rest form)
-  (declare (indent 1))
-  (let ((cipher (make-symbol "cipher"))
-        (block-mode (make-symbol "block-mode")))
-    `(let ((cipher/aes--Algorithm (or ,algorithm cipher/aes-algorithm)))
-       (destructuring-bind (cipher block) (cipher/aes--parse-algorithm cipher/aes--Algorithm)
-         (cipher/aes--cipher-algorithm cipher
-           (cipher/aes--block-algorithm block
-             ,@form))))))
 
 ;;
 ;; bit/number operation for Emacs
@@ -366,7 +363,7 @@ to create AES key and initial vector."
   :group 'cipher/aes
   :type 'function)
 
-;; return '(key iv)
+;; password -> '(key iv)
 (defun cipher/aes--bytes-to-key (data &optional salt)
   (funcall cipher/aes-password-to-key-function data salt))
 
@@ -402,6 +399,7 @@ to create AES key and initial vector."
                          (aset iv j (aref hash i))
                          (incf i))
                     finally (setq ii j)))))
+    ;; clear raw password text
     (fillarray data nil)
     (list key iv)))
 
