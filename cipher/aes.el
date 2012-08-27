@@ -585,11 +585,26 @@ to create AES key and initial vector."
      (nth 2 rest)
      (nth 3 rest))))
 
+(defconst cipher/aes--2time-table
+  (loop for i from 0 to ?\xff
+        collect (cipher/aes--multiply i 2) into res
+        finally return (vconcat res)))
+
+(defconst cipher/aes--4time-table
+  (loop for i from 0 to ?\xff
+        collect (cipher/aes--multiply i 4) into res
+        finally return (vconcat res)))
+
+(defconst cipher/aes--8time-table
+  (loop for i from 0 to ?\xff
+        collect (cipher/aes--multiply i 8) into res
+        finally return (vconcat res)))
+
 (defsubst cipher/aes--mix-column (word)
   (let ((w1 (vconcat word))
         (w2 (vconcat (mapcar
                       (lambda (b)
-                        (cipher/aes--multiply b 2))
+                        (aref cipher/aes--2time-table b))
                       word))))
     ;; Coefficients of word Matrix
     ;; 2 3 1 1
@@ -622,9 +637,9 @@ to create AES key and initial vector."
 
 (defsubst cipher/aes--inv-mix-column (word)
   (let ((w1 (vconcat word))
-        (w2 (vconcat (mapcar (lambda (b) (cipher/aes--multiply b 2)) word)))
-        (w4 (vconcat (mapcar (lambda (b) (cipher/aes--multiply b 4)) word)))
-        (w8 (vconcat (mapcar (lambda (b) (cipher/aes--multiply b 8)) word))))
+        (w2 (vconcat (mapcar (lambda (b) (aref cipher/aes--2time-table b)) word)))
+        (w4 (vconcat (mapcar (lambda (b) (aref cipher/aes--4time-table b)) word)))
+        (w8 (vconcat (mapcar (lambda (b) (aref cipher/aes--8time-table b)) word))))
     ;; Coefficients of word Matrix
     ;; 14 11 13  9
     ;;  9 14 11 13
