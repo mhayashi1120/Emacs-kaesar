@@ -483,30 +483,26 @@ to create AES key and initial vector."
 (defsubst cipher/aes--multiply (byte1 byte2)
   (aref (aref cipher/aes--multiply-cache byte1) byte2))
 
-(defconst cipher/aes--inv-multiply-cache
-  (loop with v = (make-vector 256 nil)
-        for byte from 0 to 255
-        do (aset v byte
-                 (loop for b across (aref cipher/aes--multiply-cache byte)
-                       for i from 0
-                       if (= b 1)
-                       return i
-                       finally return 0))
-        finally return v))
-
-(defsubst cipher/aes--inv-multiply (byte)
-  (aref cipher/aes--inv-multiply-cache byte))
-
 (defconst cipher/aes--S-box
-  (loop with boxing = (lambda (byte)
-                     (let* ((inv (cipher/aes--inv-multiply byte))
-                            (s inv)
-                            (x inv))
-                       (loop repeat 4
-                             do (progn
-                                  (setq s (cipher/aes--byte-rot s 1))
-                                  (setq x (logxor s x))))
-                       (logxor x ?\x63)))
+  (loop with inv-cache =
+        (loop with v = (make-vector 256 nil)
+              for byte from 0 to 255
+              do (aset v byte
+                       (loop for b across (aref cipher/aes--multiply-cache byte)
+                             for i from 0
+                             if (= b 1)
+                             return i
+                             finally return 0))
+              finally return v)
+        with boxing = (lambda (byte)
+                        (let* ((inv (aref inv-cache byte))
+                               (s inv)
+                               (x inv))
+                          (loop repeat 4
+                                do (progn
+                                     (setq s (cipher/aes--byte-rot s 1))
+                                     (setq x (logxor s x))))
+                          (logxor x ?\x63)))
         for b from 0 to ?\xff
         with box = (make-vector ?\x100 nil)
         do (aset box b (funcall boxing b))
@@ -637,9 +633,15 @@ to create AES key and initial vector."
 
 (defsubst cipher/aes--inv-mix-column (word)
   (let ((w1 (vconcat word))
-        (w2 (vconcat (mapcar (lambda (b) (aref cipher/aes--2time-table b)) word)))
-        (w4 (vconcat (mapcar (lambda (b) (aref cipher/aes--4time-table b)) word)))
-        (w8 (vconcat (mapcar (lambda (b) (aref cipher/aes--8time-table b)) word))))
+        (w2 (vconcat (mapcar
+                      (lambda (b)
+                        (aref cipher/aes--2time-table b)) word)))
+        (w4 (vconcat (mapcar
+                      (lambda (b)
+                        (aref cipher/aes--4time-table b)) word)))
+        (w8 (vconcat (mapcar
+                      (lambda (b)
+                        (aref cipher/aes--8time-table b)) word))))
     ;; Coefficients of word Matrix
     ;; 14 11 13  9
     ;;  9 14 11 13
