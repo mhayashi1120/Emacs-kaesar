@@ -680,29 +680,28 @@ to create AES key and initial vector."
   (cipher/aes--inv-mix-column (aref state 3))
   state)
 
-(defsubst cipher/aes--shift-row (state row count)
-  (let ((new-rows (loop for col from 0 below cipher/aes--Nb
+(defsubst cipher/aes--shift-row (state row indexes)
+  (let ((new-rows (loop for index in indexes
                         collect
-                        (let* ((index (mod (+ col count) cipher/aes--Nb))
-                               (col (aref state index)))
+                        (let* ((col (aref state index)))
                           (aref col row)))))
-    (loop for col from 0 below cipher/aes--Nb
+    (loop for col from 0
           for new-row in new-rows
           do
           (aset (aref state col) row new-row))))
 
 (defsubst cipher/aes--shift-rows (state)
   ;; ignore first row
-  (cipher/aes--shift-row state 1 1)
-  (cipher/aes--shift-row state 2 2)
-  (cipher/aes--shift-row state 3 3)
+  (cipher/aes--shift-row state 1 '(1 2 3 0))
+  (cipher/aes--shift-row state 2 '(2 3 0 1))
+  (cipher/aes--shift-row state 3 '(3 0 1 2))
   state)
 
 (defsubst cipher/aes--inv-shift-rows (state)
   ;; ignore first row
-  (cipher/aes--shift-row state 1 3)
-  (cipher/aes--shift-row state 2 2)
-  (cipher/aes--shift-row state 3 1)
+  (cipher/aes--shift-row state 1 '(3 0 1 2))
+  (cipher/aes--shift-row state 2 '(2 3 0 1))
+  (cipher/aes--shift-row state 3 '(1 2 3 0))
   state)
 
 (defconst cipher/aes--inv-S-box
