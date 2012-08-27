@@ -100,9 +100,10 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
   (let ((cipher (make-symbol "cipher"))
         (block-mode (make-symbol "block-mode")))
     `(let ((cipher/aes--Algorithm (or ,algorithm cipher/aes-algorithm)))
-       (destructuring-bind (cipher block) (cipher/aes--parse-algorithm cipher/aes--Algorithm)
-         (cipher/aes--cipher-algorithm cipher
-           (cipher/aes--block-algorithm block
+       (destructuring-bind (,cipher ,block-mode)
+           (cipher/aes--parse-algorithm cipher/aes--Algorithm)
+         (cipher/aes--cipher-algorithm ,cipher
+           (cipher/aes--block-algorithm ,block-mode
              ,@form))))))
 
 ;;;###autoload
@@ -147,20 +148,27 @@ See `cipher/aes-algorithm' list the supported ALGORITHM ."
             (cipher/aes--decrypt-0 encrypted-string raw-key iv)))))))
 
 ;;;###autoload
-(defun cipher/aes-encrypt-by-key (unibyte-string algorithm key)
-  "Encrypt a UNIBYTE-STRING with ALGORITHM and KEY (Before expansion).
-See `cipher/aes-algorithm' list the supported ALGORITHM ."
+(defun cipher/aes-encrypt-by-key (unibyte-string algorithm raw-key &optional iv)
+  "Encrypt a UNIBYTE-STRING with ALGORITHM and RAW-KEY (Before expansion).
+See `cipher/aes-algorithm' list the supported ALGORITHM .
+Low level API to encrypt like other implementation."
   (cipher/aes--check-unibytes unibyte-string)
   (cipher/aes--proc algorithm
-    (cipher/aes--encrypt-0 unibyte-string key)))
+    (let* ((key (cipher/aes--key-expansion raw-key))
+           (encrypted (funcall cipher/aes--Enc unibyte-string key iv))
+           (full-data (append encrypted)))
+      (apply 'cipher/aes--unibyte-string full-data))))
 
 ;;;###autoload
-(defun cipher/aes-decrypt-by-key (encrypted-string algorithm key)
-  "Decrypt a ENCRYPTED-STRING which was encrypted by `cipher/aes-encrypt' with KEY.
-KEY before expansion"
+(defun cipher/aes-decrypt-by-key (encrypted-string algorithm raw-key &optional iv)
+  "Decrypt a ENCRYPTED-STRING which was encrypted by `cipher/aes-encrypt' with RAW-KEY.
+RAW-KEY before expansion
+Low level API to decrypt data that was encrypted by other implementation."
   (cipher/aes--check-encrypted encrypted-string)
   (cipher/aes--proc algorithm
-    (cipher/aes--decrypt-0 encrypted-string key)))
+    (let* ((key (cipher/aes--key-expansion raw-key))
+           (decrypted (funcall cipher/aes--Dec encrypted-string key iv)))
+      (apply 'cipher/aes--unibyte-string decrypted))))
 
 (defvar cipher/aes-password nil
   "To suppress the minibuffer prompt.
@@ -714,8 +722,8 @@ to create AES key and initial vector."
   state)
 
 (defsubst cipher/aes--inv-cipher (state key)
-  (cipher/aes--add-round-key state
-                      (cipher/aes--round-key key (* cipher/aes--Nr cipher/aes--Nb)))
+  (cipher/aes--add-round-key 
+   state (cipher/aes--round-key key (* cipher/aes--Nr cipher/aes--Nb)))
   (loop for round downfrom (1- cipher/aes--Nr) to 1
         do (progn
              (cipher/aes--inv-shift-rows state)
