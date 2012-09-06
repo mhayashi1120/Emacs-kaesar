@@ -4,14 +4,14 @@
 ;; Keywords: encrypt decrypt file
 ;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/cipher/aes-file.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version 0.5.1
+;; Version 0.6.0
 
 ;;; Code:
 
 (require 'cipher/aes)
 
 ;;;###autoload
-(defun cipher/aes-encrypt-file (file &optional algorithm with-base64)
+(defun cipher/aes-encrypt-file (file &optional algorithm with-base64 save-file)
   "Encrypt a FILE by `cipher/aes-algorithm'
 which contents can be decrypted by `cipher/aes-decrypt-file-contents'."
   (with-temp-buffer
@@ -24,10 +24,10 @@ which contents can be decrypted by `cipher/aes-decrypt-file-contents'."
          encrypted (or algorithm cipher/aes-algorithm)))
        (t
         (insert encrypted)))
-      (cipher/aes--write-buffer file))))
+      (cipher/aes--write-buffer (or save-file file)))))
 
 ;;;###autoload
-(defun cipher/aes-decrypt-file (file &optional algorithm)
+(defun cipher/aes-decrypt-file (file &optional algorithm save-file)
   "Decrypt a FILE contents with getting string.
 FILE was encrypted by `cipher/aes-encrypt-file'."
   (with-temp-buffer
@@ -38,7 +38,7 @@ FILE was encrypted by `cipher/aes-encrypt-file'."
              (buffer-string) (or algorithm enc-algo))))
       (erase-buffer)
       (insert decrypted)
-      (cipher/aes--write-buffer file))))
+      (cipher/aes--write-buffer (or save-file file)))))
 
 ;;;###autoload
 (defun cipher/aes-decrypt-file-contents (file &optional algorithm coding-system)
@@ -62,11 +62,11 @@ FILE was encrypted by `cipher/aes-encrypt-file'."
     (cipher/aes--write-region encrypted nil file)))
 
 (defun cipher/aes-prepare-base64 (encrypted-data algorithm)
-  (insert "-----BEGIN ENCRYPTED DATA by cipher/aes-file.el -----\n")
+  (insert "-----BEGIN ENCRYPTED DATA-----\n")
   (insert (format "Algorithm: %s\n" algorithm))
   (insert "\n")
   (insert (base64-encode-string encrypted-data) "\n")
-  (insert "-----END ENCRYPTED DATA by cipher/aes-file.el -----\n"))
+  (insert "-----END ENCRYPTED DATA-----\n"))
 
 (defun cipher/aes-decode-if-base64 ()
   ;; decode buffer if valid base64 encoded.
