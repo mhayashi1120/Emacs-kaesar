@@ -1,5 +1,4 @@
-(require 'cipher/aes)
-(require 'openssl-cipher nil t)
+(require 'cipher/rsa)
 (require 'ert)
 
 
@@ -16,16 +15,81 @@
         collect (random 256) into res
         finally return (apply 'unibyte-string res)))
 
+(defun cipher/rsa-test--read-data (file)
+  (with-temp-buffer
+    (let ((coding-system-for-write 'binary))
+      (write-region C nil file)
+      (buffer-string))))
+
+(defun cipher/rsa-test--openssl-genrsa ()
+  (let ((key (make-temp-file "rsa-test-")))
+    (with-temp-buffer
+      (call-process "openssl" nil t nil "genrsa" "-out" key)
+      (buffer-string))
+    key))
+
+(defun cipher/rsa-test--openssl-encrypt (keyfile data)
+  (cipher/rsa-test--call-openssl-rsautl
+   data "-encrypt" "-inkey" keyfile))
+
+(defun cipher/rsa-test--openssl-decrypt (keyfile data)
+  (cipher/rsa-test--call-openssl-rsautl
+   data "-decrypt" "-inkey" keyfile))
+
+;;TODO
+(defun cipher/rsa-test--openssl-sign (keyfile data)
+  (cipher/rsa-test--call-openssl-rsautl
+   data "-sign" "-inkey" keyfile))
+
+;;TODO
+(defun cipher/rsa-test--openssl-verify (keyfile data)
+  (cipher/rsa-test--call-openssl-rsautl
+   data "-verify" "-inkey" keyfile))
+
+(defun cipher/rsa-test--call-openssl-rsautl (data &rest args)
+  (with-temp-buffer
+    (set-buffer-multibyte nil)
+    (insert data)
+    (apply 'call-process-region 
+           (point-min) (point-max)
+           "openssl" t t nil "rsautl" args)
+    (buffer-string)))
+
 (ert-deftest cipher/rsa-test--general ()
   ""
   :tags '(cipher/rsa)
   (loop repeat 10
-        do (let* ((key (cipher/rsa-generate-key "A" 20))
+        do (let* ((key (cipher/rsa-generate-key "A" 256))
                   (public-key (cipher/rsa-key:export-public key))
                   (M (cipher/rsa-test--random-string))
-                  (C (cipher/rsa--encrypt-bytes M public-key))
-                  (M2 (cipher/rsa--decrypt-bytes C key))
-             ))))
+                  (C (cipher/rsa-encrypt-bytes public-key M))
+                  (M2 (cipher/rsa-decrypt-bytes key C)))
+             (should (equal M2 M)))))
 
+(ert-deftest cipher/rsa-test--sign ()
+  ""
+  :tags '(cipher/rsa)
+  (loop repeat 10
+        do (let* ((key (cipher/rsa-generate-key "A" 256))
+                  (public-key (cipher/rsa-key:export-public key))
+                  (M (cipher/rsa-test--random-string))
+                  ;; 256 bit key accept only 21 byte
+                  (hash (substring (md5 M) 0 21))
+                  (C (cipher/rsa-sign-hash key hash)))
+             (cipher/rsa-verify-hash public-key C hash))))
+
+(ert-deftest cipher/rsa-test--openssl-mutual ()
+  ""
+  :tags '(cipher/rsa)
+  (loop repeat 10
+        do (let* ((keyfile (cipher/rsa-test--openssl-genrsa)) ;TODO generating key...
+                  (key (cipher/rsa-openssh-load-key keyfile))
+                  (M "hogehoge")
+                  (Ce (cipher/rsa-encrypt-bytes key M))
+                  (Co (cipher/rsa-test--openssl-encrypt keyfile M))
+                  (Me (cipher/rsa-decrypt-bytes key Co))
+                  (Mo (cipher/rsa-test--openssl-decrypt keyfile Ce)))
+             (should (equal M Me))
+             (should (equal M Mo)))))
 
 (provide 'cipher/rsa-test)

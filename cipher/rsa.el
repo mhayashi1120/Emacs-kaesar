@@ -25,7 +25,7 @@
 
 ;;; Install:
 
-;; Put this file into load-path'ed directory, and 
+;; Put this file into load-path'ed directory, and
 ;; !!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!
 ;; And put the following expression into your .emacs.
 ;;
@@ -60,9 +60,24 @@
 (eval-when-compile
   (require 'cl))
 
+(defgroup cipher/rsa nil
+  "Encrypt/Decrypt, Sign/Verify string with rsa key"
+  :group 'environment)
+
 (require 'calc)
 (require 'calc-ext)
 (require 'calc-bin)
+
+(defcustom cipher/rsa-padding-method 'pkcs
+  "todo"
+  :group 'cipher/rsa
+  :type '(choice
+          (const pkcs)
+          (const sslv23)
+          ;;TODO
+          ;; (const oaep)
+          ;; (cons raw)
+          ))
 
 ;;;
 ;;; Interfaces
@@ -70,7 +85,7 @@
 
 ;;;###autoload
 (defun cipher/rsa-encrypt-string (his-public-key string &optional coding-system)
-  "Encrypt a well encoded STRING with HIS-PUBLIC-KEY to encrypted object 
+  "Encrypt a well encoded STRING with HIS-PUBLIC-KEY to encrypted object
 which can be decrypted by `cipher/rsa-decrypt-string'."
   (let* ((cs (or coding-system default-terminal-coding-system))
          (M (encode-coding-string string cs)))
@@ -85,8 +100,24 @@ by `cipher/aes-encrypt-string'"
     (decode-coding-string M cs)))
 
 ;;;###autoload
+(defun cipher/rsa-encrypt-bytes (his-public-key string)
+  "Encrypt a well encoded STRING with HIS-PUBLIC-KEY to encrypted object
+which can be decrypted by `cipher/rsa-decrypt-string'."
+  (when (multibyte-string-p string)
+    (setq string (string-make-unibyte string)))
+  (cipher/rsa--encrypt-bytes string his-public-key))
+
+;;;###autoload
+(defun cipher/rsa-decrypt-bytes (my-private-key encrypted-string)
+  "Decrypt a ENCRYPTED-STRING with MY-PRIVATE-KEY which was encrypted
+by `cipher/aes-encrypt-string'"
+  (when (multibyte-string-p encrypted-string)
+    (setq encrypted-string (string-make-unibyte encrypted-string)))
+  (cipher/rsa--decrypt-bytes encrypted-string my-private-key))
+
+;;;###autoload
 (defun cipher/rsa-sign-hash (my-private-key hash)
-  "Sign HASH with MY-PRIVATE-KEY. 
+  "Sign HASH with MY-PRIVATE-KEY.
 Returned value will be verified with `cipher/rsa-verify-hash'
 with my-public-key. "
   (let* ((M hash)
@@ -101,62 +132,152 @@ Decrypted string must equal HASH otherwise raise error.
   (let* ((C (base64-decode-string sign))
          (verify (cipher/rsa--verify-bytes C his-public-key)))
     (unless (string= verify hash)
-      (error "Failed while verifying"))
+      (error "Sign must be `%s' but `%s'" hash verify))
     t))
 
 ;;;
 ;;; inner functions
 ;;;
 
-(defun cipher/rsa--encrypt-bytes (M key &optional block-size)
-  (cipher/rsa--encode-bytes 
-   M (cipher/rsa-key:E key) key block-size))
+(defun cipher/rsa--encrypt-bytes (M key)
+  (cipher/rsa--encode-bytes M key nil))
 
-(defun cipher/rsa--sign-bytes (M key &optional block-size)
-  (cipher/rsa--encode-bytes 
-   M (cipher/rsa-key:D key) key block-size))
+(defun cipher/rsa--sign-bytes (M key)
+  (cipher/rsa--encode-bytes M key t))
 
-(defvar cipher/rsa--max-encode-length 255
-  "Hiding parameter size of text to encrypt.")
+(defun cipher/rsa--text-to-bn (text)
+  (let ((hex (mapconcat (lambda (x) (format "%02x" x)) text "")))
+    (cipher/rsa-bn:from-string hex 16)))
 
-(defun cipher/rsa--encode-bytes (M e key &optional block-size)
-  (when (> (length M) cipher/rsa--max-encode-length)
-    (error "Exceed limit (%d)" cipher/rsa--max-encode-length))
+(defun cipher/rsa--bn-to-text (bn)
+  (loop for (d . r) = (cipher/rsa-bn:div&rem bn 256)
+        then (cipher/rsa-bn:div&rem d 256)
+        collect r into res
+        until (cipher/rsa-bn:zerop d)
+        finally return (apply 'cipher/rsa--unibytes (nreverse res))))
+
+(defun cipher/rsa--encode-bytes (text key sign-p)
   (let* ((n (cipher/rsa-key:N key))
-         (size (or block-size
-                   (cipher/rsa-key-size key))))
-    (loop for c across M
-          concat (let ((C (cipher/rsa--encrypt-char c e n)))
-                   (cipher/rsa-bn:serialize C size)))))
+         (e (if sign-p
+                (cipher/rsa-key:D key)
+              (cipher/rsa-key:E key)))
+         (size (cipher/rsa-key-size key))
+         ;;TODO difference sign and encrypt
+         (padded (cipher/rsa--padding-add text size))
+         (M (cipher/rsa--text-to-bn padded))
+         (C (cipher/rsa-bn:modulo-product n M e))
+         (encrypt (cipher/rsa-bn:serialize C size)))
+    encrypt))
 
-(defun cipher/rsa--decrypt-bytes (C key &optional block-size)
-  (cipher/rsa--decode-bytes
-   C (cipher/rsa-key:D key) key block-size))
+(defun cipher/rsa--decrypt-bytes (C key)
+  (cipher/rsa--decode-bytes C key nil))
 
-(defun cipher/rsa--verify-bytes (C key &optional block-size)
-  (cipher/rsa--decode-bytes
-   C (cipher/rsa-key:E key) key block-size))
+(defun cipher/rsa--verify-bytes (C key)
+  (cipher/rsa--decode-bytes C key t))
 
-(defun cipher/rsa--decode-bytes (C d key &optional block-size)
+(defun cipher/rsa--decode-bytes (encrypt key verify-p)
   (let ((n (cipher/rsa-key:N key))
-        (size (or block-size
-                  (cipher/rsa-key-size key)))
-        (lC (append C nil)))
-    (loop for (bC rest) = (cipher/rsa-bn:read-bytes lC size) 
-          then (and rest (cipher/rsa-bn:read-bytes rest size))
-          while bC
-          collect (cipher/rsa--decrypt-char bC d n)
-          into res
-          finally return (apply 'cipher/rsa--unibyte-string res))))
+        (size (cipher/rsa-key-size key)))
+    (unless (= (length encrypt) size)
+      (error "Illegal length(%d) of encrypted text (%s)" size encrypt))
+    (let* ((d (if verify-p
+                  (cipher/rsa-key:E key)
+                (cipher/rsa-key:D key)))
+           (C (cipher/rsa--text-to-bn encrypt))
+           (M (cipher/rsa-bn:modulo-product n C d))
+           (padded (cipher/rsa--bn-to-text M))
+           (text (cipher/rsa--padding-remove padded)))
+      text)))
 
-(defun cipher/rsa--encrypt-char (M e n)
-  (let* ((M2 (+ M 2))
-         (C (cipher/rsa-bn:modulo-product n M2 e)))
-    C))
+(defun cipher/rsa--padding-sslv23-add (text size)
+  (let ((len (length text))
+        (allow-len (- size (+ 2 8 1))))
+    (when (> len allow-len)
+      (error "Exceed limit (Must be smaller than %d but %d)" allow-len len))
+    (let* ((suffix (make-list (- size len) 0))
+           (origin (string-to-list text))
+           (nulllen (- (length suffix) 3 8))
+           (full (append suffix origin))
+           (vec (apply 'cipher/rsa--unibytes full))
+           (i 0))
+      (aset vec 0 0)
+      (aset vec 1 2)                    ; Public Key BT (Block Type)
+      (setq i (cipher/rsa--padding-null-as-randomize vec 2 nulllen))
+      (loop repeat 8
+            do (progn
+                 (aset vec i 3)
+                 (setq i (1+ i))))
+      (aset vec i 0)
+      vec)))
 
-(defun cipher/rsa--decrypt-char (C d n)
-  (let* ((M (cipher/rsa-bn:modulo-product n C d)))
-    (- M 2)))
+(defun cipher/rsa--padding-null-as-randomize (vec start len)
+  (loop repeat len
+        for i from start
+        do (progn
+             (aset vec i (let (r)
+                           (while (zerop (setq r (random 256))))
+                           r)))
+        finally return i))
+
+(defun cipher/rsa--padding-sslv23-remove (text)
+  (loop for i from 0 below (length text)
+        if (zerop (aref text i))
+        return (substring text (1+ i))))
+
+(defun cipher/rsa--padding-pkcs-add (text size)
+  (let ((len (length text))
+        (allow-len (- size (+ 2 8 1))))
+    (when (> len allow-len)
+      (error "Exceed limit (Must be smaller than %d but %d)" allow-len len))
+    (let* ((suffix (make-list (- size (length text)) 0))
+           (origin (string-to-list text))
+           (nulllen (- (length suffix) 3))
+           (full (append suffix origin))
+           (vec (apply 'cipher/rsa--unibytes full))
+           (i 0))
+      (aset vec 0 0)
+      (aset vec 1 2)                    ; Public Key BT (Block Type)
+      (setq i (cipher/rsa--padding-null-as-randomize vec 2 nulllen))
+      (aset vec i 0)
+      vec)))
+
+(defun cipher/rsa--padding-pkcs-remove (text)
+  (loop for i from 0 below (length text)
+        if (zerop (aref text i))
+        return (let ((tmp (substring text (1+ i))))
+                 (when (multibyte-string-p tmp)
+                   (error "%s" tmp))
+                 tmp)))
+
+;; (defun cipher/rsa--padding-oaep-add (text size)
+;;   ;;TODO
+;;   )
+
+;; (defun cipher/rsa--padding-oaep-remove (text)
+;;   ;;TODO
+;;   )
+
+(defun cipher/rsa--padding-add (text size)
+  (let ((func (intern-soft
+               (format "cipher/rsa--padding-%s-add"
+                       cipher/rsa-padding-method))))
+    (cond
+     ((fboundp func)
+      (funcall func text size))
+     (t
+      (error "Not supported type %s"
+             cipher/rsa-padding-method)))))
+
+(defun cipher/rsa--padding-remove (text)
+  (let ((func (intern-soft
+               (format "cipher/rsa--padding-%s-remove"
+                       cipher/rsa-padding-method))))
+    (cond
+     ((fboundp func)
+      (funcall func text))
+     (t
+      (error "Not supported type %s"
+             cipher/rsa-padding-method)))))
 
 ;;;
 ;;; Handling key
@@ -185,7 +306,7 @@ Decrypted string must equal HASH otherwise raise error.
     (cipher/rsa-key:make name n e d)))
 
 (defun cipher/rsa-key:export-public (key)
-  (cipher/rsa-key:make 
+  (cipher/rsa-key:make
    (cipher/rsa-key:ID key)
    (cipher/rsa-key:N key)
    (cipher/rsa-key:E key)
@@ -220,8 +341,9 @@ Decrypted string must equal HASH otherwise raise error.
 
 (defun cipher/rsa-openssh-key ()
   (cipher/rsa--openssh-decrypt-buffer)
+  ;; TODO
   (let ((coding-system-for-write 'binary))
-    (call-process-region 
+    (call-process-region
      (point-min) (point-max) "openssl" t t nil "asn1parse" "-inform" "DER"))
   (let (res)
     (goto-char (point-min))
@@ -281,6 +403,8 @@ Decrypted string must equal HASH otherwise raise error.
       (setq res (cons data res)))
     (nreverse res)))
 
+(declare-function cipher/aes-decrypt-by-key "aes")
+
 (defun cipher/rsa--openssh-decrypt-buffer ()
   (save-excursion
     (goto-char (point-min))
@@ -295,12 +419,12 @@ Decrypted string must equal HASH otherwise raise error.
                (iv-bytes (cipher/rsa--hex-to-bytes hex-iv))
                ;; required only 8 bytes to create key
                (iv-8 (loop repeat 8 for b in iv-bytes collect b))
-               (A (md5 (apply 'unibyte-string (append pass iv-8))))
+               (A (md5 (apply 'cipher/rsa--unibytes (append pass iv-8))))
                (B (md5 (apply
-                        'unibyte-string
+                        'cipher/rsa--unibytes
                         (append (cipher/rsa--hex-to-bytes A) pass iv-8))))
                (C (md5 (apply
-                        'unibyte-string
+                        'cipher/rsa--unibytes
                         (append (cipher/rsa--hex-to-bytes B) pass iv-8)))))
           (setq iv (vconcat iv-bytes))
           (setq key (vconcat (cipher/rsa--hex-to-bytes (concat A B))))
@@ -359,7 +483,7 @@ Decrypted string must equal HASH otherwise raise error.
              (setq tmp y)
              (setq y (cipher/rsa-bn:+ y-1 (cipher/rsa-bn:* q y)))
              (setq y-1 tmp))
-        finally return 
+        finally return
         (let ((tmp-x (cipher/rsa-bn:* bn1 x-1))
               (tmp-y (cipher/rsa-bn:* bn2 y-1)))
           (if (cipher/rsa-bn:< tmp-x tmp-y)
@@ -369,15 +493,15 @@ Decrypted string must equal HASH otherwise raise error.
                   (cipher/rsa-bn:diff bn1 y-1))))))
 
 (if (fboundp 'unibyte-string)
-    (defalias 'cipher/rsa--unibyte-string 'unibyte-string)
-  (defun cipher/rsa--unibyte-string (&rest bytes)
-    (concat bytes)))
+    (defalias 'cipher/rsa--unibytes 'unibyte-string)
+  (defun cipher/rsa--unibytes (&rest bytes)
+    (string-as-unibyte (concat bytes))))
 
 (defun cipher/rsa--read-bytes (bytes pos len)
   (loop with res = (aref bytes pos)
         with max-len = (length bytes)
         for i from (1+ pos) below (min (+ pos len) max-len)
-        do (setq res (cipher/rsa-bn:logior 
+        do (setq res (cipher/rsa-bn:logior
                       (cipher/rsa-bn:lshift res 8)
                       (aref bytes i)))
         finally return (cons res (if (= i max-len) nil i))))
@@ -417,11 +541,13 @@ Decrypted string must equal HASH otherwise raise error.
 
 (defun cipher/rsa-bn-prime-p (bn)
   (with-temp-buffer
-    (call-process "openssl" 
+    (call-process "openssl"
                   nil (current-buffer) nil "prime"
                   (cipher/rsa-bn:to-decimal bn))
     (goto-char (point-min))
     (looking-at "[0-9a-zA-Z]+ is prime")))
+
+(declare-function math-random-digits "calc-comb")
 
 (defun cipher/rsa-bn:random (bit)
   (require 'calc-comb)
@@ -453,19 +579,8 @@ Decrypted string must equal HASH otherwise raise error.
   (destructuring-bind (div . _) (cipher/rsa-bn:div&rem dividend divisor)
     div))
 
-;; euclid division
-(defun cipher/rsa-bn:gcd (m n)
-  (loop with res = m
-        with tmp = nil
-        until (cipher/rsa-bn:zerop n)
-        do (setq res n
-                 tmp (cipher/rsa-bn:% m n))
-        until (cipher/rsa-bn:zerop tmp)
-        do (progn (setq m n) (setq n tmp))
-        finally return res))
-
 (defun cipher/rsa-bn:lcm (bn1 bn2)
-  (let* ((gcd (cipher/rsa-bn:gcd bn1 bn2))
+  (let* ((gcd (math-gcd bn1 bn2))
          (div (cipher/rsa-bn:/ bn1 gcd)))
     (cipher/rsa-bn:* div bn2)))
 
@@ -503,8 +618,8 @@ Decrypted string must equal HASH otherwise raise error.
   (let* ((data (loop for b in bytes
                      repeat count
                      collect b into res
-                     finally return 
-                     (progn 
+                     finally return
+                     (progn
                        (when (< (length res) count)
                          (error "Unable read %s byte(s) from %s" count bytes))
                        res)))
@@ -515,27 +630,9 @@ Decrypted string must equal HASH otherwise raise error.
 (defun cipher/rsa-bn:read-int32 (bytes &optional little-endian)
   (cipher/rsa-bn:read-bytes bytes 4 little-endian))
 
-(defun cipher/rsa-bn:serialize (bn byte &optional little-endian allow-overflow)
-  (let* ((bytes (loop for (div . rem) = (cons bn nil)
-                      then (cipher/rsa-bn:div&rem div ?\x100)
-                      until (cipher/rsa-bn:zerop div)
-                      if rem
-                      collect rem into res
-                      finally return (mapcar 
-                                      (lambda (x) (cipher/rsa-bn:to-number x))
-                                      (cons rem (nreverse res)))))
-         (len (length bytes))
-         (block (cond
-                 ((> len byte) 
-                  (unless allow-overflow
-                    (signal 'arith-error (list "Overflow" bn)))
-                  (nthcdr (- len byte) bytes))
-                 (t
-                  (append (make-list (- byte len) 0) bytes)))))
-    (vconcat
-     (if little-endian
-         (nreverse block)
-       block))))
+(defun cipher/rsa-bn:serialize (bn byte)
+  (let ((unibytes (cipher/rsa--bn-to-text bn)))
+    (concat (make-string (- byte (length unibytes)) 0) unibytes)))
 
 (defun cipher/rsa-bn:lshift (bn count)
   (if (minusp count)
