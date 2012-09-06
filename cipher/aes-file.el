@@ -91,12 +91,16 @@ FILE was encrypted by `cipher/aes-encrypt-file'."
   ;; to suppress two time encryption
   (let ((inhibit-file-name-handlers '(epa-file-handler))
         (inhibit-file-name-operation 'write-region)
-        (coding-system-for-write 'binary))
+        (coding-system-for-write 'binary)
+        (jka-compr-compression-info-list nil))
     (write-region start end file nil 'no-msg)))
 
 (defun cipher/aes--insert-file-contents (file)
   ;; to suppress two time decryption
-  (let ((inhibit-file-name-handlers '(epa-file-handler))
+  (let ((format-alist nil)
+        (after-insert-file-functions nil)
+        (jka-compr-compression-info-list nil)
+        (inhibit-file-name-handlers '(epa-file-handler))
         (inhibit-file-name-operation 'insert-file-contents)
         (coding-system-for-read 'binary))
     (insert-file-contents file)
