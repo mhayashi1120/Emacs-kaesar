@@ -145,10 +145,6 @@ Decrypted string must equal HASH otherwise raise error.
 (defun cipher/rsa--sign-bytes (M key)
   (cipher/rsa--encode-bytes M key t))
 
-(defun cipher/rsa--text-to-bn (text)
-  (let ((hex (mapconcat (lambda (x) (format "%02x" x)) text "")))
-    (cipher/rsa-bn:from-string hex 16)))
-
 (defun cipher/rsa--bn-to-text (bn)
   (loop for (d . r) = (cipher/rsa-bn:div&rem bn 256)
         then (cipher/rsa-bn:div&rem d 256)
@@ -164,7 +160,7 @@ Decrypted string must equal HASH otherwise raise error.
          (size (cipher/rsa-key-size key))
          ;;TODO difference sign and encrypt
          (padded (cipher/rsa--padding-add text size))
-         (M (cipher/rsa--text-to-bn padded))
+         (M (cipher/rsa-bn:from-bytes padded))
          (C (cipher/rsa-bn:modulo-product n M e))
          (encrypt (cipher/rsa-bn:serialize C size)))
     encrypt))
@@ -183,7 +179,7 @@ Decrypted string must equal HASH otherwise raise error.
     (let* ((d (if verify-p
                   (cipher/rsa-key:E key)
                 (cipher/rsa-key:D key)))
-           (C (cipher/rsa--text-to-bn encrypt))
+           (C (cipher/rsa-bn:from-bytes encrypt))
            (M (cipher/rsa-bn:modulo-product n C d))
            (padded (cipher/rsa--bn-to-text M))
            (text (cipher/rsa--padding-remove padded)))
@@ -340,20 +336,91 @@ Decrypted string must equal HASH otherwise raise error.
     (cipher/rsa-openssh-key)))
 
 (defun cipher/rsa-openssh-key ()
+  ;; Decode openssh or openssl secret key file.
   (cipher/rsa--openssh-decrypt-buffer)
-  ;; TODO
-  (let ((coding-system-for-write 'binary))
-    (call-process-region
-     (point-min) (point-max) "openssl" t t nil "asn1parse" "-inform" "DER"))
-  (let (res)
-    (goto-char (point-min))
-    (while (re-search-forward "prim: INTEGER[ \t]+:\\([0-9A-Fa-f]+\\)" nil t)
-      (setq res (cons (match-string 1) res)))
-    (setq res (nreverse res))
-    (list nil
-          (cipher/rsa-bn:from-string (nth 1 res))
-          (cipher/rsa-bn:from-string (nth 2 res))
-          (cipher/rsa-bn:from-string (nth 3 res)))))
+  (let* ((data (string-to-list (buffer-string)))
+         (blocks (cipher/rsa--asn1-read-blocks data)))
+    ;; ASN1_SEQUENCE_cb(RSAPrivateKey, rsa_cb) = {
+    ;; 	ASN1_SIMPLE(RSA, version, LONG),
+    ;; 	ASN1_SIMPLE(RSA, n, BIGNUM),
+    ;; 	ASN1_SIMPLE(RSA, e, BIGNUM),
+    ;; 	ASN1_SIMPLE(RSA, d, BIGNUM),
+    ;; 	ASN1_SIMPLE(RSA, p, BIGNUM),
+    ;; 	ASN1_SIMPLE(RSA, q, BIGNUM),
+    ;; 	ASN1_SIMPLE(RSA, dmp1, BIGNUM),
+    ;; 	ASN1_SIMPLE(RSA, dmq1, BIGNUM),
+    ;; 	ASN1_SIMPLE(RSA, iqmp, BIGNUM)
+    ;; } ASN1_SEQUENCE_END_cb(RSA, RSAPrivateKey)
+    (cipher/rsa-key:make 
+     nil
+     (cipher/rsa-bn:from-bytes (nth 1 blocks))
+     (cipher/rsa-bn:from-bytes (nth 2 blocks))
+     (cipher/rsa-bn:from-bytes (nth 3 blocks)))))
+
+(defun cipher/rsa--asn1-read-blocks (data)
+  (destructuring-bind (tag seqlen seq)
+      (cipher/rsa--asn1-read-object data)
+    ;;TODO check tag?
+    ;; (unless (= tag ?\x30)
+    ;;   (error "TODO"))
+    (unless (= seqlen (length seq))
+      (signal 'invalid-read-syntax (list "Unexpected bytes")))
+    (loop with list = seq
+          while list
+          collect (destructuring-bind (tag len rest)
+                      (cipher/rsa--asn1-read-object list)
+                    (loop repeat len
+                          for xs on rest
+                          collect (car xs)
+                          finally (setq list xs))))))
+
+;; '(inf ret rest)
+(defun cipher/rsa--asn1-read-length (list)
+  (let ((i (logand (car list) ?\x7f)))
+    (cond
+     ((= (car list) ?\x80)
+      (list 1 0 (cdr list)))
+     ((plusp (logand (car list) ?\x80))
+      (setq list (cdr list))
+      (when (> i 3) (error "Too huge data %d" i))
+      (loop with ret = 0
+            for j downfrom i above 0
+            for xs on list
+            do (progn
+                 (setq ret (lsh ret 8))
+                 (setq ret (logior ret (car xs))))
+            finally return (list 0 ret xs)))
+     (t
+      (list 0 i (cdr list))))))
+
+(defun cipher/rsa--asn1-read-object (list)
+  (let* ((V_ASN1_CONSTRUCTED	?\x20)
+         (V_ASN1_PRIMITIVE_TAG	?\x1f)
+         (V_ASN1_PRIVATE	?\xc0)
+         (ret (logand (car list) V_ASN1_CONSTRUCTED))
+         (xclass (logand (car list) V_ASN1_PRIVATE))
+         (i (logand (car list) V_ASN1_PRIMITIVE_TAG))
+         tag)
+    (cond
+     ((= i V_ASN1_PRIMITIVE_TAG)
+      (error "TODO Not yet tested")
+      (setq list (cdr list))
+      (loop with l = 0
+            for xs on list
+            do (progn
+                 (setq l (lsh l 7))
+                 (setq l (logand (car xs) ?\x7f)))
+            ;;todo
+            ;; if (l > (INT_MAX >> 7L)) goto err;
+            while (plusp (logand (car xs) ?\x80))
+            finally (setq tag l)))
+     (t
+      (setq tag i)
+      (setq list (cdr list))))
+    ;;TODO tag is not used
+    (destructuring-bind (inf len rest) (cipher/rsa--asn1-read-length list)
+      (let ((length (logior len inf)))
+        (list tag length rest)))))
 
 (defun cipher/rsa-openssh-load-pubkey (pub-file)
   (with-temp-buffer
@@ -368,8 +435,31 @@ Decrypted string must equal HASH otherwise raise error.
       (error "Unrecognized format %s" pub-file)))))
 
 (defun cipher/rsa--read-openssl-pubkey ()
-  ;;TODO
-  )
+  (unless (re-search-forward "^-----BEGIN PUBLIC KEY-----" nil t)
+    (signal 'invalid-read-syntax (list "No public key header")))
+  (let ((start (point)))
+    (unless (re-search-forward "^-----END PUBLIC KEY-----" nil t)
+      (signal 'invalid-read-syntax (list "No public key footer")))
+    (let* ((end (match-beginning 0))
+           (str (buffer-substring start end))
+           (raw (base64-decode-string str))
+           (data (string-to-list raw))
+           (top-blocks (cipher/rsa--asn1-read-blocks data))
+           ;; public key have recursive structure.
+           (bit-string (nth 1 top-blocks))
+           (blocks (cipher/rsa--asn1-read-blocks
+                    (loop for xs on bit-string
+                          unless (zerop (car xs))
+                          return xs))))
+      ;; ASN1_SEQUENCE_cb(RSAPublicKey, rsa_cb) = {
+      ;; 	ASN1_SIMPLE(RSA, n, BIGNUM),
+      ;; 	ASN1_SIMPLE(RSA, e, BIGNUM),
+      ;; } ASN1_SEQUENCE_END_cb(RSA, RSAPublicKey)
+      (cipher/rsa-key:make 
+       nil
+       (cipher/rsa-bn:from-bytes (nth 0 blocks))
+       (cipher/rsa-bn:from-bytes (nth 1 blocks))
+       nil))))
 
 (defun cipher/rsa--openssh-publine (pub-line)
   (unless (string-match "^ssh-rsa \\([a-zA-Z0-9+/]+=*\\)\\(?: \\(.*\\)\\)?" pub-line)
@@ -380,9 +470,7 @@ Decrypted string must equal HASH otherwise raise error.
          (blocks (cipher/rsa--read-publine-blocks binary)))
     (destructuring-bind (type e n) blocks
       (let* ((tobn (lambda (bs)
-                     (cipher/rsa-bn:from-string
-                      (mapconcat (lambda (x) (format "%02x" x)) bs "")
-                      16)))
+                     (cipher/rsa-bn:from-bytes bs)))
              ;; ignore sign byte by `cdr'
              (N (funcall tobn (cdr n)))
              (E (funcall tobn e)))
@@ -445,6 +533,7 @@ Decrypted string must equal HASH otherwise raise error.
            (t
             (setq data (base64-decode-string b64))))
           (delete-region (point-min) (point-max))
+          (set-buffer-multibyte nil)
           (insert data))))))
 
 (defun cipher/rsa--hex-to-bytes (hex)
@@ -507,6 +596,10 @@ Decrypted string must equal HASH otherwise raise error.
         finally return (cons res (if (= i max-len) nil i))))
 
 
+
+(defun cipher/rsa-bn:from-bytes (text)
+  (let ((hex (mapconcat (lambda (x) (format "%02x" x)) text "")))
+    (cipher/rsa-bn:from-string hex 16)))
 
 (defun cipher/rsa-bn:from-string (s &optional base)
   (let* ((str (format "%s#%s" (or base "16") s))
@@ -606,13 +699,6 @@ Decrypted string must equal HASH otherwise raise error.
     (if n
         (cons 'bigpos n)
       0)))
-
-(defun cipher/rsa-bn:from-bytes (bytes &optional little-endian)
-  (let ((hex (mapconcat
-              (lambda (x) (format "%02x" x))
-               (if little-endian (nreverse bytes) bytes)
-               "")))
-    (cipher/rsa-bn:from-string hex 16)))
 
 (defun cipher/rsa-bn:read-bytes (bytes count &optional little-endian)
   (let* ((data (loop for b in bytes

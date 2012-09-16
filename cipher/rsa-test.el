@@ -55,11 +55,14 @@
            "openssl" t t nil "rsautl" args)
     (buffer-string)))
 
+(defvar cipher/rsa-test--key-length 256)
+(defvar cipher/rsa-test--repeat 10)
+
 (ert-deftest cipher/rsa-test--general ()
   ""
   :tags '(cipher/rsa)
-  (loop repeat 10
-        do (let* ((key (cipher/rsa-generate-key "A" 256))
+  (loop repeat cipher/rsa-test--repeat
+        do (let* ((key (cipher/rsa-generate-key "A" cipher/rsa-test--key-length))
                   (public-key (cipher/rsa-key:export-public key))
                   (M (cipher/rsa-test--random-string))
                   (C (cipher/rsa-encrypt-bytes public-key M))
@@ -69,8 +72,8 @@
 (ert-deftest cipher/rsa-test--sign ()
   ""
   :tags '(cipher/rsa)
-  (loop repeat 10
-        do (let* ((key (cipher/rsa-generate-key "A" 256))
+  (loop repeat cipher/rsa-test--repeat
+        do (let* ((key (cipher/rsa-generate-key "A" cipher/rsa-test--key-length))
                   (public-key (cipher/rsa-key:export-public key))
                   (M (cipher/rsa-test--random-string))
                   ;; 256 bit key accept only 21 byte
@@ -81,7 +84,7 @@
 (ert-deftest cipher/rsa-test--openssl-mutual ()
   ""
   :tags '(cipher/rsa)
-  (loop repeat 10
+  (loop repeat cipher/rsa-test--repeat
         do (let* ((keyfile (cipher/rsa-test--openssl-genrsa)) ;TODO generating key...
                   (key (cipher/rsa-openssh-load-key keyfile))
                   (M "hogehoge")
@@ -91,5 +94,23 @@
                   (Mo (cipher/rsa-test--openssl-decrypt keyfile Ce)))
              (should (equal M Me))
              (should (equal M Mo)))))
+
+(ert-deftest cipher/rsa-test--keyfile-loading ()
+  ""
+  :tags '(cipher/rsa)
+  (loop repeat cipher/rsa-test--repeat
+        do (let ((keylen cipher/rsa-test--key-length)
+                 (secfile (make-temp-file "rsa-test-"))
+                 (pubfile (make-temp-file "rsa-test-")))
+             (shell-command-to-string (format "openssl genrsa %d > %s" keylen secfile))
+             (shell-command-to-string (format "openssl rsa -in %s -pubout > %s" secfile pubfile))
+             (let ((seckey (cipher/rsa-openssh-load-key secfile))
+                   (pubkey (cipher/rsa-openssh-load-pubkey pubfile)))
+               (should (equal (cipher/rsa-key:N seckey) (cipher/rsa-key:N pubkey)))
+               (should (equal (cipher/rsa-key:E seckey) (cipher/rsa-key:E pubkey)))
+               (let* ((M "a")
+                      (C (cipher/rsa-encrypt-bytes pubkey M))
+                      (M2 (cipher/rsa-decrypt-bytes seckey C)))
+                 (should (equal M M2)))))))
 
 (provide 'cipher/rsa-test)
