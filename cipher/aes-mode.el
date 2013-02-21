@@ -1,12 +1,12 @@
 ;;; aes-mode.el --- Encrypt/Decrypt string with password.
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
-;; Keywords: encrypt decrypt password Rijndael
+;; Keywords: data, convenience
 ;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/cipher/aes-mode.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version 0.5.0
+;; Version 0.5.1
 
-(defconst aes-mode-version "0.5.0")
+(defconst aes-mode-version "0.5.1")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as

@@ -41,7 +41,7 @@
   (cipher/rsa-test--call-openssl-rsautl
    data "-sign" "-inkey" keyfile))
 
-;;TODO
+;;TODO -pubin
 (defun cipher/rsa-test--openssl-verify (keyfile data)
   (cipher/rsa-test--call-openssl-rsautl
    data "-verify" "-inkey" keyfile))

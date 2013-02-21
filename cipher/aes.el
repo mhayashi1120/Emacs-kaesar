@@ -1,12 +1,12 @@
 ;;; cipher/aes.el --- Encrypt/Decrypt string with password.
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
-;; Keywords: encrypt decrypt password Rijndael
+;; Keywords: data
 ;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/cipher/aes.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version 0.9.0
+;; Version 0.9.1
 
-(defconst cipher/aes-version "0.9.0")
+(defconst cipher/aes-version "0.9.1")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -25,11 +25,13 @@
 
 ;;; Install:
 
-;; Put this file into load-path'ed directory, and
+;; Put this file into load-path'ed "cipher" directory, and
 ;; !!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!
 ;; And put the following expression into your .emacs.
 ;;
-;;     (require 'cipher/aes)
+;; (require 'cipher/aes)
+;;
+
 
 ;;; Usage:
 
