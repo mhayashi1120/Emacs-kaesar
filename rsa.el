@@ -4,9 +4,10 @@
 ;; Keywords: data
 ;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/rsa.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version 0.0.2
+;; Version: 0.0.2
+;; Package-Requires: ()
 
-(defconst cipher/rsa-version "0.0.1")
+(defconst cipher/rsa-version "0.0.2")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
