@@ -4,7 +4,8 @@
 ;; Keywords: data, convenience
 ;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/cipher/aes-mode.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version 0.5.1
+;; Version: 0.5.1
+;; Package-Requires: ()
 
 (defconst aes-mode-version "0.5.1")
 

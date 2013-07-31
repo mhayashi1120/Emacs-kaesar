@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/cipher/aes.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version 0.9.1
+;; Version: 0.9.2
 
 (defconst cipher/aes-version "0.9.1")
 
@@ -96,6 +96,9 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
   "Password prompt when read password to decrypt."
   :group 'cipher/aes
   :type 'string)
+
+(defvar cipher/aes--Enc)
+(defvar cipher/aes--Dec)
 
 (defmacro cipher/aes--proc (algorithm &rest form)
   (declare (indent 1))
@@ -189,10 +192,10 @@ This is a hiding parameter which hold password as vector.")
       (error "Not a unibyte string")))
    ((vectorp unibytes))))
 
-(defun cipher/aes--check-encrypted (encrypted-string)
+(defun cipher/aes--check-encrypted (encbyte-string)
   (cond
-   ((stringp encrypted-string)
-    (when (multibyte-string-p encrypted-string)
+   ((stringp encbyte-string)
+    (when (multibyte-string-p encbyte-string)
       (error "Not a encrypted string")))))
 
 ;; Basic utilities
@@ -204,10 +207,11 @@ This is a hiding parameter which hold password as vector.")
    (logxor (aref word1 2) (aref word2 2))
    (logxor (aref word1 3) (aref word2 3))))
 
-(defsubst cipher/aes--rot (list count)
-  (loop with len = (length list)
-        for i from 0 below len
-        collect (nth (mod (+ i count) len) list)))
+(defsubst cipher/aes--word-xor! (word1 word2)
+  (aset word1 0 (logxor (aref word1 0) (aref word2 0)))
+  (aset word1 1 (logxor (aref word1 1) (aref word2 1)))
+  (aset word1 2 (logxor (aref word1 2) (aref word2 2)))
+  (aset word1 3 (logxor (aref word1 3) (aref word2 3))))
 
 (defsubst cipher/aes--byte-rot (byte count)
   (let ((v (lsh byte count)))
@@ -242,9 +246,6 @@ This is a hiding parameter which hold password as vector.")
 ;; Number of rounds
 (defvar cipher/aes--Nr)
 
-(defvar cipher/aes--Enc)
-(defvar cipher/aes--Dec)
-
 ;; count of row in State
 (defconst cipher/aes--Row 4)
 ;; size of State
@@ -265,9 +266,9 @@ This is a hiding parameter which hold password as vector.")
          (unibytes (apply 'cipher/aes--unibyte-string full-data)))
     (cipher/aes--create-encrypted unibytes)))
 
-(defun cipher/aes--decrypt-0 (encrypted-string raw-key &optional iv)
+(defun cipher/aes--decrypt-0 (encbyte-string raw-key &optional iv)
   (let* ((key (cipher/aes--key-expansion raw-key))
-         (decrypted (funcall cipher/aes--Dec encrypted-string key iv)))
+         (decrypted (funcall cipher/aes--Dec encbyte-string key iv)))
     (apply 'cipher/aes--unibyte-string decrypted)))
 
 (defun cipher/aes--parse-algorithm (name)
@@ -322,7 +323,7 @@ This is a hiding parameter which hold password as vector.")
                  do (aset word c (aref unibytes (+ from c))))
         finally return state))
 
-(defsubst cipher/aes--parse-unibytes (unibyte-string pos)
+(defsubst cipher/aes--read-unibytes (unibyte-string pos)
   (let* ((len (length unibyte-string))
          (end-pos (min len (+ pos cipher/aes--Block)))
          (state (cipher/aes--unibytes-to-state (substring unibyte-string pos end-pos)))
@@ -331,10 +332,10 @@ This is a hiding parameter which hold password as vector.")
                    nil end-pos)))
     (list state rest)))
 
-(defsubst cipher/aes--parse-encrypted (encrypted-string pos)
-  (let* ((len (length encrypted-string))
+(defsubst cipher/aes--read-encbytes (encbyte-string pos)
+  (let* ((len (length encbyte-string))
          (end-pos (min len (+ pos cipher/aes--Block)))
-         (state (cipher/aes--unibytes-to-state (substring encrypted-string pos end-pos)))
+         (state (cipher/aes--unibytes-to-state (substring encbyte-string pos end-pos)))
          (rest (if (= len end-pos) nil end-pos)))
     (list state rest)))
 
@@ -572,10 +573,10 @@ to create AES key and initial vector."
     (nreverse res)))
 
 (defsubst cipher/aes--add-round-key (state key)
-  (aset state 0 (cipher/aes--word-xor (aref state 0) (aref key 0)))
-  (aset state 1 (cipher/aes--word-xor (aref state 1) (aref key 1)))
-  (aset state 2 (cipher/aes--word-xor (aref state 2) (aref key 2)))
-  (aset state 3 (cipher/aes--word-xor (aref state 3) (aref key 3)))
+  (cipher/aes--word-xor! (aref state 0) (aref key 0))
+  (cipher/aes--word-xor! (aref state 1) (aref key 1))
+  (cipher/aes--word-xor! (aref state 2) (aref key 2))
+  (cipher/aes--word-xor! (aref state 3) (aref key 3))
   state)
 
 (defsubst cipher/aes--round-key (key n)
@@ -601,7 +602,7 @@ to create AES key and initial vector."
         collect (cipher/aes--multiply i 8) into res
         finally return (vconcat res)))
 
-(defsubst cipher/aes--mix-column (word)
+(defsubst cipher/aes--mix-column! (word)
   (let ((w1 (vconcat word))
         (w2 (vconcat (mapcar
                       (lambda (b)
@@ -630,13 +631,13 @@ to create AES key and initial vector."
                          (aref w2 3)))))
 
 (defsubst cipher/aes--mix-columns (state)
-  (cipher/aes--mix-column (aref state 0))
-  (cipher/aes--mix-column (aref state 1))
-  (cipher/aes--mix-column (aref state 2))
-  (cipher/aes--mix-column (aref state 3))
+  (cipher/aes--mix-column! (aref state 0))
+  (cipher/aes--mix-column! (aref state 1))
+  (cipher/aes--mix-column! (aref state 2))
+  (cipher/aes--mix-column! (aref state 3))
   state)
 
-(defsubst cipher/aes--inv-mix-column (word)
+(defsubst cipher/aes--inv-mix-column! (word)
   (let ((w1 (vconcat word))
         (w2 (vconcat (mapcar
                       (lambda (b)
@@ -681,17 +682,15 @@ to create AES key and initial vector."
     ))
 
 (defsubst cipher/aes--inv-mix-columns (state)
-  (cipher/aes--inv-mix-column (aref state 0))
-  (cipher/aes--inv-mix-column (aref state 1))
-  (cipher/aes--inv-mix-column (aref state 2))
-  (cipher/aes--inv-mix-column (aref state 3))
+  (cipher/aes--inv-mix-column! (aref state 0))
+  (cipher/aes--inv-mix-column! (aref state 1))
+  (cipher/aes--inv-mix-column! (aref state 2))
+  (cipher/aes--inv-mix-column! (aref state 3))
   state)
 
-(defsubst cipher/aes--shift-row (state row indexes)
+(defsubst cipher/aes--shift-row! (state row indexes)
   (let ((new-rows (loop for index in indexes
-                        collect
-                        (let* ((col (aref state index)))
-                          (aref col row)))))
+                        collect (aref (aref state index) row))))
     (loop for col from 0
           for new-row in new-rows
           do
@@ -699,16 +698,16 @@ to create AES key and initial vector."
 
 (defsubst cipher/aes--shift-rows (state)
   ;; ignore first row
-  (cipher/aes--shift-row state 1 '(1 2 3 0))
-  (cipher/aes--shift-row state 2 '(2 3 0 1))
-  (cipher/aes--shift-row state 3 '(3 0 1 2))
+  (cipher/aes--shift-row! state 1 '(1 2 3 0))
+  (cipher/aes--shift-row! state 2 '(2 3 0 1))
+  (cipher/aes--shift-row! state 3 '(3 0 1 2))
   state)
 
 (defsubst cipher/aes--inv-shift-rows (state)
   ;; ignore first row
-  (cipher/aes--shift-row state 1 '(3 0 1 2))
-  (cipher/aes--shift-row state 2 '(2 3 0 1))
-  (cipher/aes--shift-row state 3 '(1 2 3 0))
+  (cipher/aes--shift-row! state 1 '(3 0 1 2))
+  (cipher/aes--shift-row! state 2 '(2 3 0 1))
+  (cipher/aes--shift-row! state 3 '(1 2 3 0))
   state)
 
 (defconst cipher/aes--inv-S-box
@@ -765,23 +764,23 @@ to create AES key and initial vector."
 (defun cipher/aes--cbc-encrypt (unibyte-string key iv)
   (loop with pos = 0
         with state-1 = (cipher/aes--unibytes-to-state iv)
-        append (let* ((parsed (cipher/aes--parse-unibytes unibyte-string pos))
-                      (state-d0 (cipher/aes--cbc-state-xor (nth 0 parsed) state-1))
+        append (let* ((parsed (cipher/aes--read-unibytes unibyte-string pos))
+                      (state-d0 (cipher/aes--cbc-state-xor! (nth 0 parsed) state-1))
                       (state-e0 (cipher/aes--cipher state-d0 key)))
                  (setq pos (nth 1 parsed))
                  (setq state-1 state-e0)
                  (cipher/aes--state-to-bytes state-e0))
         while pos))
 
-(defun cipher/aes--cbc-decrypt (encrypted-string key iv)
-  (cipher/aes--check-encrypted-string encrypted-string)
+(defun cipher/aes--cbc-decrypt (encbyte-string key iv)
+  (cipher/aes--check-encbyte-string encbyte-string)
   (loop with pos = 0
         with state-1 = (cipher/aes--unibytes-to-state iv)
-        append (let* ((parsed (cipher/aes--parse-encrypted encrypted-string pos))
+        append (let* ((parsed (cipher/aes--read-encbytes encbyte-string pos))
                       (state-e (nth 0 parsed))
                       ;; Clone state cause of `cipher/aes--inv-cipher' have side-effect
                       (state-e0 (cipher/aes--state-clone state-e))
-                      (state-d0 (cipher/aes--cbc-state-xor
+                      (state-d0 (cipher/aes--cbc-state-xor!
                                  (cipher/aes--inv-cipher state-e key) state-1))
                       (bytes (cipher/aes--state-to-bytes state-d0)))
                  (setq pos (nth 1 parsed))
@@ -791,11 +790,10 @@ to create AES key and initial vector."
                  (append bytes nil))
         while pos))
 
-(defun cipher/aes--cbc-state-xor (state0 state-1)
+(defun cipher/aes--cbc-state-xor! (state0 state-1)
   (loop for w1 across state-1
         for w2 across state0
-        for i from 0
-        do (aset state0 i (cipher/aes--word-xor w1 w2))
+        do (cipher/aes--word-xor! w2 w1)
         finally return state0))
 
 (put 'cipher/aes-decryption-failed
@@ -819,23 +817,23 @@ to create AES key and initial vector."
           for u in eob-bytes
           collect u)))
 
-(defun cipher/aes--check-encrypted-string (string)
+(defun cipher/aes--check-encbyte-string (string)
   (unless (= (mod (length string) cipher/aes--Block) 0)
     (signal 'cipher/aes-decryption-failed nil)))
 
 (defun cipher/aes--ecb-encrypt (unibyte-string key &rest dummy)
   (loop with pos = 0
-        append (let* ((parse (cipher/aes--parse-unibytes unibyte-string pos))
+        append (let* ((parse (cipher/aes--read-unibytes unibyte-string pos))
                       (in-state (nth 0 parse))
                       (out-state (cipher/aes--cipher in-state key)))
                  (setq pos (nth 1 parse))
                  (cipher/aes--state-to-bytes out-state))
         while pos))
 
-(defun cipher/aes--ecb-decrypt (encrypted-string key &rest dummy)
-  (cipher/aes--check-encrypted-string encrypted-string)
+(defun cipher/aes--ecb-decrypt (encbyte-string key &rest dummy)
+  (cipher/aes--check-encbyte-string encbyte-string)
   (loop with pos = 0
-        append (let* ((parse (cipher/aes--parse-encrypted encrypted-string pos))
+        append (let* ((parse (cipher/aes--read-encbytes encbyte-string pos))
                       (in-state (nth 0 parse))
                       (out-state (cipher/aes--inv-cipher in-state key))
                       (bytes (cipher/aes--state-to-bytes out-state)))
