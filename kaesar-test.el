@@ -322,7 +322,7 @@
 
 (ert-deftest kaesar-test--rot ()
   :tags '(kaesar)
-  (kaesar-test-should [2 3 4 1] (kaesar--rot-word [1 2 3 4]))
+  (kaesar-test-should [2 3 4 1] (kaesar--rot-word! [1 2 3 4]))
   )
 
 (ert-deftest kaesar-test--basic ()
@@ -343,19 +343,19 @@
   :tags '(kaesar)
   (kaesar--cipher-algorithm 'aes-256
     (kaesar-test-should [[65 70 75 80] [69 74 79 68] [73 78 67 72] [77 66 71 76]]
-      (kaesar--shift-rows (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")))
+      (kaesar--shift-rows! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")))
 
     (kaesar-test-should [[65 78 75 72] [69 66 79 76] [73 70 67 80] [77 74 71 68]] 
-      (kaesar--inv-shift-rows (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")))
+      (kaesar--inv-shift-rows! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")))
 
     (kaesar-test-should (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
-      (kaesar--inv-shift-rows (kaesar--shift-rows (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
+      (kaesar--inv-shift-rows! (kaesar--shift-rows! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
 
     (kaesar-test-should (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
-      (kaesar--inv-sub-bytes (kaesar--sub-bytes (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
+      (kaesar--inv-sub-bytes! (kaesar--sub-bytes! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
 
     (kaesar-test-should (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
-      (kaesar--inv-mix-columns (kaesar--mix-columns (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
+      (kaesar--inv-mix-columns! (kaesar--mix-columns! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
 
     (kaesar-test-should (string-to-list "ABCDEFGHIJKLMNOP")
       (let ((key (kaesar--key-expansion kaesar--test-aes256-key)))
@@ -439,17 +439,17 @@
                    (kaesar--round-key (kaesar--key-expansion kaesar--test-appendix-b-key) 0))
 
     (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-1)
-                   (kaesar--add-round-key (kaesar--test-view-to-state kaesar--test-appendix-b-input-state) 
+                   (kaesar--add-round-key! (kaesar--test-view-to-state kaesar--test-appendix-b-input-state) 
                                               (kaesar--test-view-to-state kaesar--test-appendix-b-first-round-key)))
 
     (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-2)
-      (kaesar--sub-bytes (kaesar--test-view-to-state kaesar--test-appendix-b-1-1)))
+      (kaesar--sub-bytes! (kaesar--test-view-to-state kaesar--test-appendix-b-1-1)))
 
     (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-3)
-                   (kaesar--shift-rows (kaesar--test-view-to-state kaesar--test-appendix-b-1-2)))
+                   (kaesar--shift-rows! (kaesar--test-view-to-state kaesar--test-appendix-b-1-2)))
 
     (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-4)
-      (kaesar--mix-columns (kaesar--test-view-to-state kaesar--test-appendix-b-1-3)))
+      (kaesar--mix-columns! (kaesar--test-view-to-state kaesar--test-appendix-b-1-3)))
 
     (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-round-key)
       (kaesar--round-key (kaesar--key-expansion kaesar--test-appendix-b-key) (* 1 kaesar--Nb)))
