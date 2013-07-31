@@ -1,4 +1,4 @@
-;;; cipher/aes.el --- Encrypt/Decrypt string with password.
+;;; cipher/aes.el --- Another AES encryptin/decryptin string with password.
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
@@ -6,7 +6,7 @@
 ;; Emacs: GNU Emacs 22 or later
 ;; Version: 0.9.2
 
-(defconst cipher/aes-version "0.9.1")
+(defconst cipher/aes-version "0.9.2")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
