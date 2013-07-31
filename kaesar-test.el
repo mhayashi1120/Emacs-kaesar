@@ -228,7 +228,7 @@
 
 (defun kaesar--test-unibytes-to-state (string)
   (kaesar--cipher-algorithm 'aes-256
-    (car (kaesar--parse-unibytes string 0))))
+    (car (kaesar--read-unibytes string 0))))
 
 (defun kaesar--test-view-to-state (array)
   (let ((ret (make-vector (* kaesar--Row kaesar--Nb) nil)))
@@ -322,8 +322,7 @@
 
 (ert-deftest kaesar-test--rot ()
   :tags '(kaesar)
-  (kaesar-test-should '(4 1 2 3) (kaesar--rot '(1 2 3 4) -1))
-  (kaesar-test-should '(2 3 4 1) (kaesar--rot '(1 2 3 4) 1))
+  (kaesar-test-should [2 3 4 1] (kaesar--rot-word [1 2 3 4]))
   )
 
 (ert-deftest kaesar-test--basic ()
@@ -370,16 +369,16 @@
   
   (kaesar--cipher-algorithm 'aes-256
     (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
-      (kaesar--parse-unibytes "abcdefghijklmnopq" 0))
+      (kaesar--read-unibytes "abcdefghijklmnopq" 0))
 
     (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
-      (kaesar--parse-unibytes "abcdefghijklmnop" 0))
+      (kaesar--read-unibytes "abcdefghijklmnop" 0))
 
     (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 1]] nil)
-      (kaesar--parse-unibytes "abcdefghijklmno" 0))
+      (kaesar--read-unibytes "abcdefghijklmno" 0))
     
     (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 5] [5 5 5 5]] nil)
-      (kaesar--parse-unibytes "abcdefghijk" 0))
+      (kaesar--read-unibytes "abcdefghijk" 0))
     ))
 
 (ert-deftest kaesar-test--openssl-compatibility ()
@@ -547,10 +546,10 @@
 
 (defun kaesar-test--locate-test-data (name)
   (let ((hist (car (member-if 
-                    (lambda (x) (string-match "aes-test.el" (car x)))
+                    (lambda (x) (string-match "kaesar-test.el" (car x)))
                     load-history))))
     (when hist
-      (let* ((top (expand-file-name "../.." (car hist)))
+      (let* ((top (expand-file-name ".." (car hist)))
              (datadir (expand-file-name "test/aes-test-values" top)))
         (expand-file-name name datadir)))))
 
