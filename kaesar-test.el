@@ -1,44 +1,44 @@
 
-(require 'cipher/aes)
+(require 'kaesar)
 (require 'openssl-cipher nil t)
 (require 'ert)
 
-(defun cipher/aes--test-random-bytes ()
+(defun kaesar--test-random-bytes ()
   (let ((s (make-string (random 200) ?\000)))
     (loop for i from 0 below (length s)
           do (aset s i (random 256)))
     s))
 
-(defun cipher/aes--test-unibytes-to-hex (unibytes)
+(defun kaesar--test-unibytes-to-hex (unibytes)
   (apply 'concat
          (loop for b across unibytes
                collect (format "%02X" b))))
 
-(defun cipher/aes--test-hex-to-word (hex-string)
+(defun kaesar--test-hex-to-word (hex-string)
   (unless (= (length hex-string) 8)
     (error "args out of range"))
-  (cipher/aes--hex-to-vector hex-string))
+  (kaesar--hex-to-vector hex-string))
 
-(defun cipher/aes--test-openssl-key&iv (algorithm pass)
+(defun kaesar--test-openssl-key&iv (algorithm pass)
   (let ((key&iv (shell-command-to-string 
                  (format "openssl %s -e  -pass pass:%s -P -nosalt" algorithm pass))))
     (when (string-match "^key *=\\(.*\\)\\(?:\niv *=\\(.*\\)\\)?" key&iv)
       (list (match-string 1 key&iv) (or (match-string 2 key&iv) "")))))
 
 ;; Appendix A
-(defun cipher/aes--test-appendix-a-result (&rest hex-strings)
+(defun kaesar--test-appendix-a-result (&rest hex-strings)
   (mapcar
    (lambda (s)
-     (cipher/aes--test-hex-to-word s))
+     (kaesar--test-hex-to-word s))
    hex-strings))
 
-(defconst cipher/aes--test-aes128-key
+(defconst kaesar--test-aes128-key
   [
    ?\x2b ?\x7e ?\x15 ?\x16 ?\x28 ?\xae ?\xd2 ?\xa6 ?\xab ?\xf7 ?\x15 ?\x88 ?\x09 ?\xcf ?\x4f ?\x3c
          ])
 
-(defconst cipher/aes--test-aes128-results
-  (cipher/aes--test-appendix-a-result
+(defconst kaesar--test-aes128-results
+  (kaesar--test-appendix-a-result
    "2b7e1516"
    "28aed2a6"
    "abf71588"
@@ -85,12 +85,12 @@
    "b6630ca6"
    ))
 
-(defconst cipher/aes--test-aes192-key
+(defconst kaesar--test-aes192-key
   [?\x8e ?\x73 ?\xb0 ?\xf7 ?\xda ?\x0e ?\x64 ?\x52 ?\xc8 ?\x10 ?\xf3 ?\x2b
          ?\x80 ?\x90 ?\x79 ?\xe5 ?\x62 ?\xf8 ?\xea ?\xd2 ?\x52 ?\x2c ?\x6b ?\x7b])
 
-(defconst cipher/aes--test-aes192-results
-  (cipher/aes--test-appendix-a-result
+(defconst kaesar--test-aes192-results
+  (kaesar--test-appendix-a-result
    "8e73b0f7"
    "da0e6452"
    "c810f32b"
@@ -145,12 +145,12 @@
    "01002202"
    ))
 
-(defconst cipher/aes--test-aes256-key
+(defconst kaesar--test-aes256-key
   [?\x60 ?\x3d ?\xeb ?\x10 ?\x15 ?\xca ?\x71 ?\xbe ?\x2b ?\x73 ?\xae ?\xf0 ?\x85 ?\x7d ?\x77 ?\x81
          ?\x1f ?\x35 ?\x2c ?\x07 ?\x3b ?\x61 ?\x08 ?\xd7 ?\x2d ?\x98 ?\x10 ?\xa3 ?\x09 ?\x14 ?\xdf ?\xf4])
 
-(defconst cipher/aes--test-aes256-results
-  (cipher/aes--test-appendix-a-result
+(defconst kaesar--test-aes256-results
+  (kaesar--test-appendix-a-result
    "603deb10"
    "15ca71be"
    "2b73aef0"
@@ -214,7 +214,7 @@
    ))
 
 ;; Appendix B Cipher Example
-(defconst cipher/aes--test-appendix-b-input-state
+(defconst kaesar--test-appendix-b-input-state
   [
    ?\x32 ?\x88 ?\x31 ?\xe0
    ?\x43 ?\x5a ?\x31 ?\x37
@@ -222,24 +222,24 @@
    ?\xa8 ?\x8d ?\xa2 ?\x34
    ])
 
-(defconst cipher/aes--test-appendix-b-key
+(defconst kaesar--test-appendix-b-key
   [?\x2b ?\x7e ?\x15 ?\x16 ?\x28 ?\xae ?\xd2 ?\xa6 
          ?\xab ?\xf7 ?\x15 ?\x88 ?\x09 ?\xcf ?\x4f ?\x3c])
 
-(defun cipher/aes--test-unibytes-to-state (string)
-  (cipher/aes--cipher-algorithm 'aes-256
-    (car (cipher/aes--parse-unibytes string 0))))
+(defun kaesar--test-unibytes-to-state (string)
+  (kaesar--cipher-algorithm 'aes-256
+    (car (kaesar--parse-unibytes string 0))))
 
-(defun cipher/aes--test-view-to-state (array)
-  (let ((ret (make-vector (* cipher/aes--Row cipher/aes--Nb) nil)))
+(defun kaesar--test-view-to-state (array)
+  (let ((ret (make-vector (* kaesar--Row kaesar--Nb) nil)))
     (loop for i from 0 
           for v across array
-          do (aset ret (+ (/ i cipher/aes--Nb)
-                          (* (mod i cipher/aes--Row) cipher/aes--Row)) v))
-    (cipher/aes--test-unibytes-to-state (concat ret))))
+          do (aset ret (+ (/ i kaesar--Nb)
+                          (* (mod i kaesar--Row) kaesar--Row)) v))
+    (kaesar--test-unibytes-to-state (concat ret))))
 
 
-(defconst cipher/aes--test-appendix-b-first-round-key
+(defconst kaesar--test-appendix-b-first-round-key
   [
    ?\x2b ?\x28 ?\xab ?\x09
    ?\x7e ?\xae ?\xf7 ?\xcf
@@ -248,7 +248,7 @@
    ])
 
 ;; 1 Start of Round
-(defconst cipher/aes--test-appendix-b-1-1
+(defconst kaesar--test-appendix-b-1-1
   [
    ?\x19 ?\xa0 ?\x9a ?\xe9
    ?\x3d ?\xf4 ?\xc6 ?\xf8
@@ -257,7 +257,7 @@
    ])
 
 ;; 1 After SubBytes
-(defconst cipher/aes--test-appendix-b-1-2
+(defconst kaesar--test-appendix-b-1-2
   [
    ?\xd4 ?\xe0 ?\xb8 ?\x1e
    ?\x27 ?\xbf ?\xb4 ?\x41
@@ -266,7 +266,7 @@
    ])
 
 ;; 1 After ShiftRows
-(defconst cipher/aes--test-appendix-b-1-3
+(defconst kaesar--test-appendix-b-1-3
   [
    ?\xd4 ?\xe0 ?\xb8 ?\x1e
    ?\xbf ?\xb4 ?\x41 ?\x27
@@ -275,7 +275,7 @@
    ])
 
 ;; 1 After MixColumns
-(defconst cipher/aes--test-appendix-b-1-4
+(defconst kaesar--test-appendix-b-1-4
   [
    ?\x04 ?\xe0 ?\x48 ?\x28
    ?\x66 ?\xcb ?\xf8 ?\x06
@@ -284,7 +284,7 @@
    ])
 
 ;; 1 Round Key Value
-(defconst cipher/aes--test-appendix-b-1-round-key
+(defconst kaesar--test-appendix-b-1-round-key
   [
    ?\xa0 ?\x88 ?\x23 ?\x2a
    ?\xfa ?\x54 ?\xa3 ?\x6c
@@ -293,7 +293,7 @@
    ])
 
 ;; last output
-(defconst cipher/aes--test-appendix-b-last-output
+(defconst kaesar--test-appendix-b-last-output
   [
    ?\x39 ?\x02 ?\xdc ?\x19
    ?\x25 ?\xdc ?\x11 ?\x6a
@@ -301,211 +301,211 @@
    ?\x1d ?\xfb ?\x97 ?\x32
    ])
 
-(defmacro cipher/aes-test-should (expected-form test-form)
+(defmacro kaesar-test-should (expected-form test-form)
   (declare (indent 1))
   `(should (equal ,expected-form ,test-form)))
 
-(defun cipher/aes--test-block-random-test ()
+(defun kaesar--test-block-random-test ()
   (flet ((read-passwd (&rest dummy) (copy-seq "d")))
     (loop repeat 16
-          do (let ((bytes (cipher/aes--test-random-bytes))
+          do (let ((bytes (kaesar--test-random-bytes))
                    results)
-               (setq results (openssl-cipher-decrypt-unibytes (cipher/aes-encrypt bytes)))
-               (cipher/aes-test-should results bytes)
-               (setq results (cipher/aes-decrypt (openssl-cipher-encrypt-unibytes bytes)))
-               (cipher/aes-test-should results bytes)))))
+               (setq results (openssl-cipher-decrypt-unibytes (kaesar-encrypt bytes)))
+               (kaesar-test-should results bytes)
+               (setq results (kaesar-decrypt (openssl-cipher-encrypt-unibytes bytes)))
+               (kaesar-test-should results bytes)))))
 
-(defun cipher/aes-test-enc/dec (raw-bytes &optional algorithm)
+(defun kaesar-test-enc/dec (raw-bytes &optional algorithm)
   (flet ((read-passwd (&rest dummy) (copy-seq "d")))
-    (cipher/aes-test-should raw-bytes
-      (cipher/aes-decrypt (cipher/aes-encrypt raw-bytes algorithm) algorithm))))
+    (kaesar-test-should raw-bytes
+      (kaesar-decrypt (kaesar-encrypt raw-bytes algorithm) algorithm))))
 
-(ert-deftest cipher/aes-test--rot ()
-  :tags '(cipher/aes)
-  (cipher/aes-test-should '(4 1 2 3) (cipher/aes--rot '(1 2 3 4) -1))
-  (cipher/aes-test-should '(2 3 4 1) (cipher/aes--rot '(1 2 3 4) 1))
+(ert-deftest kaesar-test--rot ()
+  :tags '(kaesar)
+  (kaesar-test-should '(4 1 2 3) (kaesar--rot '(1 2 3 4) -1))
+  (kaesar-test-should '(2 3 4 1) (kaesar--rot '(1 2 3 4) 1))
   )
 
-(ert-deftest cipher/aes-test--basic ()
-  :tags '(cipher/aes)
+(ert-deftest kaesar-test--basic ()
+  :tags '(kaesar)
   ;; 4.1 Addition
-  (cipher/aes-test-should ?\xd4 (cipher/aes--add ?\x57 ?\x83))
+  (kaesar-test-should ?\xd4 (kaesar--add ?\x57 ?\x83))
 
   ;; 4.2 Multiplication
   ;; section 4.2
-  (cipher/aes-test-should ?\xc1 (cipher/aes--multiply ?\x57 ?\x83))
+  (kaesar-test-should ?\xc1 (kaesar--multiply ?\x57 ?\x83))
 
   ;; section 4.2.1
-  (cipher/aes-test-should ?\xfe (cipher/aes--multiply ?\x57 ?\x13))
+  (kaesar-test-should ?\xfe (kaesar--multiply ?\x57 ?\x13))
 
   )
 
-(ert-deftest cipher/aes-test--inner-functions ()
-  :tags '(cipher/aes)
-  (cipher/aes--cipher-algorithm 'aes-256
-    (cipher/aes-test-should [[65 70 75 80] [69 74 79 68] [73 78 67 72] [77 66 71 76]]
-      (cipher/aes--shift-rows (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP")))
+(ert-deftest kaesar-test--inner-functions ()
+  :tags '(kaesar)
+  (kaesar--cipher-algorithm 'aes-256
+    (kaesar-test-should [[65 70 75 80] [69 74 79 68] [73 78 67 72] [77 66 71 76]]
+      (kaesar--shift-rows (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")))
 
-    (cipher/aes-test-should [[65 78 75 72] [69 66 79 76] [73 70 67 80] [77 74 71 68]] 
-      (cipher/aes--inv-shift-rows (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP")))
+    (kaesar-test-should [[65 78 75 72] [69 66 79 76] [73 70 67 80] [77 74 71 68]] 
+      (kaesar--inv-shift-rows (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")))
 
-    (cipher/aes-test-should (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
-      (cipher/aes--inv-shift-rows (cipher/aes--shift-rows (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
+    (kaesar-test-should (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
+      (kaesar--inv-shift-rows (kaesar--shift-rows (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
 
-    (cipher/aes-test-should (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
-      (cipher/aes--inv-sub-bytes (cipher/aes--sub-bytes (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
+    (kaesar-test-should (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
+      (kaesar--inv-sub-bytes (kaesar--sub-bytes (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
 
-    (cipher/aes-test-should (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
-      (cipher/aes--inv-mix-columns (cipher/aes--mix-columns (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
+    (kaesar-test-should (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
+      (kaesar--inv-mix-columns (kaesar--mix-columns (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
 
-    (cipher/aes-test-should (string-to-list "ABCDEFGHIJKLMNOP")
-      (let ((key (cipher/aes--key-expansion cipher/aes--test-aes256-key)))
-        (cipher/aes--state-to-bytes
-         (cipher/aes--inv-cipher
-          (cipher/aes--cipher (cipher/aes--test-unibytes-to-state "ABCDEFGHIJKLMNOP") key)
+    (kaesar-test-should (string-to-list "ABCDEFGHIJKLMNOP")
+      (let ((key (kaesar--key-expansion kaesar--test-aes256-key)))
+        (kaesar--state-to-bytes
+         (kaesar--inv-cipher
+          (kaesar--cipher (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP") key)
           key))))))
 
-(ert-deftest cipher/aes-test--parser-functions ()
-  :tags '(cipher/aes)
+(ert-deftest kaesar-test--parser-functions ()
+  :tags '(kaesar)
   
-  (cipher/aes--cipher-algorithm 'aes-256
-    (cipher/aes-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
-      (cipher/aes--parse-unibytes "abcdefghijklmnopq" 0))
+  (kaesar--cipher-algorithm 'aes-256
+    (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
+      (kaesar--parse-unibytes "abcdefghijklmnopq" 0))
 
-    (cipher/aes-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
-      (cipher/aes--parse-unibytes "abcdefghijklmnop" 0))
+    (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
+      (kaesar--parse-unibytes "abcdefghijklmnop" 0))
 
-    (cipher/aes-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 1]] nil)
-      (cipher/aes--parse-unibytes "abcdefghijklmno" 0))
+    (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 1]] nil)
+      (kaesar--parse-unibytes "abcdefghijklmno" 0))
     
-    (cipher/aes-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 5] [5 5 5 5]] nil)
-      (cipher/aes--parse-unibytes "abcdefghijk" 0))
+    (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 5] [5 5 5 5]] nil)
+      (kaesar--parse-unibytes "abcdefghijk" 0))
     ))
 
-(ert-deftest cipher/aes-test--openssl-compatibility ()
-  :tags '(cipher/aes)
+(ert-deftest kaesar-test--openssl-compatibility ()
+  :tags '(kaesar)
 
-  (cipher/aes-test-should (cipher/aes--test-openssl-key&iv "aes-128-cbc" "d")
-    (cipher/aes--proc "aes-128-cbc"
-      (destructuring-bind (key iv) (cipher/aes--bytes-to-key (vconcat "d"))
-        (list (cipher/aes--test-unibytes-to-hex key) (cipher/aes--test-unibytes-to-hex iv)))))
+  (kaesar-test-should (kaesar--test-openssl-key&iv "aes-128-cbc" "d")
+    (kaesar--proc "aes-128-cbc"
+      (destructuring-bind (key iv) (kaesar--bytes-to-key (vconcat "d"))
+        (list (kaesar--test-unibytes-to-hex key) (kaesar--test-unibytes-to-hex iv)))))
 
-  (cipher/aes-test-should (cipher/aes--test-openssl-key&iv "aes-128-ecb" "d")
-    (cipher/aes--proc "aes-128-ecb"
-      (destructuring-bind (key iv) (cipher/aes--bytes-to-key (vconcat "d"))
-        (list (cipher/aes--test-unibytes-to-hex key) (cipher/aes--test-unibytes-to-hex iv)))))
+  (kaesar-test-should (kaesar--test-openssl-key&iv "aes-128-ecb" "d")
+    (kaesar--proc "aes-128-ecb"
+      (destructuring-bind (key iv) (kaesar--bytes-to-key (vconcat "d"))
+        (list (kaesar--test-unibytes-to-hex key) (kaesar--test-unibytes-to-hex iv)))))
 
-  (cipher/aes-test-should (cipher/aes--test-openssl-key&iv "aes-256-ecb" "pass")
-    (cipher/aes--proc "aes-256-ecb"
-      (destructuring-bind (key iv) (cipher/aes--bytes-to-key (vconcat "pass"))
-        (list (cipher/aes--test-unibytes-to-hex key) (cipher/aes--test-unibytes-to-hex iv)))))
+  (kaesar-test-should (kaesar--test-openssl-key&iv "aes-256-ecb" "pass")
+    (kaesar--proc "aes-256-ecb"
+      (destructuring-bind (key iv) (kaesar--bytes-to-key (vconcat "pass"))
+        (list (kaesar--test-unibytes-to-hex key) (kaesar--test-unibytes-to-hex iv)))))
 
-  (cipher/aes-test-should (cipher/aes--test-openssl-key&iv "aes-256-cbc" "pass")
-    (cipher/aes--proc "aes-256-cbc"
-      (destructuring-bind (key iv) (cipher/aes--bytes-to-key (vconcat "pass"))
-        (list (cipher/aes--test-unibytes-to-hex key) (cipher/aes--test-unibytes-to-hex iv)))))
+  (kaesar-test-should (kaesar--test-openssl-key&iv "aes-256-cbc" "pass")
+    (kaesar--proc "aes-256-cbc"
+      (destructuring-bind (key iv) (kaesar--bytes-to-key (vconcat "pass"))
+        (list (kaesar--test-unibytes-to-hex key) (kaesar--test-unibytes-to-hex iv)))))
 
   ;; ECB
-  (let ((cipher/aes-algorithm "aes-128-ecb")
+  (let ((kaesar-algorithm "aes-128-ecb")
         (openssl-cipher-algorithm "aes-128-ecb"))
-    (cipher/aes--test-block-random-test))
+    (kaesar--test-block-random-test))
 
   ;; CBC
-  (let ((cipher/aes-algorithm "aes-128-cbc")
+  (let ((kaesar-algorithm "aes-128-cbc")
         (openssl-cipher-algorithm "aes-128-cbc"))
-    (cipher/aes--test-block-random-test))
+    (kaesar--test-block-random-test))
   )
 
 
-(ert-deftest cipher/aes-test--appendix ()
-  :tags '(cipher/aes)
+(ert-deftest kaesar-test--appendix ()
+  :tags '(kaesar)
   ;; Appendix A.1
-  (cipher/aes-test-should cipher/aes--test-aes128-results
-    (cipher/aes--cipher-algorithm 'aes-128 
-      (cipher/aes--key-expansion cipher/aes--test-aes128-key)))
+  (kaesar-test-should kaesar--test-aes128-results
+    (kaesar--cipher-algorithm 'aes-128 
+      (kaesar--key-expansion kaesar--test-aes128-key)))
 
   ;; Appendix A.2
-  (cipher/aes-test-should cipher/aes--test-aes192-results
-    (cipher/aes--cipher-algorithm 'aes-192 
-      (cipher/aes--key-expansion cipher/aes--test-aes192-key)))
+  (kaesar-test-should kaesar--test-aes192-results
+    (kaesar--cipher-algorithm 'aes-192 
+      (kaesar--key-expansion kaesar--test-aes192-key)))
 
   ;; Appendix A.3
-  (cipher/aes-test-should cipher/aes--test-aes256-results
-    (cipher/aes--cipher-algorithm 'aes-256
-      (cipher/aes--key-expansion cipher/aes--test-aes256-key)))
+  (kaesar-test-should kaesar--test-aes256-results
+    (kaesar--cipher-algorithm 'aes-256
+      (kaesar--key-expansion kaesar--test-aes256-key)))
 
   ;; Appendix B 
-  (cipher/aes--cipher-algorithm 'aes-128
-    (cipher/aes-test-should [[?\x2b ?\x7e ?\x15 ?\x16] [?\x28 ?\xae ?\xd2 ?\xa6] [?\xab ?\xf7 ?\x15 ?\x88] [?\x09 ?\xcf ?\x4f ?\x3c]]
-                   (cipher/aes--round-key (cipher/aes--key-expansion cipher/aes--test-appendix-b-key) 0))
+  (kaesar--cipher-algorithm 'aes-128
+    (kaesar-test-should [[?\x2b ?\x7e ?\x15 ?\x16] [?\x28 ?\xae ?\xd2 ?\xa6] [?\xab ?\xf7 ?\x15 ?\x88] [?\x09 ?\xcf ?\x4f ?\x3c]]
+                   (kaesar--round-key (kaesar--key-expansion kaesar--test-appendix-b-key) 0))
 
-    (cipher/aes-test-should (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-1)
-                   (cipher/aes--add-round-key (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-input-state) 
-                                              (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-first-round-key)))
+    (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-1)
+                   (kaesar--add-round-key (kaesar--test-view-to-state kaesar--test-appendix-b-input-state) 
+                                              (kaesar--test-view-to-state kaesar--test-appendix-b-first-round-key)))
 
-    (cipher/aes-test-should (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-2)
-      (cipher/aes--sub-bytes (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-1)))
+    (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-2)
+      (kaesar--sub-bytes (kaesar--test-view-to-state kaesar--test-appendix-b-1-1)))
 
-    (cipher/aes-test-should (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-3)
-                   (cipher/aes--shift-rows (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-2)))
+    (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-3)
+                   (kaesar--shift-rows (kaesar--test-view-to-state kaesar--test-appendix-b-1-2)))
 
-    (cipher/aes-test-should (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-4)
-      (cipher/aes--mix-columns (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-3)))
+    (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-4)
+      (kaesar--mix-columns (kaesar--test-view-to-state kaesar--test-appendix-b-1-3)))
 
-    (cipher/aes-test-should (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-1-round-key)
-      (cipher/aes--round-key (cipher/aes--key-expansion cipher/aes--test-appendix-b-key) (* 1 cipher/aes--Nb)))
+    (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-round-key)
+      (kaesar--round-key (kaesar--key-expansion kaesar--test-appendix-b-key) (* 1 kaesar--Nb)))
     
-    (cipher/aes-test-should (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-last-output)
-      (cipher/aes--cipher (cipher/aes--test-view-to-state cipher/aes--test-appendix-b-input-state)
-                          (cipher/aes--key-expansion cipher/aes--test-appendix-b-key)))
+    (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-last-output)
+      (kaesar--cipher (kaesar--test-view-to-state kaesar--test-appendix-b-input-state)
+                          (kaesar--key-expansion kaesar--test-appendix-b-key)))
     ))
 
-(ert-deftest cipher/aes-test--enc/dec ()
-  :tags '(cipher/aes)
+(ert-deftest kaesar-test--enc/dec ()
+  :tags '(kaesar)
 
   ;; check accept vector
-  (cipher/aes-test-should "abcdefg"
+  (kaesar-test-should "abcdefg"
     (flet ((read-passwd (&rest dummy) (copy-seq "d")))
-      (cipher/aes-decrypt (cipher/aes-encrypt (vconcat "abcdefg")))))
+      (kaesar-decrypt (kaesar-encrypt (vconcat "abcdefg")))))
 
   ;; less than block size
-  (cipher/aes-test-enc/dec "abcdefghijklmno" "aes-128-ecb")
-  (cipher/aes-test-enc/dec "abcdefghijklmno" "aes-192-ecb")
-  (cipher/aes-test-enc/dec "abcdefghijklmno" "aes-256-ecb")
-  (cipher/aes-test-enc/dec "abcdefghijklmno" "aes-128-cbc")
-  (cipher/aes-test-enc/dec "abcdefghijklmno" "aes-192-cbc")
-  (cipher/aes-test-enc/dec "abcdefghijklmno" "aes-256-cbc")
+  (kaesar-test-enc/dec "abcdefghijklmno" "aes-128-ecb")
+  (kaesar-test-enc/dec "abcdefghijklmno" "aes-192-ecb")
+  (kaesar-test-enc/dec "abcdefghijklmno" "aes-256-ecb")
+  (kaesar-test-enc/dec "abcdefghijklmno" "aes-128-cbc")
+  (kaesar-test-enc/dec "abcdefghijklmno" "aes-192-cbc")
+  (kaesar-test-enc/dec "abcdefghijklmno" "aes-256-cbc")
 
   ;; equals block size
-  (cipher/aes-test-enc/dec "abcdefghijklmnop" "aes-128-ecb")
-  (cipher/aes-test-enc/dec "abcdefghijklmnop" "aes-192-ecb")
-  (cipher/aes-test-enc/dec "abcdefghijklmnop" "aes-256-ecb")
-  (cipher/aes-test-enc/dec "abcdefghijklmnop" "aes-128-cbc")
-  (cipher/aes-test-enc/dec "abcdefghijklmnop" "aes-192-cbc")
-  (cipher/aes-test-enc/dec "abcdefghijklmnop" "aes-256-cbc")
+  (kaesar-test-enc/dec "abcdefghijklmnop" "aes-128-ecb")
+  (kaesar-test-enc/dec "abcdefghijklmnop" "aes-192-ecb")
+  (kaesar-test-enc/dec "abcdefghijklmnop" "aes-256-ecb")
+  (kaesar-test-enc/dec "abcdefghijklmnop" "aes-128-cbc")
+  (kaesar-test-enc/dec "abcdefghijklmnop" "aes-192-cbc")
+  (kaesar-test-enc/dec "abcdefghijklmnop" "aes-256-cbc")
 
   ;; exceed block size
-  (cipher/aes-test-enc/dec "abcdefghijklmnopq" "aes-128-ecb")
-  (cipher/aes-test-enc/dec "abcdefghijklmnopq" "aes-192-ecb")
-  (cipher/aes-test-enc/dec "abcdefghijklmnopq" "aes-256-ecb")
-  (cipher/aes-test-enc/dec "abcdefghijklmnopq" "aes-128-cbc")
-  (cipher/aes-test-enc/dec "abcdefghijklmnopq" "aes-192-cbc")
-  (cipher/aes-test-enc/dec "abcdefghijklmnopq" "aes-256-cbc")
+  (kaesar-test-enc/dec "abcdefghijklmnopq" "aes-128-ecb")
+  (kaesar-test-enc/dec "abcdefghijklmnopq" "aes-192-ecb")
+  (kaesar-test-enc/dec "abcdefghijklmnopq" "aes-256-ecb")
+  (kaesar-test-enc/dec "abcdefghijklmnopq" "aes-128-cbc")
+  (kaesar-test-enc/dec "abcdefghijklmnopq" "aes-192-cbc")
+  (kaesar-test-enc/dec "abcdefghijklmnopq" "aes-256-cbc")
 
   )
 
-(ert-deftest cipher/aes-test--random ()
-  :tags '(cipher/aes)
+(ert-deftest kaesar-test--random ()
+  :tags '(kaesar)
 
   (loop repeat 256
         do 
-        (cipher/aes-test-enc/dec (cipher/aes--test-random-bytes) "aes-256-cbc"))
+        (kaesar-test-enc/dec (kaesar--test-random-bytes) "aes-256-cbc"))
 
   (loop repeat 256
         do 
-        (cipher/aes-test-enc/dec (cipher/aes--test-random-bytes) "aes-256-ecb")))
+        (kaesar-test-enc/dec (kaesar--test-random-bytes) "aes-256-ecb")))
 
-(defun cipher/aes--parse-test-values (file)
+(defun kaesar--parse-test-values (file)
   (with-temp-buffer
     (insert-file-contents file)
     (goto-char (point-min))
@@ -535,7 +535,7 @@
             (setq res (cons (list keysize (nreverse data)) res)))))
       (nreverse res))))
 
-(defun cipher/aes-test--hex-to-vector (hex)
+(defun kaesar-test--hex-to-vector (hex)
   (loop with len = (length hex)
         with vec = (make-vector (/ len 2) nil)
         for i from 0 below len by 2
@@ -545,7 +545,7 @@
                   (aset vec j n))
         finally return vec))
 
-(defun cipher/aes-test--locate-test-data (name)
+(defun kaesar-test--locate-test-data (name)
   (let ((hist (car (member-if 
                     (lambda (x) (string-match "aes-test.el" (car x)))
                     load-history))))
@@ -554,83 +554,83 @@
              (datadir (expand-file-name "test/aes-test-values" top)))
         (expand-file-name name datadir)))))
 
-(ert-deftest cipher/aes-test--variable-key ()
+(ert-deftest kaesar-test--variable-key ()
   "Known Answer Test (Variable Key)"
-  :tags '(cipher/aes)
-  (let* ((file (cipher/aes-test--locate-test-data "ecb_vk.txt"))
-         (suites (cipher/aes--parse-test-values file)))
+  :tags '(kaesar)
+  (let* ((file (kaesar-test--locate-test-data "ecb_vk.txt"))
+         (suites (kaesar--parse-test-values file)))
     (loop for (keysize suite) in suites
           do
           (let ((algo (format "aes-%d-ecb" keysize))
-                (data (cipher/aes-test--hex-to-vector (cdr (assoc "PT" (car suite))))))
+                (data (kaesar-test--hex-to-vector (cdr (assoc "PT" (car suite))))))
             (loop for test in (cdr suite)
                   do
                   (let* ((key (cdr (assoc "KEY" test)))
                          (ct (cdr (assoc "CT" test)))
-                         (raw-key (cipher/aes-test--hex-to-vector key))
-                         (enc (cipher/aes-encrypt-by-key data algo raw-key))
-                         (hex (cipher/aes--test-unibytes-to-hex enc))
+                         (raw-key (kaesar-test--hex-to-vector key))
+                         (enc (kaesar-encrypt-by-key data algo raw-key))
+                         (hex (kaesar--test-unibytes-to-hex enc))
                          (test-target (substring hex 0 (length ct))))
-                    (cipher/aes-test-should ct test-target)))))))
+                    (kaesar-test-should ct test-target)))))))
 
-(ert-deftest cipher/aes-test--variable-text ()
+(ert-deftest kaesar-test--variable-text ()
   "Known Answer Test (Variable Text)"
-  :tags '(cipher/aes)
-  (let* ((file (cipher/aes-test--locate-test-data "ecb_vt.txt"))
-         (suites (cipher/aes--parse-test-values file)))
+  :tags '(kaesar)
+  (let* ((file (kaesar-test--locate-test-data "ecb_vt.txt"))
+         (suites (kaesar--parse-test-values file)))
     (loop for (keysize suite) in suites
           do
           (let* ((algo (format "aes-%d-ecb" keysize))
                  (key (cdr (assoc "KEY" (car suite))))
-                 (raw-key (cipher/aes-test--hex-to-vector key)))
+                 (raw-key (kaesar-test--hex-to-vector key)))
             (loop for test in (cdr suite)
                   do
-                  (let* ((data (cipher/aes-test--hex-to-vector (cdr (assoc "PT" test))))
+                  (let* ((data (kaesar-test--hex-to-vector (cdr (assoc "PT" test))))
                          (ct (cdr (assoc "CT" test)))
-                         (enc (cipher/aes-encrypt-by-key data algo raw-key))
-                         (hex (cipher/aes--test-unibytes-to-hex enc))
+                         (enc (kaesar-encrypt-by-key data algo raw-key))
+                         (hex (kaesar--test-unibytes-to-hex enc))
                          (test-target (substring hex 0 (length ct))))
-                    (cipher/aes-test-should ct test-target)))))))
+                    (kaesar-test-should ct test-target)))))))
 
-(ert-deftest cipher/aes-test--tables ()
+(ert-deftest kaesar-test--tables ()
   "Known Answer Tests"
-  :tags '(cipher/aes)
-  (let* ((file (cipher/aes-test--locate-test-data "ecb_tbl.txt"))
-         (suites (cipher/aes--parse-test-values file)))
+  :tags '(kaesar)
+  (let* ((file (kaesar-test--locate-test-data "ecb_tbl.txt"))
+         (suites (kaesar--parse-test-values file)))
     (loop for (keysize suite) in suites
           do
           (let* ((algo (format "aes-%d-ecb" keysize)))
             (loop for test in suite
                   do
-                  (let* ((raw-key (cipher/aes-test--hex-to-vector (cdr (assoc "KEY" test))))
-                         (data (cipher/aes-test--hex-to-vector (cdr (assoc "PT" test))))
+                  (let* ((raw-key (kaesar-test--hex-to-vector (cdr (assoc "KEY" test))))
+                         (data (kaesar-test--hex-to-vector (cdr (assoc "PT" test))))
                          (ct (cdr (assoc "CT" test)))
-                         (enc (cipher/aes-encrypt-by-key data algo raw-key))
-                         (hex (cipher/aes--test-unibytes-to-hex enc))
+                         (enc (kaesar-encrypt-by-key data algo raw-key))
+                         (hex (kaesar--test-unibytes-to-hex enc))
                          (test-target (substring hex 0 (length ct))))
-                    (cipher/aes-test-should ct test-target)))))))
+                    (kaesar-test-should ct test-target)))))))
 
 ;; TODO ecb_iv.txt
 
-(defun cipher/aes-test--ecb-mct (func hex-key hex-data algo)
-  (let* ((raw-key (cipher/aes-test--hex-to-vector hex-key))
-         (data (cipher/aes-test--hex-to-vector hex-data)))
-    (cipher/aes--proc algo
-      (loop with key = (cipher/aes--key-expansion raw-key)
-            with state = (cipher/aes--unibytes-to-state data)
+(defun kaesar-test--ecb-mct (func hex-key hex-data algo)
+  (let* ((raw-key (kaesar-test--hex-to-vector hex-key))
+         (data (kaesar-test--hex-to-vector hex-data)))
+    (kaesar--proc algo
+      (loop with key = (kaesar--key-expansion raw-key)
+            with state = (kaesar--unibytes-to-state data)
             repeat 10000
             do (setq state (funcall func state key))
-            finally return (let* ((bytes (cipher/aes--state-to-bytes state))
+            finally return (let* ((bytes (kaesar--state-to-bytes state))
                                   (unibytes (vconcat bytes))
-                                  (hex (cipher/aes--test-unibytes-to-hex unibytes)))
+                                  (hex (kaesar--test-unibytes-to-hex unibytes)))
                              hex)))))
 
 ;;TODO too slow
-;; (ert-deftest cipher/aes-test--ecb-encrypt ()
+;; (ert-deftest kaesar-test--ecb-encrypt ()
 ;;   "Monte Carlo Test ECB mode decryption"
-;;   :tags '(cipher/aes)
-;;   (let* ((file (cipher/aes-test--locate-test-data "ecb_e_m.txt"))
-;;          (suites (cipher/aes--parse-test-values file)))
+;;   :tags '(kaesar)
+;;   (let* ((file (kaesar-test--locate-test-data "ecb_e_m.txt"))
+;;          (suites (kaesar--parse-test-values file)))
 ;;     (loop for (keysize suite) in suites
 ;;           do
 ;;           (let* ((algo (format "aes-%d-ecb" keysize)))
@@ -640,18 +640,18 @@
 ;;                       (let* ((hex-key (cdr (assoc "KEY" test)))
 ;;                              (hex-data (cdr (assoc "PT" test)))
 ;;                              (ct (cdr (assoc "CT" test)))
-;;                              (enc (cipher/aes-test--ecb-mct 'cipher/aes--cipher hex-key hex-data algo)))
-;;                         (cipher/aes-test-should ct enc))
+;;                              (enc (kaesar-test--ecb-mct 'kaesar--cipher hex-key hex-data algo)))
+;;                         (kaesar-test-should ct enc))
 ;;                     (error
 ;;                      (message "%s" test)
 ;;                      (signal (car err) (cdr err)))))))))
 
 ;;TODO too slow
-;; (ert-deftest cipher/aes-test--ecb-decrypt ()
+;; (ert-deftest kaesar-test--ecb-decrypt ()
 ;;   "Monte Carlo Test ECB mode decryption"
-;;   :tags '(cipher/aes)
-;;   (let* ((file (cipher/aes-test--locate-test-data "ecb_d_m.txt"))
-;;          (suites (cipher/aes--parse-test-values file)))
+;;   :tags '(kaesar)
+;;   (let* ((file (kaesar-test--locate-test-data "ecb_d_m.txt"))
+;;          (suites (kaesar--parse-test-values file)))
 ;;     (loop for (keysize suite) in suites
 ;;           do
 ;;           (let* ((algo (format "aes-%d-ecb" keysize)))
@@ -660,45 +660,45 @@
 ;;                   (let* ((hex-key (cdr (assoc "KEY" test)))
 ;;                          (hex-data (cdr (assoc "CT" test)))
 ;;                          (pt (cdr (assoc "PT" test)))
-;;                          (dec (cipher/aes-test--ecb-mct 'cipher/aes--inv-cipher hex-key hex-data algo)))
-;;                     (cipher/aes-test-should pt dec)))))))
+;;                          (dec (kaesar-test--ecb-mct 'kaesar--inv-cipher hex-key hex-data algo)))
+;;                     (kaesar-test-should pt dec)))))))
 
 
-(defun cipher/aes-test--cbc-mct (hex-key hex-pt hex-iv algo)
-  (let* ((raw-key (cipher/aes-test--hex-to-vector hex-key))
-         (pt (cipher/aes-test--hex-to-vector hex-pt))
-         (iv (cipher/aes-test--hex-to-vector hex-iv))
+(defun kaesar-test--cbc-mct (hex-key hex-pt hex-iv algo)
+  (let* ((raw-key (kaesar-test--hex-to-vector hex-key))
+         (pt (kaesar-test--hex-to-vector hex-pt))
+         (iv (kaesar-test--hex-to-vector hex-iv))
          (cv iv))
-    (cipher/aes--proc algo
-      (loop with key = (cipher/aes--key-expansion raw-key)
-            with cv = (cipher/aes--unibytes-to-state cv)
-            with pt = (cipher/aes--unibytes-to-state pt)
+    (kaesar--proc algo
+      (loop with key = (kaesar--key-expansion raw-key)
+            with cv = (kaesar--unibytes-to-state cv)
+            with pt = (kaesar--unibytes-to-state pt)
             with ct-1 = nil
             with ct = nil
             repeat 10000
-            do (let* ((tmp (cipher/aes--cbc-state-xor pt cv)))
-                 (setq ct (cipher/aes--cipher tmp key))
+            do (let* ((tmp (kaesar--cbc-state-xor pt cv)))
+                 (setq ct (kaesar--cipher tmp key))
                  (if (null ct-1)
                      (setq pt cv)
                    (setq pt ct-1))
                  (setq cv ct)
                  (setq ct-1 ct))
             finally return
-            (list (cipher/aes--test-state-to-hex ct)
-                  (cipher/aes--test-state-to-hex pt))))))
+            (list (kaesar--test-state-to-hex ct)
+                  (kaesar--test-state-to-hex pt))))))
 
-(defun cipher/aes--test-state-to-hex (state)
-  (let* ((bytes (cipher/aes--state-to-bytes state))
+(defun kaesar--test-state-to-hex (state)
+  (let* ((bytes (kaesar--state-to-bytes state))
          (unibytes (vconcat bytes))
-         (hex (cipher/aes--test-unibytes-to-hex unibytes)))
+         (hex (kaesar--test-unibytes-to-hex unibytes)))
     hex))
 
 ;;TODO too slow
-;; (ert-deftest cipher/aes-test--ecb-encrypt ()
+;; (ert-deftest kaesar-test--ecb-encrypt ()
 ;;   "Monte Carlo Test CBC mode encryption"
-;;   :tags '(cipher/aes)
-;;   (let* ((file (cipher/aes-test--locate-test-data "cbc_e_m.txt"))
-;;          (suites (cipher/aes--parse-test-values file)))
+;;   :tags '(kaesar)
+;;   (let* ((file (kaesar-test--locate-test-data "cbc_e_m.txt"))
+;;          (suites (kaesar--parse-test-values file)))
 ;;     (loop for (keysize suite) in suites ;TODO
 ;;           do
 ;;           (let* ((algo (format "aes-%d-cbc" keysize))
@@ -711,10 +711,10 @@
 ;;                              (hex-pt (cdr (assoc "PT" test)))
 ;;                              (hex-ct (cdr (assoc "CT" test))))
 ;;                         (when prev-pt
-;;                           (cipher/aes-test-should hex-pt prev-pt))
+;;                           (kaesar-test-should hex-pt prev-pt))
 ;;                         (destructuring-bind (res-ct res-pt)
-;;                             (cipher/aes-test--cbc-mct hex-key hex-pt hex-iv algo)
-;;                           (cipher/aes-test-should hex-ct res-ct)
+;;                             (kaesar-test--cbc-mct hex-key hex-pt hex-iv algo)
+;;                           (kaesar-test-should hex-ct res-ct)
 ;;                           (setq prev-pt res-pt))
 ;;                         (message "%s" test))
 ;;                     (error
@@ -722,11 +722,11 @@
 ;;                      (signal (car err) (cdr err)))))))))
 
 ;;TODO too slow not yet implement
-;; (ert-deftest cipher/aes-test--ecb-decrypt ()
+;; (ert-deftest kaesar-test--ecb-decrypt ()
 ;;   "Monte Carlo Test CBC mode decryption"
-;;   :tags '(cipher/aes)
-;;   (let* ((file (cipher/aes-test--locate-test-data "cbc_d_m.txt"))
-;;          (suites (cipher/aes--parse-test-values file)))
+;;   :tags '(kaesar)
+;;   (let* ((file (kaesar-test--locate-test-data "cbc_d_m.txt"))
+;;          (suites (kaesar--parse-test-values file)))
 ;;     (loop for (keysize suite) in suites
 ;;           do
 ;;           (let* ((algo (format "aes-%d-ecb" keysize)))
@@ -735,11 +735,11 @@
 ;;                   (let* ((hex-key (cdr (assoc "KEY" test)))
 ;;                          (hex-data (cdr (assoc "CT" test)))
 ;;                          (pt (cdr (assoc "PT" test)))
-;;                          (dec (cipher/aes-test--ecb-mct 'cipher/aes--inv-cipher hex-key hex-data algo)))
-;;                     (cipher/aes-test-should pt dec)))))))
+;;                          (dec (kaesar-test--ecb-mct 'kaesar--inv-cipher hex-key hex-data algo)))
+;;                     (kaesar-test-should pt dec)))))))
 
 
 
 
-(provide 'cipher/aes-test)
+(provide 'kaesar-test)
 
