@@ -2,11 +2,12 @@
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
-;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/cipher/kaesar.el
+;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/kaesar.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.9.2
+;; Version: 0.1.0
+;; Package-Requires: ()
 
-(defconst kaesar-version "0.9.2")
+(defconst kaesar-version "0.1.0")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -25,13 +26,27 @@
 
 ;;; Install:
 
-;; Put this file into load-path'ed "cipher" directory, and
+;; Put this file into load-path'ed directory, and
 ;; !!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!
 ;; And put the following expression into your .emacs.
 ;;
 ;; (require 'kaesar)
 ;;
 
+;;; Commentary:
+
+;; This package provides AES algorithm to encrypt/decrypt Emacs
+;; string.
+
+;; * Why kaesar?
+;; Which previously named 'cipher/aes' but ELPA cannot handle such
+;; package name.  So, I had to change the name but `aes' package
+;; already exists. (And is faster than this package!)
+;; I continue to consider the new name which contains "aes" string.
+;; There is ancient cipher algorithm caesar
+;;  http://en.wikipedia.org/wiki/Caesar_cipher
+;; K`aes'ar is change the first character of Caesar 
+;; There is no meaning more than containing `aes' word.
 
 ;;; Usage:
 
