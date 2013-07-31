@@ -228,7 +228,7 @@
 
 (defun cipher/aes--test-unibytes-to-state (string)
   (cipher/aes--cipher-algorithm 'aes-256
-    (car (cipher/aes--parse-unibytes string 0))))
+    (car (cipher/aes--read-unibytes string 0))))
 
 (defun cipher/aes--test-view-to-state (array)
   (let ((ret (make-vector (* cipher/aes--Row cipher/aes--Nb) nil)))
@@ -322,8 +322,7 @@
 
 (ert-deftest cipher/aes-test--rot ()
   :tags '(cipher/aes)
-  (cipher/aes-test-should '(4 1 2 3) (cipher/aes--rot '(1 2 3 4) -1))
-  (cipher/aes-test-should '(2 3 4 1) (cipher/aes--rot '(1 2 3 4) 1))
+  (cipher/aes-test-should [2 3 4 1] (cipher/aes--rot-word [1 2 3 4]))
   )
 
 (ert-deftest cipher/aes-test--basic ()
@@ -370,16 +369,16 @@
   
   (cipher/aes--cipher-algorithm 'aes-256
     (cipher/aes-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
-      (cipher/aes--parse-unibytes "abcdefghijklmnopq" 0))
+      (cipher/aes--read-unibytes "abcdefghijklmnopq" 0))
 
     (cipher/aes-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
-      (cipher/aes--parse-unibytes "abcdefghijklmnop" 0))
+      (cipher/aes--read-unibytes "abcdefghijklmnop" 0))
 
     (cipher/aes-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 1]] nil)
-      (cipher/aes--parse-unibytes "abcdefghijklmno" 0))
+      (cipher/aes--read-unibytes "abcdefghijklmno" 0))
     
     (cipher/aes-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 5] [5 5 5 5]] nil)
-      (cipher/aes--parse-unibytes "abcdefghijk" 0))
+      (cipher/aes--read-unibytes "abcdefghijk" 0))
     ))
 
 (ert-deftest cipher/aes-test--openssl-compatibility ()
