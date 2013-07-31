@@ -1,74 +1,103 @@
-;;; cipher/aes-file.el --- Encrypt/Decrypt file with password.
+;;; kaesar-file.el --- Encrypt/Decrypt file with password.
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
-;; Keywords: encrypt decrypt file
+;; Keywords: data, files
 ;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/cipher/aes-file.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version 0.6.0
+;; Version: 0.6.1
+;; Package-Requires: ()
+
+(defconst kaesar-file-version "0.6.1")
+
+;; This program is free software; you can redistribute it and/or
+;; modify it under the terms of the GNU General Public License as
+;; published by the Free Software Foundation; either version 3, or (at
+;; your option) any later version.
+
+;; This program is distributed in the hope that it will be useful, but
+;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with GNU Emacs; see the file COPYING.  If not, write to the
+;; Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+;; Boston, MA 02110-1301, USA.
+
+;;; Install:
+
+;; Put this file into load-path'ed directory, and byte compile it if
+;; desired. And put the following expression into your ~/.emacs.
+;;
+;;     (require 'kaesar-file)
+
+;;; Usage:
+
+;; TODO
 
 ;;; Code:
 
-(require 'cipher/aes)
+(require 'kaesar)
 
 ;;;###autoload
-(defun cipher/aes-encrypt-file (file &optional algorithm with-base64 save-file)
-  "Encrypt a FILE by `cipher/aes-algorithm'
-which contents can be decrypted by `cipher/aes-decrypt-file-contents'."
+(defun kaesar-encrypt-file (file &optional algorithm with-base64 save-file)
+  "Encrypt a FILE by `kaesar-algorithm'
+which contents can be decrypted by `kaesar-decrypt-file-contents'."
   (with-temp-buffer
-    (cipher/aes--insert-file-contents file)
-    (let ((encrypted (cipher/aes-encrypt (buffer-string) algorithm)))
+    (kaesar--insert-file-contents file)
+    (let ((encrypted (kaesar-encrypt (buffer-string) algorithm)))
       (erase-buffer)
       (cond
        (with-base64
-        (cipher/aes-prepare-base64
-         encrypted (or algorithm cipher/aes-algorithm)))
+        (kaesar-prepare-base64
+         encrypted (or algorithm kaesar-algorithm)))
        (t
         (insert encrypted)))
-      (cipher/aes--write-buffer (or save-file file)))))
+      (kaesar--write-buffer (or save-file file)))))
 
 ;;;###autoload
-(defun cipher/aes-decrypt-file (file &optional algorithm save-file)
+(defun kaesar-decrypt-file (file &optional algorithm save-file)
   "Decrypt a FILE contents with getting string.
-FILE was encrypted by `cipher/aes-encrypt-file'."
+FILE was encrypted by `kaesar-encrypt-file'."
   (with-temp-buffer
-    (cipher/aes--insert-file-contents file)
-    (let* ((enc-algo (cipher/aes-decode-if-base64))
+    (kaesar--insert-file-contents file)
+    (let* ((enc-algo (kaesar-decode-if-base64))
            (decrypted
-            (cipher/aes-decrypt
+            (kaesar-decrypt
              (buffer-string) (or algorithm enc-algo))))
       (erase-buffer)
       (insert decrypted)
-      (cipher/aes--write-buffer (or save-file file)))))
+      (kaesar--write-buffer (or save-file file)))))
 
 ;;;###autoload
-(defun cipher/aes-decrypt-file-contents (file &optional algorithm coding-system)
+(defun kaesar-decrypt-file-contents (file &optional algorithm coding-system)
   "Decrypt a FILE contents with getting string.
-FILE was encrypted by `cipher/aes-encrypt-file'."
+FILE was encrypted by `kaesar-encrypt-file'."
   (with-temp-buffer
-    (cipher/aes--insert-file-contents file)
-    (let ((decrypted (cipher/aes-decrypt (buffer-string) algorithm)))
+    (kaesar--insert-file-contents file)
+    (let ((decrypted (kaesar-decrypt (buffer-string) algorithm)))
       (if coding-system
           (decode-coding-string decrypted coding-system)
         decrypted))))
 
 ;;;###autoload
-(defun cipher/aes-encrypt-write-region (start end file)
+(defun kaesar-encrypt-write-region (start end file)
   "Write START END region to FILE with encryption."
   (interactive "r\nF")
   (let* ((str (buffer-substring start end))
          (cs (or buffer-file-coding-system default-terminal-coding-system))
          (s (encode-coding-string str cs))
-         (encrypted (cipher/aes-encrypt s)))
-    (cipher/aes--write-region encrypted nil file)))
+         (encrypted (kaesar-encrypt s)))
+    (kaesar--write-region encrypted nil file)))
 
-(defun cipher/aes-prepare-base64 (encrypted-data algorithm)
+(defun kaesar-prepare-base64 (encrypted-data algorithm)
   (insert "-----BEGIN ENCRYPTED DATA-----\n")
   (insert (format "Algorithm: %s\n" algorithm))
   (insert "\n")
   (insert (base64-encode-string encrypted-data) "\n")
   (insert "-----END ENCRYPTED DATA-----\n"))
 
-(defun cipher/aes-decode-if-base64 ()
+(defun kaesar-decode-if-base64 ()
   ;; decode buffer if valid base64 encoded.
   ;; return a algorithm of encryption.
   (let (algorithm)
@@ -84,10 +113,10 @@ FILE was encrypted by `cipher/aes-encrypt-file'."
       (base64-decode-region (point-min) (point-max)))
     algorithm))
 
-(defun cipher/aes--write-buffer (file)
-  (cipher/aes--write-region (point-min) (point-max) file))
+(defun kaesar--write-buffer (file)
+  (kaesar--write-region (point-min) (point-max) file))
 
-(defun cipher/aes--write-region (start end file)
+(defun kaesar--write-region (start end file)
   ;; to suppress two time encryption
   (let ((inhibit-file-name-handlers '(epa-file-handler))
         (inhibit-file-name-operation 'write-region)
@@ -95,7 +124,7 @@ FILE was encrypted by `cipher/aes-encrypt-file'."
         (jka-compr-compression-info-list nil))
     (write-region start end file nil 'no-msg)))
 
-(defun cipher/aes--insert-file-contents (file)
+(defun kaesar--insert-file-contents (file)
   ;; to suppress two time decryption
   (let ((format-alist nil)
         (after-insert-file-functions nil)
@@ -106,6 +135,6 @@ FILE was encrypted by `cipher/aes-encrypt-file'."
     (insert-file-contents file)
     (set-buffer-multibyte nil)))
 
-(provide 'cipher/aes-file)
+(provide 'kaesar-file)
 
-;;; cipher/aes-file.el ends here
+;;; kaesar-file.el ends here

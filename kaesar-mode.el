@@ -1,4 +1,4 @@
-;;; aes-mode.el --- Encrypt/Decrypt string with password.
+;;; kaesar-mode.el --- Encrypt/Decrypt string with password.
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data, convenience
@@ -7,7 +7,7 @@
 ;; Version: 0.5.1
 ;; Package-Requires: ()
 
-(defconst aes-mode-version "0.5.1")
+(defconst kaesar-mode-version "0.5.1")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -29,7 +29,7 @@
 ;; Put this file into load-path'ed directory, and byte compile it if
 ;; desired. And put the following expression into your ~/.emacs.
 ;;
-;;     (require 'aes-mode)
+;;     (require 'kaesar-mode)
 
 ;;; Usage:
 
@@ -43,69 +43,69 @@
 
 (require 'cipher/aes)
 
-(defgroup aes-mode nil
+(defgroup kaesar-mode nil
   "AES cipher User Interface.")
 
-(defvar aes-mode-map nil)
+(defvar kaesar-mode-map nil)
 
-(let ((map (or aes-mode-map (make-sparse-keymap))))
-  (define-key map "\C-x\C-s" 'aes-mode-save-buffer)
-  (setq aes-mode-map map))
+(let ((map (or kaesar-mode-map (make-sparse-keymap))))
+  (define-key map "\C-x\C-s" 'kaesar-mode-save-buffer)
+  (setq kaesar-mode-map map))
 
-(define-minor-mode aes-mode
+(define-minor-mode kaesar-mode
   "TODO"
   :init-value nil
   :lighter " AES" 
-  :keymap aes-mode-map
-  :group 'aes-mode
-  (when aes-mode
+  :keymap kaesar-mode-map
+  :group 'kaesar-mode
+  (when kaesar-mode
     (cond
-     ((aes-mode--buffer-guessed-encrypted-p)
+     ((kaesar-mode--buffer-guessed-encrypted-p)
       (condition-case err
-          (aes-mode--visit-again)
+          (kaesar-mode--visit-again)
         (error 
          ;; disable the mode
-         (aes-mode -1)
+         (kaesar-mode -1)
          (signal (car err) (cdr err)))))
-     ((not (aes-mode--file-guessed-encrypted-p))
-      (aes-mode--write-buffer)))
+     ((not (kaesar-mode--file-guessed-encrypted-p))
+      (kaesar-mode--write-buffer)))
     ;;TODO no effect?
-    (add-hook 'after-revert-hook 'aes-mode--revert-function nil t))
-  (unless aes-mode
-    (remove-hook 'after-revert-hook 'aes-mode--revert-function t)))
+    (add-hook 'after-revert-hook 'kaesar-mode--revert-function nil t))
+  (unless kaesar-mode
+    (remove-hook 'after-revert-hook 'kaesar-mode--revert-function t)))
 
-(define-globalized-minor-mode aes-global-mode
-  aes-mode aes-mode-maybe
-  :group 'aes-mode)
+(define-globalized-minor-mode kaesar-global-mode
+  kaesar-mode kaesar-mode-maybe
+  :group 'kaesar-mode)
 
-(defun aes-mode-save-buffer ()
+(defun kaesar-mode-save-buffer ()
   "TODO"
   (interactive)
   (if (buffer-modified-p)
-      (aes-mode--write-buffer)
+      (kaesar-mode--write-buffer)
     (message "(No changes need to be saved)")))
 
-(defun aes-mode--revert-function ()
-  (aes-mode 1))
+(defun kaesar-mode--revert-function ()
+  (kaesar-mode 1))
 
-(defun aes-mode-maybe ()
+(defun kaesar-mode-maybe ()
   (when (and (not (minibufferp))
-             (not aes-mode)
-             (aes-mode--guessed-encrypted-p))
-    (aes-mode 1)))
+             (not kaesar-mode)
+             (kaesar-mode--guessed-encrypted-p))
+    (kaesar-mode 1)))
 
-(defun aes-mode--write-buffer ()
+(defun kaesar-mode--write-buffer ()
   (let* ((file (buffer-file-name))
-         (meta (aes-mode--serialize-local-variables))
+         (meta (kaesar-mode--serialize-local-variables))
          (contents (encode-coding-string (buffer-string) buffer-file-coding-system))
          (bytes (vconcat meta contents)))
     (unwind-protect
         (progn
           (let ((coding-system-for-write 'binary))
-            (write-region (aes-mode--encrypt bytes) nil file nil 'no-msg))
+            (write-region (kaesar-mode--encrypt bytes) nil file nil 'no-msg))
           (set-buffer-modified-p nil)
           (set-visited-file-modtime)
-          (message (format "Wrote %s with AES encryption" file)))
+          (message (format "Wrote %s with kaesar encryption" file)))
       ;; clean up backup files if exists.
       (loop for b in (find-backup-file-name file)
             do (when (and (file-exists-p b)
@@ -113,24 +113,24 @@
                  (let ((delete-by-moving-to-trash nil))
                    (delete-file b)))))))
 
-(defun aes-mode--encrypt (bytes)
-  (let ((aes-password (aes-mode--password t)))
-    (aes-encrypt bytes)))
+(defun kaesar-mode--encrypt (bytes)
+  (let ((kaesar-password (kaesar-mode--password t)))
+    (kaesar-encrypt bytes)))
 
-(defun aes-mode--decrypt (bytes)
-  (let ((aes-password (aes-mode--password nil)))
-    (aes-decrypt bytes)))
+(defun kaesar-mode--decrypt (bytes)
+  (let ((kaesar-password (kaesar-mode--password nil)))
+    (kaesar-decrypt bytes)))
 
-(defun aes-mode--password (confirm)
-  (and aes-mode-cache-password
+(defun kaesar-mode--password (confirm)
+  (and kaesar-mode-cache-password
        (progn
-         (unless aes-mode-password
-           (setq aes-mode-password
-                 (aes--read-passwd "Password: ")))
-         (vconcat aes-mode-password))))
+         (unless kaesar-mode-password
+           (setq kaesar-mode-password
+                 (kaesar--read-passwd "Password: ")))
+         (vconcat kaesar-mode-password))))
 
 ;; re-open encrypted file
-(defun aes-mode--visit-again ()
+(defun kaesar-mode--visit-again ()
   (let* ((file (buffer-file-name))
          (data (with-temp-buffer
                  (set-buffer-multibyte nil)
@@ -138,7 +138,7 @@
                    (insert-file-contents file))
                  (buffer-string))))
     (destructuring-bind (meta contents)
-        (let* ((decrypted (aes-mode--decrypt data))
+        (let* ((decrypted (kaesar-mode--decrypt data))
                (first-read (read-from-string decrypted)))
           ;;TODO undecided coding-system `universal-coding-system-argument'
           (list (car first-read) (decode-coding-string (substring decrypted (cdr first-read)) 'undecided)))
@@ -148,71 +148,71 @@
         (when (default-value 'enable-multibyte-characters)
           (set-buffer-multibyte t))
         (insert contents))
-      (aes-mode--buffer-hack)
-      (aes-mode--deserialize-local-variables meta)
+      (kaesar-mode--buffer-hack)
+      (kaesar-mode--deserialize-local-variables meta)
       (set-buffer-modified-p nil)
       (setq buffer-undo-list nil)))
   (goto-char (point-min)))
 
-(defun aes-mode--buffer-hack ()
+(defun kaesar-mode--buffer-hack ()
   (hack-local-variables)
   ;; Since save-buffer() is not used, we don't have to take care of
   ;; make-backup-files
   (auto-save-mode nil))
 
-(defconst aes-mode--salted-regexp 
+(defconst kaesar-mode--salted-regexp 
   (format "^%s\\(\\(?:.\\|\n\\)\\{16\\}\\)" cipher/aes--openssl-magic-word))
 
-(defconst aes-mode--block-size
+(defconst kaesar-mode--block-size
   (* cipher/aes--Nb cipher/aes--Row))
 
 ;;TODO
-(defvar aes-mode-cache-password nil)
-(defvar aes-mode-password nil)
+(defvar kaesar-mode-cache-password nil)
+(defvar kaesar-mode-password nil)
 
-(make-variable-buffer-local 'aes-mode-password)
+(make-variable-buffer-local 'kaesar-mode-password)
 
-(defun aes-mode--guessed-encrypted-p ()
+(defun kaesar-mode--guessed-encrypted-p ()
   (and 
    ;;TODO FIXME suppress two time password prompt
    ;;     globalized minor mode make these conduct.
-   (aes-mode--buffer-guessed-encrypted-p)
-   (aes-mode--file-guessed-encrypted-p)))
+   (kaesar-mode--buffer-guessed-encrypted-p)
+   (kaesar-mode--file-guessed-encrypted-p)))
 
-(defun aes-mode--buffer-guessed-encrypted-p ()
+(defun kaesar-mode--buffer-guessed-encrypted-p ()
   (save-excursion
     (save-restriction
       (widen)
       (goto-char (point-min))
       (looking-at cipher/aes--openssl-magic-word))))
 
-(defun aes-mode--file-guessed-encrypted-p ()
+(defun kaesar-mode--file-guessed-encrypted-p ()
   (and buffer-file-name
        (let ((size (nth 7 (file-attributes buffer-file-name))))
          (and (integerp size)
-              (>= size (* aes-mode--block-size 2))
-              (= (mod size aes-mode--block-size) 0)))
+              (>= size (* kaesar-mode--block-size 2))
+              (= (mod size kaesar-mode--block-size) 0)))
        (let ((file buffer-file-name))
          (with-temp-buffer
            (set-buffer-multibyte nil)
            (let ((coding-system-for-read 'binary))
              ;; encrypted file must have Salted__ prefix and at least one block.
-             (insert-file-contents file nil 0 (* aes-mode--block-size 2)))
+             (insert-file-contents file nil 0 (* kaesar-mode--block-size 2)))
            (goto-char (point-min))
-           (and (looking-at aes-mode--salted-regexp)
+           (and (looking-at kaesar-mode--salted-regexp)
                 (let ((bin-salt (match-string 1)))
                   ;; Most of encrypted file have 8 bit char at top of 32 byte.
                   (string-match "[\200-\377]" bin-salt)))))))
 
-(defvar aes-mode-local-variables
+(defvar kaesar-mode-local-variables
   '( 
     (buffer-file-coding-system . set-buffer-file-coding-system)
     ))
 
-(defun aes-mode--deserialize-local-variables (alist)
+(defun kaesar-mode--deserialize-local-variables (alist)
   (mapc
    (lambda (pair)
-     (let ((settings (assq (car pair) aes-mode-local-variables)))
+     (let ((settings (assq (car pair) kaesar-mode-local-variables)))
        (cond
         ((and (cdr settings)
               (functionp (cdr settings)))
@@ -222,7 +222,7 @@
          (set (car pair) (cdr pair))))))
    alist))
 
-(defun aes-mode--serialize-local-variables ()
+(defun kaesar-mode--serialize-local-variables ()
   (let ((string (prin1-to-string
                  (remove nil
                          (mapcar
@@ -231,9 +231,9 @@
                               (when (and (boundp v)
                                          (local-variable-p v))
                                 (cons v (symbol-value v)))))
-                          aes-mode-local-variables)))))
+                          kaesar-mode-local-variables)))))
     (vconcat (string-make-unibyte string))))
 
-(provide 'aes-mode)
+(provide 'kaesar-mode)
 
-;;; aes-mode.el ends here
+;;; kaesar-mode.el ends here
