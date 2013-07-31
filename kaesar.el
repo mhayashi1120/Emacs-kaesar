@@ -214,13 +214,6 @@ This is a hiding parameter which hold password as vector.")
 
 ;; Basic utilities
 
-(defsubst kaesar--word-xor (word1 word2)
-  (vector
-   (logxor (aref word1 0) (aref word2 0))
-   (logxor (aref word1 1) (aref word2 1))
-   (logxor (aref word1 2) (aref word2 2))
-   (logxor (aref word1 3) (aref word2 3))))
-
 (defsubst kaesar--word-xor! (word1 word2)
   (aset word1 0 (logxor (aref word1 0) (aref word2 0)))
   (aset word1 1 (logxor (aref word1 1) (aref word2 1)))
@@ -537,19 +530,20 @@ to create AES key and initial vector."
              (aset w 3 (aref kaesar--S-box (aref w 3)))))
   state)
 
-(defsubst kaesar--rot-word (word)
-  (vector
-   (aref word 1)
-   (aref word 2)
-   (aref word 3)
-   (aref word 0)))
+(defsubst kaesar--rot-word! (word)
+  (let ((b0 (aref word 0)))
+    (aset word 0 (aref word 1))
+    (aset word 1 (aref word 2))
+    (aset word 2 (aref word 3))
+    (aset word 3 b0)
+    word))
 
-(defsubst kaesar--sub-word (word)
-  (vector
-   (aref kaesar--S-box (aref word 0))
-   (aref kaesar--S-box (aref word 1))
-   (aref kaesar--S-box (aref word 2))
-   (aref kaesar--S-box (aref word 3))))
+(defsubst kaesar--sub-word! (word)
+  (aset word 0 (aref kaesar--S-box (aref word 0)))
+  (aset word 1 (aref kaesar--S-box (aref word 1)))
+  (aset word 2 (aref kaesar--S-box (aref word 2)))
+  (aset word 3 (aref kaesar--S-box (aref word 3)))
+  word)
 
 (defconst kaesar--Rcon
   (loop repeat 10
@@ -568,22 +562,22 @@ to create AES key and initial vector."
                            finally return w)
                      res)))
     (loop for i from kaesar--Nk below (* kaesar--Nb (1+ kaesar--Nr))
-          do (let ((temp (car res)))
+          do (let ((temp (vconcat (car res))))
                (cond
                 ((= (mod i kaesar--Nk) 0)
-                 (setq temp (kaesar--word-xor
-                             (kaesar--sub-word
-                              (kaesar--rot-word temp))
-                             ;; `i' is start from 1
-                             (aref kaesar--Rcon (1- (/ i kaesar--Nk))))))
+                 (kaesar--rot-word! temp)
+                 (kaesar--sub-word! temp)
+                 (kaesar--word-xor!
+                  temp
+                  ;; `i' is start from 1
+                  (aref kaesar--Rcon (1- (/ i kaesar--Nk)))))
                 ((and (> kaesar--Nk 6)
                       (= (mod i kaesar--Nk) 4))
-                 (setq temp (kaesar--sub-word temp))))
-               (setq res (cons
-                          (kaesar--word-xor
-                           (nth (1- kaesar--Nk) res)
-                           temp)
-                          res))))
+                 (kaesar--sub-word! temp)))
+               (kaesar--word-xor!
+                temp
+                (nth (1- kaesar--Nk) res))
+               (setq res (cons temp res))))
     (nreverse res)))
 
 (defsubst kaesar--add-round-key! (state key)
