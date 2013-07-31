@@ -4,10 +4,8 @@
 ;; Keywords: data, convenience
 ;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/cipher/aes-mode.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.5.1
-;; Package-Requires: ()
-
-(defconst kaesar-mode-version "0.5.1")
+;; Version: 0.5.0
+;; Package-Requires: ((kaesar "0.1.0"))
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
