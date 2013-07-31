@@ -1,12 +1,12 @@
-;;; cipher/aes.el --- Another AES encryptin/decryptin string with password.
+;;; kaesar.el --- Another AES encryptin/decryptin string with password.
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
-;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/cipher/aes.el
+;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/cipher/kaesar.el
 ;; Emacs: GNU Emacs 22 or later
 ;; Version: 0.9.2
 
-(defconst cipher/aes-version "0.9.2")
+(defconst kaesar-version "0.9.2")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -29,17 +29,17 @@
 ;; !!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!
 ;; And put the following expression into your .emacs.
 ;;
-;; (require 'cipher/aes)
+;; (require 'kaesar)
 ;;
 
 
 ;;; Usage:
 
 ;; * To encode a well encoded string (High level API)
-;; `cipher/aes-encrypt-string' <-> `cipher/aes-decrypt-string'
+;; `kaesar-encrypt-string' <-> `kaesar-decrypt-string'
 ;;
 ;; * To encode a unibyte string with algorithm (Low level API)
-;; `cipher/aes-encrypt' <-> `cipher/aes-decrypt'
+;; `kaesar-encrypt' <-> `kaesar-decrypt'
 ;;
 ;;; Sample:
 
@@ -49,12 +49,12 @@
 ;; (defvar my-secret nil)
 
 ;; (let ((raw-string "My Secret"))
-;;   (setq my-secret (cipher/aes-encrypt-string raw-string))
+;;   (setq my-secret (kaesar-encrypt-string raw-string))
 ;;   (clear-string raw-string))
 
 ;; * To decrypt `my-secret'
 
-;; (cipher/aes-decrypt-string my-secret)
+;; (kaesar-decrypt-string my-secret)
 
 ;;; TODO:
 ;; * about algorithm
@@ -73,126 +73,126 @@
 (eval-when-compile
   (require 'cl))
 
-(defgroup cipher/aes nil
+(defgroup kaesar nil
   "Encrypt/Decrypt string with password"
   :group 'environment)
 
-(defcustom cipher/aes-algorithm "aes-256-cbc"
+(defcustom kaesar-algorithm "aes-256-cbc"
   "Cipher algorithm to encrypt a message.
 Following algorithms are supported.
 
 aes-256-ecb, aes-192-ecb, aes-128-ecb,
 aes-256-cbc, aes-192-cbc, aes-128-cbc
 "
-  :group 'cipher/aes
+  :group 'kaesar
   :type 'string)
 
-(defcustom cipher/aes-encrypt-prompt nil
+(defcustom kaesar-encrypt-prompt nil
   "Password prompt when read password to encrypt."
-  :group 'cipher/aes
+  :group 'kaesar
   :type 'string)
 
-(defcustom cipher/aes-decrypt-prompt nil
+(defcustom kaesar-decrypt-prompt nil
   "Password prompt when read password to decrypt."
-  :group 'cipher/aes
+  :group 'kaesar
   :type 'string)
 
-(defvar cipher/aes--Enc)
-(defvar cipher/aes--Dec)
+(defvar kaesar--Enc)
+(defvar kaesar--Dec)
 
-(defmacro cipher/aes--proc (algorithm &rest form)
+(defmacro kaesar--proc (algorithm &rest form)
   (declare (indent 1))
   (let ((cipher (make-symbol "cipher"))
         (block-mode (make-symbol "block-mode")))
-    `(let ((cipher/aes--Algorithm (or ,algorithm cipher/aes-algorithm)))
+    `(let ((kaesar--Algorithm (or ,algorithm kaesar-algorithm)))
        (destructuring-bind (,cipher ,block-mode)
-           (cipher/aes--parse-algorithm cipher/aes--Algorithm)
-         (cipher/aes--cipher-algorithm ,cipher
-           (cipher/aes--block-algorithm ,block-mode
+           (kaesar--parse-algorithm kaesar--Algorithm)
+         (kaesar--cipher-algorithm ,cipher
+           (kaesar--block-algorithm ,block-mode
              ,@form))))))
 
 ;;;###autoload
-(defun cipher/aes-encrypt-string (string)
+(defun kaesar-encrypt-string (string)
   "Encrypt a well encoded STRING to encrypted string
-which can be decrypted by `cipher/aes-decrypt-string'."
+which can be decrypted by `kaesar-decrypt-string'."
   (let ((unibytes (encode-coding-string string default-terminal-coding-system)))
-    (cipher/aes-encrypt unibytes)))
+    (kaesar-encrypt unibytes)))
 
 ;;;###autoload
-(defun cipher/aes-decrypt-string (encrypted-string)
-  "Decrypt a ENCRYPTED-STRING which was encrypted by `cipher/aes-encrypt-string'"
-  (let ((unibytes (cipher/aes-decrypt encrypted-string)))
+(defun kaesar-decrypt-string (encrypted-string)
+  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt-string'"
+  (let ((unibytes (kaesar-decrypt encrypted-string)))
     (decode-coding-string unibytes default-terminal-coding-system)))
 
 ;;;###autoload
-(defun cipher/aes-encrypt (unibyte-string &optional algorithm)
+(defun kaesar-encrypt (unibyte-string &optional algorithm)
   "Encrypt a UNIBYTE-STRING with ALGORITHM.
-See `cipher/aes-algorithm' list the supported ALGORITHM ."
-  (cipher/aes--check-unibytes unibyte-string)
-  (let* ((salt (cipher/aes--create-salt))
-         (pass (cipher/aes--read-passwd
-                (or cipher/aes-encrypt-prompt
+See `kaesar-algorithm' list the supported ALGORITHM ."
+  (kaesar--check-unibytes unibyte-string)
+  (let* ((salt (kaesar--create-salt))
+         (pass (kaesar--read-passwd
+                (or kaesar-encrypt-prompt
                     "Password to encrypt: ") t)))
-    (cipher/aes--proc algorithm
-      (destructuring-bind (raw-key iv) (cipher/aes--bytes-to-key pass salt)
-        (cipher/aes--encrypt-0 unibyte-string raw-key salt iv)))))
+    (kaesar--proc algorithm
+      (destructuring-bind (raw-key iv) (kaesar--bytes-to-key pass salt)
+        (kaesar--encrypt-0 unibyte-string raw-key salt iv)))))
 
 ;;;###autoload
-(defun cipher/aes-decrypt (encrypted-string &optional algorithm)
-  "Decrypt a ENCRYPTED-STRING which was encrypted by `cipher/aes-encrypt'"
-  (cipher/aes--check-encrypted encrypted-string)
+(defun kaesar-decrypt (encrypted-string &optional algorithm)
+  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt'"
+  (kaesar--check-encrypted encrypted-string)
   (let ((algorithm (or algorithm
                        (get-text-property 0 'encrypted-algorithm encrypted-string))))
-    (cipher/aes--proc algorithm
+    (kaesar--proc algorithm
       (destructuring-bind (salt encrypted-string)
-          (cipher/aes--parse-salt encrypted-string)
-        (let ((pass (cipher/aes--read-passwd
-                     (or cipher/aes-decrypt-prompt
+          (kaesar--parse-salt encrypted-string)
+        (let ((pass (kaesar--read-passwd
+                     (or kaesar-decrypt-prompt
                          "Password to decrypt: "))))
-          (destructuring-bind (raw-key iv) (cipher/aes--bytes-to-key pass salt)
-            (cipher/aes--decrypt-0 encrypted-string raw-key iv)))))))
+          (destructuring-bind (raw-key iv) (kaesar--bytes-to-key pass salt)
+            (kaesar--decrypt-0 encrypted-string raw-key iv)))))))
 
 ;;;###autoload
-(defun cipher/aes-encrypt-by-key (unibyte-string algorithm raw-key &optional iv)
+(defun kaesar-encrypt-by-key (unibyte-string algorithm raw-key &optional iv)
   "Encrypt a UNIBYTE-STRING with ALGORITHM and RAW-KEY (Before expansion).
-See `cipher/aes-algorithm' list the supported ALGORITHM .
+See `kaesar-algorithm' list the supported ALGORITHM .
 Low level API to encrypt like other implementation."
-  (cipher/aes--check-unibytes unibyte-string)
-  (cipher/aes--proc algorithm
-    (let* ((key (cipher/aes--key-expansion raw-key))
-           (encrypted (funcall cipher/aes--Enc unibyte-string key iv))
+  (kaesar--check-unibytes unibyte-string)
+  (kaesar--proc algorithm
+    (let* ((key (kaesar--key-expansion raw-key))
+           (encrypted (funcall kaesar--Enc unibyte-string key iv))
            (full-data (append encrypted)))
-      (apply 'cipher/aes--unibyte-string full-data))))
+      (apply 'kaesar--unibyte-string full-data))))
 
 ;;;###autoload
-(defun cipher/aes-decrypt-by-key (encrypted-string algorithm raw-key &optional iv)
-  "Decrypt a ENCRYPTED-STRING which was encrypted by `cipher/aes-encrypt' with RAW-KEY.
+(defun kaesar-decrypt-by-key (encrypted-string algorithm raw-key &optional iv)
+  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt' with RAW-KEY.
 RAW-KEY before expansion
 Low level API to decrypt data that was encrypted by other implementation."
-  (cipher/aes--check-encrypted encrypted-string)
-  (cipher/aes--proc algorithm
-    (let* ((key (cipher/aes--key-expansion raw-key))
-           (decrypted (funcall cipher/aes--Dec encrypted-string key iv)))
-      (apply 'cipher/aes--unibyte-string decrypted))))
+  (kaesar--check-encrypted encrypted-string)
+  (kaesar--proc algorithm
+    (let* ((key (kaesar--key-expansion raw-key))
+           (decrypted (funcall kaesar--Dec encrypted-string key iv)))
+      (apply 'kaesar--unibyte-string decrypted))))
 
-(defvar cipher/aes-password nil
+(defvar kaesar-password nil
   "To suppress the minibuffer prompt.
 This is a hiding parameter which hold password as vector.")
 
-(defun cipher/aes--read-passwd (prompt &optional confirm)
-  (or (and (vectorp cipher/aes-password)
+(defun kaesar--read-passwd (prompt &optional confirm)
+  (or (and (vectorp kaesar-password)
            ;; do not clear external password.
-           (vconcat cipher/aes-password))
+           (vconcat kaesar-password))
       (vconcat (read-passwd prompt confirm))))
 
-(defun cipher/aes--check-unibytes (unibytes)
+(defun kaesar--check-unibytes (unibytes)
   (cond
    ((stringp unibytes)
     (when (multibyte-string-p unibytes)
       (error "Not a unibyte string")))
    ((vectorp unibytes))))
 
-(defun cipher/aes--check-encrypted (encbyte-string)
+(defun kaesar--check-encrypted (encbyte-string)
   (cond
    ((stringp encbyte-string)
     (when (multibyte-string-p encbyte-string)
@@ -200,20 +200,20 @@ This is a hiding parameter which hold password as vector.")
 
 ;; Basic utilities
 
-(defsubst cipher/aes--word-xor (word1 word2)
+(defsubst kaesar--word-xor (word1 word2)
   (vector
    (logxor (aref word1 0) (aref word2 0))
    (logxor (aref word1 1) (aref word2 1))
    (logxor (aref word1 2) (aref word2 2))
    (logxor (aref word1 3) (aref word2 3))))
 
-(defsubst cipher/aes--word-xor! (word1 word2)
+(defsubst kaesar--word-xor! (word1 word2)
   (aset word1 0 (logxor (aref word1 0) (aref word2 0)))
   (aset word1 1 (logxor (aref word1 1) (aref word2 1)))
   (aset word1 2 (logxor (aref word1 2) (aref word2 2)))
   (aset word1 3 (logxor (aref word1 3) (aref word2 3))))
 
-(defsubst cipher/aes--byte-rot (byte count)
+(defsubst kaesar--byte-rot (byte count)
   (let ((v (lsh byte count)))
     (logior
      (logand ?\xff v)
@@ -224,97 +224,97 @@ This is a hiding parameter which hold password as vector.")
 ;; AES-128: Nk 4 Nb 4 Nr 10
 ;; AES-192: Nk 6 Nb 4 Nr 12
 ;; AES-256: Nk 8 Nb 4 Nr 14
-(defconst cipher/aes--cipher-algorithm-alist
+(defconst kaesar--cipher-algorithm-alist
   '(
     (aes-128 4 4 10)
     (aes-192 6 4 12)
     (aes-256 8 4 14)
     ))
 
-(defconst cipher/aes--block-algorithm-alist
+(defconst kaesar--block-algorithm-alist
   '(
-    (ecb cipher/aes--ecb-encrypt cipher/aes--ecb-decrypt 0)
-    (cbc cipher/aes--cbc-encrypt cipher/aes--cbc-decrypt cipher/aes--Block)
+    (ecb kaesar--ecb-encrypt kaesar--ecb-decrypt 0)
+    (cbc kaesar--cbc-encrypt kaesar--cbc-decrypt kaesar--Block)
     ))
 
 ;; Block size
-(defvar cipher/aes--Nb 4)
+(defvar kaesar--Nb 4)
 
 ;; Key length
-(defvar cipher/aes--Nk)
+(defvar kaesar--Nk)
 
 ;; Number of rounds
-(defvar cipher/aes--Nr)
+(defvar kaesar--Nr)
 
 ;; count of row in State
-(defconst cipher/aes--Row 4)
+(defconst kaesar--Row 4)
 ;; size of State
-(defvar cipher/aes--Block)
+(defvar kaesar--Block)
 ;; size of IV (Initial Vector)
-(defvar cipher/aes--IV)
+(defvar kaesar--IV)
 
-(defvar cipher/aes--Algorithm)
+(defvar kaesar--Algorithm)
 
-(defconst cipher/aes--pkcs5-salt-length 8)
-(defconst cipher/aes--openssl-magic-word "Salted__")
+(defconst kaesar--pkcs5-salt-length 8)
+(defconst kaesar--openssl-magic-word "Salted__")
 
-(defun cipher/aes--encrypt-0 (unibyte-string raw-key &optional salt iv)
-  (let* ((key (cipher/aes--key-expansion raw-key))
-         (salt-magic (string-to-list cipher/aes--openssl-magic-word))
-         (encrypted (funcall cipher/aes--Enc unibyte-string key iv))
+(defun kaesar--encrypt-0 (unibyte-string raw-key &optional salt iv)
+  (let* ((key (kaesar--key-expansion raw-key))
+         (salt-magic (string-to-list kaesar--openssl-magic-word))
+         (encrypted (funcall kaesar--Enc unibyte-string key iv))
          (full-data (append salt-magic salt encrypted))
-         (unibytes (apply 'cipher/aes--unibyte-string full-data)))
-    (cipher/aes--create-encrypted unibytes)))
+         (unibytes (apply 'kaesar--unibyte-string full-data)))
+    (kaesar--create-encrypted unibytes)))
 
-(defun cipher/aes--decrypt-0 (encbyte-string raw-key &optional iv)
-  (let* ((key (cipher/aes--key-expansion raw-key))
-         (decrypted (funcall cipher/aes--Dec encbyte-string key iv)))
-    (apply 'cipher/aes--unibyte-string decrypted)))
+(defun kaesar--decrypt-0 (encbyte-string raw-key &optional iv)
+  (let* ((key (kaesar--key-expansion raw-key))
+         (decrypted (funcall kaesar--Dec encbyte-string key iv)))
+    (apply 'kaesar--unibyte-string decrypted)))
 
-(defun cipher/aes--parse-algorithm (name)
+(defun kaesar--parse-algorithm (name)
   (unless (string-match "^\\(aes-\\(?:128\\|192\\|256\\)\\)-\\(ecb\\|cbc\\)$" name)
     (error "%s is not supported" name))
   (list (intern (match-string 1 name))
         (intern (match-string 2 name))))
 
-(defun cipher/aes--create-encrypted (string)
-  (propertize string 'encrypted-algorithm cipher/aes--Algorithm))
+(defun kaesar--create-encrypted (string)
+  (propertize string 'encrypted-algorithm kaesar--Algorithm))
 
-(defmacro cipher/aes--cipher-algorithm (algorithm &rest form)
+(defmacro kaesar--cipher-algorithm (algorithm &rest form)
   (declare (indent 1))
   (let ((cell (make-symbol "cell")))
-    `(let ((,cell (assq ,algorithm cipher/aes--cipher-algorithm-alist)))
+    `(let ((,cell (assq ,algorithm kaesar--cipher-algorithm-alist)))
        (unless ,cell
          (error "%s is not supported" ,algorithm))
-       (let* ((cipher/aes--Nk (nth 1 ,cell))
-              (cipher/aes--Nb (nth 2 ,cell))
-              (cipher/aes--Nr (nth 3 ,cell))
-              (cipher/aes--Block (* cipher/aes--Nb cipher/aes--Row)))
+       (let* ((kaesar--Nk (nth 1 ,cell))
+              (kaesar--Nb (nth 2 ,cell))
+              (kaesar--Nr (nth 3 ,cell))
+              (kaesar--Block (* kaesar--Nb kaesar--Row)))
          ,@form))))
 
-(defmacro cipher/aes--block-algorithm (algorithm &rest form)
+(defmacro kaesar--block-algorithm (algorithm &rest form)
   (declare (indent 1))
   (let ((cell (make-symbol "cell")))
-    `(let ((,cell (assq ,algorithm cipher/aes--block-algorithm-alist)))
+    `(let ((,cell (assq ,algorithm kaesar--block-algorithm-alist)))
        (unless ,cell
          (error "%s is not supported" ,algorithm))
-       (let* ((cipher/aes--Enc (nth 1 ,cell))
-              (cipher/aes--Dec (nth 2 ,cell))
-              (cipher/aes--IV (eval (nth 3 ,cell))))
+       (let* ((kaesar--Enc (nth 1 ,cell))
+              (kaesar--Dec (nth 2 ,cell))
+              (kaesar--IV (eval (nth 3 ,cell))))
          ,@form))))
 
 ;;
 ;; bit/number operation for Emacs
 ;;
 
-(defsubst cipher/aes--unibytes-to-state (unibytes)
-  (loop for r from 0 below cipher/aes--Row
-        with state = (make-vector cipher/aes--Row nil)
+(defsubst kaesar--unibytes-to-state (unibytes)
+  (loop for r from 0 below kaesar--Row
+        with state = (make-vector kaesar--Row nil)
         with len = (length unibytes)
-        with suffix-len = (- cipher/aes--Block len)
-        do (loop for c from 0 below cipher/aes--Nb
-                 with from = (* cipher/aes--Nb r)
-                 with word = (make-vector cipher/aes--Nb suffix-len)
+        with suffix-len = (- kaesar--Block len)
+        do (loop for c from 0 below kaesar--Nb
+                 with from = (* kaesar--Nb r)
+                 with word = (make-vector kaesar--Nb suffix-len)
                  initially (aset state r word)
                  while (< (+ from c) len)
                  ;; word in unibytes
@@ -323,66 +323,66 @@ This is a hiding parameter which hold password as vector.")
                  do (aset word c (aref unibytes (+ from c))))
         finally return state))
 
-(defsubst cipher/aes--read-unibytes (unibyte-string pos)
+(defsubst kaesar--read-unibytes (unibyte-string pos)
   (let* ((len (length unibyte-string))
-         (end-pos (min len (+ pos cipher/aes--Block)))
-         (state (cipher/aes--unibytes-to-state (substring unibyte-string pos end-pos)))
+         (end-pos (min len (+ pos kaesar--Block)))
+         (state (kaesar--unibytes-to-state (substring unibyte-string pos end-pos)))
          (rest (if (and (= len end-pos)
-                        (< (- end-pos pos) cipher/aes--Block))
+                        (< (- end-pos pos) kaesar--Block))
                    nil end-pos)))
     (list state rest)))
 
-(defsubst cipher/aes--read-encbytes (encbyte-string pos)
+(defsubst kaesar--read-encbytes (encbyte-string pos)
   (let* ((len (length encbyte-string))
-         (end-pos (min len (+ pos cipher/aes--Block)))
-         (state (cipher/aes--unibytes-to-state (substring encbyte-string pos end-pos)))
+         (end-pos (min len (+ pos kaesar--Block)))
+         (state (kaesar--unibytes-to-state (substring encbyte-string pos end-pos)))
          (rest (if (= len end-pos) nil end-pos)))
     (list state rest)))
 
-(defsubst cipher/aes--state-to-bytes (state)
-  (loop for i from 0 below (* cipher/aes--Row cipher/aes--Nb)
+(defsubst kaesar--state-to-bytes (state)
+  (loop for i from 0 below (* kaesar--Row kaesar--Nb)
         collect
-        (let ((r (/ i cipher/aes--Row))
-              (c (% i cipher/aes--Nb)))
+        (let ((r (/ i kaesar--Row))
+              (c (% i kaesar--Nb)))
           (aref (aref state r) c))))
 
-(defsubst cipher/aes--state-clone (state)
+(defsubst kaesar--state-clone (state)
   (loop for r across state
         for i from 0
         with v = (vconcat state)
         do (aset v i (vconcat r))
         finally return v))
 
-(defun cipher/aes--create-salt ()
-  (loop for i from 0 below cipher/aes--pkcs5-salt-length
-        with salt = (make-vector cipher/aes--pkcs5-salt-length nil)
+(defun kaesar--create-salt ()
+  (loop for i from 0 below kaesar--pkcs5-salt-length
+        with salt = (make-vector kaesar--pkcs5-salt-length nil)
         do (aset salt i (random ?\x100))
         finally return salt))
 
-(defun cipher/aes--parse-salt (unibyte-string)
+(defun kaesar--parse-salt (unibyte-string)
   (let ((regexp (format "^%s\\([\000-\377]\\{%d\\}\\)"
-                        cipher/aes--openssl-magic-word cipher/aes--pkcs5-salt-length)))
+                        kaesar--openssl-magic-word kaesar--pkcs5-salt-length)))
     (unless (string-match regexp unibyte-string)
       (error "No salted"))
     (list
      (vconcat (match-string 1 unibyte-string))
      (substring unibyte-string (match-end 0)))))
 
-(defcustom cipher/aes-password-to-key-function
-  'cipher/aes--openssl-evp-bytes-to-key
+(defcustom kaesar-password-to-key-function
+  'kaesar--openssl-evp-bytes-to-key
   "Function which accepts password and optional salt,
 to create AES key and initial vector."
-  :group 'cipher/aes
+  :group 'kaesar
   :type 'function)
 
 ;; password -> '(key iv)
-(defun cipher/aes--bytes-to-key (data &optional salt)
-  (funcall cipher/aes-password-to-key-function data salt))
+(defun kaesar--bytes-to-key (data &optional salt)
+  (funcall kaesar-password-to-key-function data salt))
 
 ;; Emulate openssl EVP_BytesToKey function
-(defun cipher/aes--openssl-evp-bytes-to-key (data &optional salt)
-  (let ((iv (make-vector cipher/aes--IV nil))
-        (key (make-vector (* cipher/aes--Nk cipher/aes--Nb) nil))
+(defun kaesar--openssl-evp-bytes-to-key (data &optional salt)
+  (let ((iv (make-vector kaesar--IV nil))
+        (key (make-vector (* kaesar--Nk kaesar--Nb) nil))
         ;;md5 hash size
         (hash (make-vector 16 nil))
         (ii 0)
@@ -397,7 +397,7 @@ to create AES key and initial vector."
             (setq context (append context data nil))
             (when salt
               (setq context (append context salt nil)))
-            (cipher/aes--key-md5-digest hash context)
+            (kaesar--key-md5-digest hash context)
             (let ((i 0))
               (loop for j from ki below (length key)
                     while (< i (length hash))
@@ -415,22 +415,22 @@ to create AES key and initial vector."
     (fillarray data nil)
     (list key iv)))
 
-(defun cipher/aes--key-md5-digest (hash data)
-  (loop with unibytes = (apply 'cipher/aes--unibyte-string data)
+(defun kaesar--key-md5-digest (hash data)
+  (loop with unibytes = (apply 'kaesar--unibyte-string data)
         with md5-hash = (md5 unibytes)
-        for v across (cipher/aes--hex-to-vector md5-hash)
+        for v across (kaesar--hex-to-vector md5-hash)
         for i from 0
         do (aset hash i v)))
 
-(defun cipher/aes--hex-to-vector (hex-string)
+(defun kaesar--hex-to-vector (hex-string)
   (loop for i from 0 below (length hex-string) by 2
         collect (string-to-number (substring hex-string i (+ i 2)) 16)
         into res
         finally return (vconcat res)))
 
 (if (fboundp 'unibyte-string)
-    (defalias 'cipher/aes--unibyte-string 'unibyte-string)
-  (defun cipher/aes--unibyte-string (&rest bytes)
+    (defalias 'kaesar--unibyte-string 'unibyte-string)
+  (defun kaesar--unibyte-string (&rest bytes)
     (concat bytes)))
 
 ;;
@@ -438,12 +438,12 @@ to create AES key and initial vector."
 ;;
 
 ;; 4.1 Addition
-(defsubst cipher/aes--add (&rest numbers)
+(defsubst kaesar--add (&rest numbers)
   (apply 'logxor numbers))
 
 ;; 4.2 Multiplication
 ;; 4.2.1 xtime
-(defconst cipher/aes--xtime-cache
+(defconst kaesar--xtime-cache
   (loop for byte from 0 below ?\x100
         with table = (make-vector ?\x100 nil)
         do (aset table byte
@@ -452,10 +452,10 @@ to create AES key and initial vector."
                    (logand (logxor (lsh byte 1) ?\x11b) ?\xff)))
         finally return table))
 
-(defun cipher/aes--xtime (byte)
-  (aref cipher/aes--xtime-cache byte))
+(defun kaesar--xtime (byte)
+  (aref kaesar--xtime-cache byte))
 
-(defconst cipher/aes--multiply-log
+(defconst kaesar--multiply-log
   (loop for i from 0 to ?\xff
         with table = (make-vector ?\x100 nil)
         do
@@ -465,36 +465,36 @@ to create AES key and initial vector."
               initially (progn
                           (aset table i l)
                           (aset l 0 i))
-              do (let ((n (cipher/aes--xtime v)))
+              do (let ((n (kaesar--xtime v)))
                    (aset l j n)
                    (setq v n)))
         finally return table))
 
-(defun cipher/aes--multiply-0 (byte1 byte2)
-  (let ((table (aref cipher/aes--multiply-log byte1)))
-    (apply 'cipher/aes--add
+(defun kaesar--multiply-0 (byte1 byte2)
+  (let ((table (aref kaesar--multiply-log byte1)))
+    (apply 'kaesar--add
            (loop for i from 0 to 7
                  unless (zerop (logand byte2 (lsh 1 i)))
                  collect (aref table i)))))
 
-(defconst cipher/aes--multiply-cache
+(defconst kaesar--multiply-cache
   (loop for b1 from 0 to ?\xff
         collect
         (loop for b2 from 0 to ?\xff
-              collect (cipher/aes--multiply-0 b1 b2) into res
+              collect (kaesar--multiply-0 b1 b2) into res
               finally return (vconcat res))
         into res
         finally return (vconcat res)))
 
-(defsubst cipher/aes--multiply (byte1 byte2)
-  (aref (aref cipher/aes--multiply-cache byte1) byte2))
+(defsubst kaesar--multiply (byte1 byte2)
+  (aref (aref kaesar--multiply-cache byte1) byte2))
 
-(defconst cipher/aes--S-box
+(defconst kaesar--S-box
   (loop with inv-cache =
         (loop with v = (make-vector 256 nil)
               for byte from 0 to 255
               do (aset v byte
-                       (loop for b across (aref cipher/aes--multiply-cache byte)
+                       (loop for b across (aref kaesar--multiply-cache byte)
                              for i from 0
                              if (= b 1)
                              return i
@@ -506,7 +506,7 @@ to create AES key and initial vector."
                                (x inv))
                           (loop repeat 4
                                 do (progn
-                                     (setq s (cipher/aes--byte-rot s 1))
+                                     (setq s (kaesar--byte-rot s 1))
                                      (setq x (logxor s x))))
                           (logxor x ?\x63)))
         for b from 0 to ?\xff
@@ -514,72 +514,72 @@ to create AES key and initial vector."
         do (aset box b (funcall boxing b))
         finally return box))
 
-(defsubst cipher/aes--sub-bytes (state)
+(defsubst kaesar--sub-bytes (state)
   (loop for w across state
         do (progn
-             (aset w 0 (aref cipher/aes--S-box (aref w 0)))
-             (aset w 1 (aref cipher/aes--S-box (aref w 1)))
-             (aset w 2 (aref cipher/aes--S-box (aref w 2)))
-             (aset w 3 (aref cipher/aes--S-box (aref w 3)))))
+             (aset w 0 (aref kaesar--S-box (aref w 0)))
+             (aset w 1 (aref kaesar--S-box (aref w 1)))
+             (aset w 2 (aref kaesar--S-box (aref w 2)))
+             (aset w 3 (aref kaesar--S-box (aref w 3)))))
   state)
 
-(defsubst cipher/aes--rot-word (word)
+(defsubst kaesar--rot-word (word)
   (vector
    (aref word 1)
    (aref word 2)
    (aref word 3)
    (aref word 0)))
 
-(defsubst cipher/aes--sub-word (word)
+(defsubst kaesar--sub-word (word)
   (vector
-   (aref cipher/aes--S-box (aref word 0))
-   (aref cipher/aes--S-box (aref word 1))
-   (aref cipher/aes--S-box (aref word 2))
-   (aref cipher/aes--S-box (aref word 3))))
+   (aref kaesar--S-box (aref word 0))
+   (aref kaesar--S-box (aref word 1))
+   (aref kaesar--S-box (aref word 2))
+   (aref kaesar--S-box (aref word 3))))
 
-(defconst cipher/aes--Rcon
+(defconst kaesar--Rcon
   (loop repeat 10
-        for v = 1 then (cipher/aes--xtime v)
+        for v = 1 then (kaesar--xtime v)
         collect (vector v 0 0 0) into res
         finally return (vconcat res)))
 
-(defun cipher/aes--key-expansion (key)
+(defun kaesar--key-expansion (key)
   (let (res)
-    (loop for i from 0 below cipher/aes--Nk
+    (loop for i from 0 below kaesar--Nk
           do
           (setq res (cons
-                     (loop for j from 0 below cipher/aes--Nb
-                           with w = (make-vector cipher/aes--Nb nil)
-                           do (aset w j (aref key (+ j (* cipher/aes--Nb i))))
+                     (loop for j from 0 below kaesar--Nb
+                           with w = (make-vector kaesar--Nb nil)
+                           do (aset w j (aref key (+ j (* kaesar--Nb i))))
                            finally return w)
                      res)))
-    (loop for i from cipher/aes--Nk below (* cipher/aes--Nb (1+ cipher/aes--Nr))
+    (loop for i from kaesar--Nk below (* kaesar--Nb (1+ kaesar--Nr))
           do (let ((temp (car res)))
                (cond
-                ((= (mod i cipher/aes--Nk) 0)
-                 (setq temp (cipher/aes--word-xor
-                             (cipher/aes--sub-word
-                              (cipher/aes--rot-word temp))
+                ((= (mod i kaesar--Nk) 0)
+                 (setq temp (kaesar--word-xor
+                             (kaesar--sub-word
+                              (kaesar--rot-word temp))
                              ;; `i' is start from 1
-                             (aref cipher/aes--Rcon (1- (/ i cipher/aes--Nk))))))
-                ((and (> cipher/aes--Nk 6)
-                      (= (mod i cipher/aes--Nk) 4))
-                 (setq temp (cipher/aes--sub-word temp))))
+                             (aref kaesar--Rcon (1- (/ i kaesar--Nk))))))
+                ((and (> kaesar--Nk 6)
+                      (= (mod i kaesar--Nk) 4))
+                 (setq temp (kaesar--sub-word temp))))
                (setq res (cons
-                          (cipher/aes--word-xor
-                           (nth (1- cipher/aes--Nk) res)
+                          (kaesar--word-xor
+                           (nth (1- kaesar--Nk) res)
                            temp)
                           res))))
     (nreverse res)))
 
-(defsubst cipher/aes--add-round-key (state key)
-  (cipher/aes--word-xor! (aref state 0) (aref key 0))
-  (cipher/aes--word-xor! (aref state 1) (aref key 1))
-  (cipher/aes--word-xor! (aref state 2) (aref key 2))
-  (cipher/aes--word-xor! (aref state 3) (aref key 3))
+(defsubst kaesar--add-round-key (state key)
+  (kaesar--word-xor! (aref state 0) (aref key 0))
+  (kaesar--word-xor! (aref state 1) (aref key 1))
+  (kaesar--word-xor! (aref state 2) (aref key 2))
+  (kaesar--word-xor! (aref state 3) (aref key 3))
   state)
 
-(defsubst cipher/aes--round-key (key n)
+(defsubst kaesar--round-key (key n)
   (let ((rest (nthcdr n key)))
     (vector
      (nth 0 rest)
@@ -587,26 +587,26 @@ to create AES key and initial vector."
      (nth 2 rest)
      (nth 3 rest))))
 
-(defconst cipher/aes--2time-table
+(defconst kaesar--2time-table
   (loop for i from 0 to ?\xff
-        collect (cipher/aes--multiply i 2) into res
+        collect (kaesar--multiply i 2) into res
         finally return (vconcat res)))
 
-(defconst cipher/aes--4time-table
+(defconst kaesar--4time-table
   (loop for i from 0 to ?\xff
-        collect (cipher/aes--multiply i 4) into res
+        collect (kaesar--multiply i 4) into res
         finally return (vconcat res)))
 
-(defconst cipher/aes--8time-table
+(defconst kaesar--8time-table
   (loop for i from 0 to ?\xff
-        collect (cipher/aes--multiply i 8) into res
+        collect (kaesar--multiply i 8) into res
         finally return (vconcat res)))
 
-(defsubst cipher/aes--mix-column! (word)
+(defsubst kaesar--mix-column! (word)
   (let ((w1 (vconcat word))
         (w2 (vconcat (mapcar
                       (lambda (b)
-                        (aref cipher/aes--2time-table b))
+                        (aref kaesar--2time-table b))
                       word))))
     ;; Coefficients of word Matrix
     ;; 2 3 1 1
@@ -630,24 +630,24 @@ to create AES key and initial vector."
                          (aref w1 2)
                          (aref w2 3)))))
 
-(defsubst cipher/aes--mix-columns (state)
-  (cipher/aes--mix-column! (aref state 0))
-  (cipher/aes--mix-column! (aref state 1))
-  (cipher/aes--mix-column! (aref state 2))
-  (cipher/aes--mix-column! (aref state 3))
+(defsubst kaesar--mix-columns (state)
+  (kaesar--mix-column! (aref state 0))
+  (kaesar--mix-column! (aref state 1))
+  (kaesar--mix-column! (aref state 2))
+  (kaesar--mix-column! (aref state 3))
   state)
 
-(defsubst cipher/aes--inv-mix-column! (word)
+(defsubst kaesar--inv-mix-column! (word)
   (let ((w1 (vconcat word))
         (w2 (vconcat (mapcar
                       (lambda (b)
-                        (aref cipher/aes--2time-table b)) word)))
+                        (aref kaesar--2time-table b)) word)))
         (w4 (vconcat (mapcar
                       (lambda (b)
-                        (aref cipher/aes--4time-table b)) word)))
+                        (aref kaesar--4time-table b)) word)))
         (w8 (vconcat (mapcar
                       (lambda (b)
-                        (aref cipher/aes--8time-table b)) word))))
+                        (aref kaesar--8time-table b)) word))))
     ;; Coefficients of word Matrix
     ;; 14 11 13  9
     ;;  9 14 11 13
@@ -681,14 +681,14 @@ to create AES key and initial vector."
                   (aref w8 3) (aref w4 3) (aref w2 3))) ; 14
     ))
 
-(defsubst cipher/aes--inv-mix-columns (state)
-  (cipher/aes--inv-mix-column! (aref state 0))
-  (cipher/aes--inv-mix-column! (aref state 1))
-  (cipher/aes--inv-mix-column! (aref state 2))
-  (cipher/aes--inv-mix-column! (aref state 3))
+(defsubst kaesar--inv-mix-columns (state)
+  (kaesar--inv-mix-column! (aref state 0))
+  (kaesar--inv-mix-column! (aref state 1))
+  (kaesar--inv-mix-column! (aref state 2))
+  (kaesar--inv-mix-column! (aref state 3))
   state)
 
-(defsubst cipher/aes--shift-row! (state row indexes)
+(defsubst kaesar--shift-row! (state row indexes)
   (let ((new-rows (loop for index in indexes
                         collect (aref (aref state index) row))))
     (loop for col from 0
@@ -696,153 +696,153 @@ to create AES key and initial vector."
           do
           (aset (aref state col) row new-row))))
 
-(defsubst cipher/aes--shift-rows (state)
+(defsubst kaesar--shift-rows (state)
   ;; ignore first row
-  (cipher/aes--shift-row! state 1 '(1 2 3 0))
-  (cipher/aes--shift-row! state 2 '(2 3 0 1))
-  (cipher/aes--shift-row! state 3 '(3 0 1 2))
+  (kaesar--shift-row! state 1 '(1 2 3 0))
+  (kaesar--shift-row! state 2 '(2 3 0 1))
+  (kaesar--shift-row! state 3 '(3 0 1 2))
   state)
 
-(defsubst cipher/aes--inv-shift-rows (state)
+(defsubst kaesar--inv-shift-rows (state)
   ;; ignore first row
-  (cipher/aes--shift-row! state 1 '(3 0 1 2))
-  (cipher/aes--shift-row! state 2 '(2 3 0 1))
-  (cipher/aes--shift-row! state 3 '(1 2 3 0))
+  (kaesar--shift-row! state 1 '(3 0 1 2))
+  (kaesar--shift-row! state 2 '(2 3 0 1))
+  (kaesar--shift-row! state 3 '(1 2 3 0))
   state)
 
-(defconst cipher/aes--inv-S-box
-  (loop for s across cipher/aes--S-box
+(defconst kaesar--inv-S-box
+  (loop for s across kaesar--S-box
         for b from 0
         with ibox = (make-vector ?\x100 nil)
         do (aset ibox s b)
         finally return ibox))
 
-(defsubst cipher/aes--inv-sub-bytes (state)
+(defsubst kaesar--inv-sub-bytes (state)
   (loop for w across state
         do (progn
-             (aset w 0 (aref cipher/aes--inv-S-box (aref w 0)))
-             (aset w 1 (aref cipher/aes--inv-S-box (aref w 1)))
-             (aset w 2 (aref cipher/aes--inv-S-box (aref w 2)))
-             (aset w 3 (aref cipher/aes--inv-S-box (aref w 3)))))
+             (aset w 0 (aref kaesar--inv-S-box (aref w 0)))
+             (aset w 1 (aref kaesar--inv-S-box (aref w 1)))
+             (aset w 2 (aref kaesar--inv-S-box (aref w 2)))
+             (aset w 3 (aref kaesar--inv-S-box (aref w 3)))))
   state)
 
-(defsubst cipher/aes--cipher (state key)
-  (cipher/aes--add-round-key state (cipher/aes--round-key key 0))
-  (loop for round from 1 to (1- cipher/aes--Nr)
+(defsubst kaesar--cipher (state key)
+  (kaesar--add-round-key state (kaesar--round-key key 0))
+  (loop for round from 1 to (1- kaesar--Nr)
         do (progn
-             (cipher/aes--sub-bytes state)
-             (cipher/aes--shift-rows state)
-             (cipher/aes--mix-columns state)
-             (cipher/aes--add-round-key
-              state (cipher/aes--round-key key (* round cipher/aes--Nb)))))
-  (cipher/aes--sub-bytes state)
-  (cipher/aes--shift-rows state)
-  (cipher/aes--add-round-key
-   state (cipher/aes--round-key key (* cipher/aes--Nr cipher/aes--Nb)))
+             (kaesar--sub-bytes state)
+             (kaesar--shift-rows state)
+             (kaesar--mix-columns state)
+             (kaesar--add-round-key
+              state (kaesar--round-key key (* round kaesar--Nb)))))
+  (kaesar--sub-bytes state)
+  (kaesar--shift-rows state)
+  (kaesar--add-round-key
+   state (kaesar--round-key key (* kaesar--Nr kaesar--Nb)))
   state)
 
-(defsubst cipher/aes--inv-cipher (state key)
-  (cipher/aes--add-round-key 
-   state (cipher/aes--round-key key (* cipher/aes--Nr cipher/aes--Nb)))
-  (loop for round downfrom (1- cipher/aes--Nr) to 1
+(defsubst kaesar--inv-cipher (state key)
+  (kaesar--add-round-key 
+   state (kaesar--round-key key (* kaesar--Nr kaesar--Nb)))
+  (loop for round downfrom (1- kaesar--Nr) to 1
         do (progn
-             (cipher/aes--inv-shift-rows state)
-             (cipher/aes--inv-sub-bytes state)
-             (cipher/aes--add-round-key
-              state (cipher/aes--round-key key (* round cipher/aes--Nb)))
-             (cipher/aes--inv-mix-columns state)))
-  (cipher/aes--inv-shift-rows state)
-  (cipher/aes--inv-sub-bytes state)
-  (cipher/aes--add-round-key
-   state (cipher/aes--round-key key 0))
+             (kaesar--inv-shift-rows state)
+             (kaesar--inv-sub-bytes state)
+             (kaesar--add-round-key
+              state (kaesar--round-key key (* round kaesar--Nb)))
+             (kaesar--inv-mix-columns state)))
+  (kaesar--inv-shift-rows state)
+  (kaesar--inv-sub-bytes state)
+  (kaesar--add-round-key
+   state (kaesar--round-key key 0))
   state)
 
 ;;
 ;; Block mode Algorithm
 ;;
 
-(defun cipher/aes--cbc-encrypt (unibyte-string key iv)
+(defun kaesar--cbc-encrypt (unibyte-string key iv)
   (loop with pos = 0
-        with state-1 = (cipher/aes--unibytes-to-state iv)
-        append (let* ((parsed (cipher/aes--read-unibytes unibyte-string pos))
-                      (state-d0 (cipher/aes--cbc-state-xor! (nth 0 parsed) state-1))
-                      (state-e0 (cipher/aes--cipher state-d0 key)))
+        with state-1 = (kaesar--unibytes-to-state iv)
+        append (let* ((parsed (kaesar--read-unibytes unibyte-string pos))
+                      (state-d0 (kaesar--cbc-state-xor! (nth 0 parsed) state-1))
+                      (state-e0 (kaesar--cipher state-d0 key)))
                  (setq pos (nth 1 parsed))
                  (setq state-1 state-e0)
-                 (cipher/aes--state-to-bytes state-e0))
+                 (kaesar--state-to-bytes state-e0))
         while pos))
 
-(defun cipher/aes--cbc-decrypt (encbyte-string key iv)
-  (cipher/aes--check-encbyte-string encbyte-string)
+(defun kaesar--cbc-decrypt (encbyte-string key iv)
+  (kaesar--check-encbyte-string encbyte-string)
   (loop with pos = 0
-        with state-1 = (cipher/aes--unibytes-to-state iv)
-        append (let* ((parsed (cipher/aes--read-encbytes encbyte-string pos))
+        with state-1 = (kaesar--unibytes-to-state iv)
+        append (let* ((parsed (kaesar--read-encbytes encbyte-string pos))
                       (state-e (nth 0 parsed))
-                      ;; Clone state cause of `cipher/aes--inv-cipher' have side-effect
-                      (state-e0 (cipher/aes--state-clone state-e))
-                      (state-d0 (cipher/aes--cbc-state-xor!
-                                 (cipher/aes--inv-cipher state-e key) state-1))
-                      (bytes (cipher/aes--state-to-bytes state-d0)))
+                      ;; Clone state cause of `kaesar--inv-cipher' have side-effect
+                      (state-e0 (kaesar--state-clone state-e))
+                      (state-d0 (kaesar--cbc-state-xor!
+                                 (kaesar--inv-cipher state-e key) state-1))
+                      (bytes (kaesar--state-to-bytes state-d0)))
                  (setq pos (nth 1 parsed))
                  (setq state-1 state-e0)
                  (unless pos
-                   (setq bytes (cipher/aes--check-end-of-decrypted bytes)))
+                   (setq bytes (kaesar--check-end-of-decrypted bytes)))
                  (append bytes nil))
         while pos))
 
-(defun cipher/aes--cbc-state-xor! (state0 state-1)
+(defun kaesar--cbc-state-xor! (state0 state-1)
   (loop for w1 across state-1
         for w2 across state0
-        do (cipher/aes--word-xor! w2 w1)
+        do (kaesar--word-xor! w2 w1)
         finally return state0))
 
-(put 'cipher/aes-decryption-failed
-     'error-conditions '(cipher/aes-decryption-failed error))
-(put 'cipher/aes-decryption-failed
+(put 'kaesar-decryption-failed
+     'error-conditions '(kaesar-decryption-failed error))
+(put 'kaesar-decryption-failed
      'error-message "Bad decrypt")
 
 ;; check End-Of-Block bytes
-(defun cipher/aes--check-end-of-decrypted (eob-bytes)
+(defun kaesar--check-end-of-decrypted (eob-bytes)
   (let* ((pad (car (last eob-bytes)))
-         (valid-len (- cipher/aes--Block pad)))
+         (valid-len (- kaesar--Block pad)))
     (when (or (> valid-len (length eob-bytes))
               (< valid-len 0))
-      (signal 'cipher/aes-decryption-failed nil))
+      (signal 'kaesar-decryption-failed nil))
     ;; check non padding byte exists
     ;; o aaa => '(97 97 97 13 13 .... 13)
     ;; x aaa => '(97 97 97 13 10 .... 13)
     (when (remove pad (nthcdr valid-len eob-bytes))
-      (signal 'cipher/aes-decryption-failed nil))
+      (signal 'kaesar-decryption-failed nil))
     (loop for i from 0 below valid-len
           for u in eob-bytes
           collect u)))
 
-(defun cipher/aes--check-encbyte-string (string)
-  (unless (= (mod (length string) cipher/aes--Block) 0)
-    (signal 'cipher/aes-decryption-failed nil)))
+(defun kaesar--check-encbyte-string (string)
+  (unless (= (mod (length string) kaesar--Block) 0)
+    (signal 'kaesar-decryption-failed nil)))
 
-(defun cipher/aes--ecb-encrypt (unibyte-string key &rest dummy)
+(defun kaesar--ecb-encrypt (unibyte-string key &rest dummy)
   (loop with pos = 0
-        append (let* ((parse (cipher/aes--read-unibytes unibyte-string pos))
+        append (let* ((parse (kaesar--read-unibytes unibyte-string pos))
                       (in-state (nth 0 parse))
-                      (out-state (cipher/aes--cipher in-state key)))
+                      (out-state (kaesar--cipher in-state key)))
                  (setq pos (nth 1 parse))
-                 (cipher/aes--state-to-bytes out-state))
+                 (kaesar--state-to-bytes out-state))
         while pos))
 
-(defun cipher/aes--ecb-decrypt (encbyte-string key &rest dummy)
-  (cipher/aes--check-encbyte-string encbyte-string)
+(defun kaesar--ecb-decrypt (encbyte-string key &rest dummy)
+  (kaesar--check-encbyte-string encbyte-string)
   (loop with pos = 0
-        append (let* ((parse (cipher/aes--read-encbytes encbyte-string pos))
+        append (let* ((parse (kaesar--read-encbytes encbyte-string pos))
                       (in-state (nth 0 parse))
-                      (out-state (cipher/aes--inv-cipher in-state key))
-                      (bytes (cipher/aes--state-to-bytes out-state)))
+                      (out-state (kaesar--inv-cipher in-state key))
+                      (bytes (kaesar--state-to-bytes out-state)))
                  (setq pos (nth 1 parse))
                  (unless pos
-                   (setq bytes (cipher/aes--check-end-of-decrypted bytes)))
+                   (setq bytes (kaesar--check-end-of-decrypted bytes)))
                  (append bytes nil))
         while pos))
 
-(provide 'cipher/aes)
+(provide 'kaesar)
 
-;;; cipher/aes.el ends here
+;;; kaesar.el ends here
