@@ -34,17 +34,18 @@
 ;;; Commentary:
 
 ;; This package provides AES algorithm to encrypt/decrypt Emacs
-;; string.
+;; string. Supported algorithm desired to get interoperability with
+;; openssl. You can get decrypted text if you don't forget password.
 
-;; * Why kaesar?
-;; Which previously named 'cipher/aes' but ELPA cannot handle such
-;; package name.  So, I had to change the name but `aes' package
-;; already exists. (And is faster than this package!)
-;; I continue to consider the new name which contains "aes" string.
-;; There is ancient cipher algorithm caesar
-;;  http://en.wikipedia.org/wiki/Caesar_cipher
-;; K`aes'ar is change the first character of Caesar 
-;; There is no meaning more than containing `aes' word.
+;; Why kaesar?
+;; This package previously named 'cipher/aes' but ELPA cannot handle
+;; such package name.  So, I had to change the name but `aes' package
+;; already exists. (And is faster than this package!)  I continue to
+;; consider the new name which contains "aes" string. There is the
+;; ancient cipher algorithm caesar
+;; http://en.wikipedia.org/wiki/Caesar_cipher
+;;  K`aes'ar is change the first character of Caesar There is no
+;; meaning more than containing `aes' word.
 
 ;;; Usage:
 
@@ -527,7 +528,7 @@ to create AES key and initial vector."
         do (aset box b (funcall boxing b))
         finally return box))
 
-(defsubst kaesar--sub-bytes (state)
+(defsubst kaesar--sub-bytes! (state)
   (loop for w across state
         do (progn
              (aset w 0 (aref kaesar--S-box (aref w 0)))
@@ -585,7 +586,7 @@ to create AES key and initial vector."
                           res))))
     (nreverse res)))
 
-(defsubst kaesar--add-round-key (state key)
+(defsubst kaesar--add-round-key! (state key)
   (kaesar--word-xor! (aref state 0) (aref key 0))
   (kaesar--word-xor! (aref state 1) (aref key 1))
   (kaesar--word-xor! (aref state 2) (aref key 2))
@@ -619,8 +620,7 @@ to create AES key and initial vector."
   (let ((w1 (vconcat word))
         (w2 (vconcat (mapcar
                       (lambda (b)
-                        (aref kaesar--2time-table b))
-                      word))))
+                        (aref kaesar--2time-table b)) word))))
     ;; Coefficients of word Matrix
     ;; 2 3 1 1
     ;; 1 2 3 1
@@ -643,7 +643,7 @@ to create AES key and initial vector."
                          (aref w1 2)
                          (aref w2 3)))))
 
-(defsubst kaesar--mix-columns (state)
+(defsubst kaesar--mix-columns! (state)
   (kaesar--mix-column! (aref state 0))
   (kaesar--mix-column! (aref state 1))
   (kaesar--mix-column! (aref state 2))
@@ -694,7 +694,7 @@ to create AES key and initial vector."
                   (aref w8 3) (aref w4 3) (aref w2 3))) ; 14
     ))
 
-(defsubst kaesar--inv-mix-columns (state)
+(defsubst kaesar--inv-mix-columns! (state)
   (kaesar--inv-mix-column! (aref state 0))
   (kaesar--inv-mix-column! (aref state 1))
   (kaesar--inv-mix-column! (aref state 2))
@@ -709,14 +709,14 @@ to create AES key and initial vector."
           do
           (aset (aref state col) row new-row))))
 
-(defsubst kaesar--shift-rows (state)
+(defsubst kaesar--shift-rows! (state)
   ;; ignore first row
   (kaesar--shift-row! state 1 '(1 2 3 0))
   (kaesar--shift-row! state 2 '(2 3 0 1))
   (kaesar--shift-row! state 3 '(3 0 1 2))
   state)
 
-(defsubst kaesar--inv-shift-rows (state)
+(defsubst kaesar--inv-shift-rows! (state)
   ;; ignore first row
   (kaesar--shift-row! state 1 '(3 0 1 2))
   (kaesar--shift-row! state 2 '(2 3 0 1))
@@ -730,7 +730,7 @@ to create AES key and initial vector."
         do (aset ibox s b)
         finally return ibox))
 
-(defsubst kaesar--inv-sub-bytes (state)
+(defsubst kaesar--inv-sub-bytes! (state)
   (loop for w across state
         do (progn
              (aset w 0 (aref kaesar--inv-S-box (aref w 0)))
@@ -740,33 +740,33 @@ to create AES key and initial vector."
   state)
 
 (defsubst kaesar--cipher (state key)
-  (kaesar--add-round-key state (kaesar--round-key key 0))
+  (kaesar--add-round-key! state (kaesar--round-key key 0))
   (loop for round from 1 to (1- kaesar--Nr)
         do (progn
-             (kaesar--sub-bytes state)
-             (kaesar--shift-rows state)
-             (kaesar--mix-columns state)
-             (kaesar--add-round-key
+             (kaesar--sub-bytes! state)
+             (kaesar--shift-rows! state)
+             (kaesar--mix-columns! state)
+             (kaesar--add-round-key!
               state (kaesar--round-key key (* round kaesar--Nb)))))
-  (kaesar--sub-bytes state)
-  (kaesar--shift-rows state)
-  (kaesar--add-round-key
+  (kaesar--sub-bytes! state)
+  (kaesar--shift-rows! state)
+  (kaesar--add-round-key!
    state (kaesar--round-key key (* kaesar--Nr kaesar--Nb)))
   state)
 
 (defsubst kaesar--inv-cipher (state key)
-  (kaesar--add-round-key 
+  (kaesar--add-round-key! 
    state (kaesar--round-key key (* kaesar--Nr kaesar--Nb)))
   (loop for round downfrom (1- kaesar--Nr) to 1
         do (progn
-             (kaesar--inv-shift-rows state)
-             (kaesar--inv-sub-bytes state)
-             (kaesar--add-round-key
+             (kaesar--inv-shift-rows! state)
+             (kaesar--inv-sub-bytes! state)
+             (kaesar--add-round-key!
               state (kaesar--round-key key (* round kaesar--Nb)))
-             (kaesar--inv-mix-columns state)))
-  (kaesar--inv-shift-rows state)
-  (kaesar--inv-sub-bytes state)
-  (kaesar--add-round-key
+             (kaesar--inv-mix-columns! state)))
+  (kaesar--inv-shift-rows! state)
+  (kaesar--inv-sub-bytes! state)
+  (kaesar--add-round-key!
    state (kaesar--round-key key 0))
   state)
 
