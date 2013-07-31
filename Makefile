@@ -1,10 +1,9 @@
 VERSION = 0.1.0
 
-RELEASE_FILES = cipher-pkg.el \
-	cipher/aes-file.el cipher/aes-mode.el cipher/aes.el \
-	cipher/rsa.el
+RELEASE_FILES =  \
+	kaesar-file.el kaesar-mode.el kaesar.el \
 
-BASE_NAME = cipher-$(VERSION)
+BASE_NAME = kaesar-$(VERSION)
 ARCHIVE_FILE = $(BASE_NAME).tar
 
 archive: prepare
