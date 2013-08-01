@@ -647,7 +647,8 @@ to create AES key and initial vector."
   (kaesar--mix-column-with-key! (aref state 3) (aref keys 3))
   state)
 
-(defsubst kaesar--inv-mix-column! (word)
+(defsubst kaesar--inv-key-with-mix-column! (key word)
+  (kaesar--word-xor! word key)
   (let ((w1 (vconcat word))
         (w2 (vconcat (mapcar
                       (lambda (b)
@@ -691,11 +692,11 @@ to create AES key and initial vector."
                   (aref w8 3) (aref w4 3) (aref w2 3))) ; 14
     ))
 
-(defsubst kaesar--inv-mix-columns! (state)
-  (kaesar--inv-mix-column! (aref state 0))
-  (kaesar--inv-mix-column! (aref state 1))
-  (kaesar--inv-mix-column! (aref state 2))
-  (kaesar--inv-mix-column! (aref state 3))
+(defsubst kaesar--inv-key-with-mix-columns! (keys state)
+  (kaesar--inv-key-with-mix-column! (aref keys 0) (aref state 0))
+  (kaesar--inv-key-with-mix-column! (aref keys 1) (aref state 1))
+  (kaesar--inv-key-with-mix-column! (aref keys 2) (aref state 2))
+  (kaesar--inv-key-with-mix-column! (aref keys 3) (aref state 3))
   state)
 
 (defsubst kaesar--shift-row! (state row columns)
@@ -760,8 +761,7 @@ to create AES key and initial vector."
         do (let ((part-key (kaesar--round-key key (* round kaesar--Nb))))
              (kaesar--inv-shift-rows! state)
              (kaesar--inv-sub-bytes! state)
-             (kaesar--add-round-key! state part-key)
-             (kaesar--inv-mix-columns! state)))
+             (kaesar--inv-key-with-mix-columns! part-key state)))
   (kaesar--inv-shift-rows! state)
   (kaesar--inv-sub-bytes! state)
   (kaesar--add-round-key! state (kaesar--round-key key 0))
