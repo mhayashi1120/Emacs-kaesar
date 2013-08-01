@@ -521,13 +521,16 @@ to create AES key and initial vector."
         do (aset box b (funcall boxing b))
         finally return box))
 
+(defsubst kaesar--sub-word! (word)
+  (aset word 0 (aref kaesar--S-box (aref word 0)))
+  (aset word 1 (aref kaesar--S-box (aref word 1)))
+  (aset word 2 (aref kaesar--S-box (aref word 2)))
+  (aset word 3 (aref kaesar--S-box (aref word 3)))
+  word)
+
 (defsubst kaesar--sub-bytes! (state)
   (loop for w across state
-        do (progn
-             (aset w 0 (aref kaesar--S-box (aref w 0)))
-             (aset w 1 (aref kaesar--S-box (aref w 1)))
-             (aset w 2 (aref kaesar--S-box (aref w 2)))
-             (aset w 3 (aref kaesar--S-box (aref w 3)))))
+        do (kaesar--sub-word! w))
   state)
 
 (defsubst kaesar--rot-word! (word)
@@ -537,13 +540,6 @@ to create AES key and initial vector."
     (aset word 2 (aref word 3))
     (aset word 3 b0)
     word))
-
-(defsubst kaesar--sub-word! (word)
-  (aset word 0 (aref kaesar--S-box (aref word 0)))
-  (aset word 1 (aref kaesar--S-box (aref word 1)))
-  (aset word 2 (aref kaesar--S-box (aref word 2)))
-  (aset word 3 (aref kaesar--S-box (aref word 3)))
-  word)
 
 (defconst kaesar--Rcon
   (loop repeat 10
@@ -695,13 +691,13 @@ to create AES key and initial vector."
   (kaesar--inv-mix-column! (aref state 3))
   state)
 
-(defsubst kaesar--shift-row! (state row indexes)
-  (let ((new-rows (loop for index in indexes
-                        collect (aref (aref state index) row))))
+(defsubst kaesar--shift-row! (state row columns)
+  (let ((new-rows (loop for col in columns
+                        collect (aref (aref state col) row))))
     (loop for col from 0
-          for new-row in new-rows
+          for new-val in new-rows
           do
-          (aset (aref state col) row new-row))))
+          (aset (aref state col) row new-val))))
 
 (defsubst kaesar--shift-rows! (state)
   ;; ignore first row
@@ -724,24 +720,26 @@ to create AES key and initial vector."
         do (aset ibox s b)
         finally return ibox))
 
+(defsubst kaesar--inv-sub-word! (word)
+  (aset word 0 (aref kaesar--inv-S-box (aref word 0)))
+  (aset word 1 (aref kaesar--inv-S-box (aref word 1)))
+  (aset word 2 (aref kaesar--inv-S-box (aref word 2)))
+  (aset word 3 (aref kaesar--inv-S-box (aref word 3)))
+  word)
+
 (defsubst kaesar--inv-sub-bytes! (state)
   (loop for w across state
-        do (progn
-             (aset w 0 (aref kaesar--inv-S-box (aref w 0)))
-             (aset w 1 (aref kaesar--inv-S-box (aref w 1)))
-             (aset w 2 (aref kaesar--inv-S-box (aref w 2)))
-             (aset w 3 (aref kaesar--inv-S-box (aref w 3)))))
+        do (kaesar--inv-sub-word! w))
   state)
 
 (defsubst kaesar--cipher (state key)
   (kaesar--add-round-key! state (kaesar--round-key key 0))
   (loop for round from 1 to (1- kaesar--Nr)
-        do (progn
+        do (let ((part-key (kaesar--round-key key (* round kaesar--Nb))))
              (kaesar--sub-bytes! state)
              (kaesar--shift-rows! state)
              (kaesar--mix-columns! state)
-             (kaesar--add-round-key!
-              state (kaesar--round-key key (* round kaesar--Nb)))))
+             (kaesar--add-round-key! state part-key)))
   (kaesar--sub-bytes! state)
   (kaesar--shift-rows! state)
   (kaesar--add-round-key!
@@ -752,16 +750,14 @@ to create AES key and initial vector."
   (kaesar--add-round-key! 
    state (kaesar--round-key key (* kaesar--Nr kaesar--Nb)))
   (loop for round downfrom (1- kaesar--Nr) to 1
-        do (progn
+        do (let ((part-key (kaesar--round-key key (* round kaesar--Nb))))
              (kaesar--inv-shift-rows! state)
              (kaesar--inv-sub-bytes! state)
-             (kaesar--add-round-key!
-              state (kaesar--round-key key (* round kaesar--Nb)))
+             (kaesar--add-round-key! state part-key)
              (kaesar--inv-mix-columns! state)))
   (kaesar--inv-shift-rows! state)
   (kaesar--inv-sub-bytes! state)
-  (kaesar--add-round-key!
-   state (kaesar--round-key key 0))
+  (kaesar--add-round-key! state (kaesar--round-key key 0))
   state)
 
 ;;
