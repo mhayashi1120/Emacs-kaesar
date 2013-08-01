@@ -40,7 +40,7 @@
 ;; Why kaesar?
 ;; This package previously named 'cipher/aes' but ELPA cannot handle
 ;; such package name.  So, I had to change the name but `aes' package
-;; already exists. (And is faster than this package!)  I continue to
+;; already exists. (That is faster than this package!)  I continue to
 ;; consider the new name which contains "aes" string. There is the
 ;; ancient cipher algorithm caesar
 ;; http://en.wikipedia.org/wiki/Caesar_cipher
@@ -173,6 +173,7 @@ See `kaesar-algorithm' list the supported ALGORITHM .
 Low level API to encrypt like other implementation."
   (kaesar--check-unibytes unibyte-string)
   (kaesar--proc algorithm
+    ;;TODO check raw-key length?
     (let* ((key (kaesar--key-expansion raw-key))
            (encrypted (funcall kaesar--Enc unibyte-string key iv))
            (full-data (append encrypted)))
@@ -185,6 +186,7 @@ RAW-KEY before expansion
 Low level API to decrypt data that was encrypted by other implementation."
   (kaesar--check-encrypted encrypted-string)
   (kaesar--proc algorithm
+    ;;TODO check raw-key length?
     (let* ((key (kaesar--key-expansion raw-key))
            (decrypted (funcall kaesar--Dec encrypted-string key iv)))
       (apply 'kaesar--unibyte-string decrypted))))
@@ -558,22 +560,22 @@ to create AES key and initial vector."
                            finally return w)
                      res)))
     (loop for i from kaesar--Nk below (* kaesar--Nb (1+ kaesar--Nr))
-          do (let ((temp (vconcat (car res))))
+          do (let ((word (vconcat (car res))))
                (cond
                 ((= (mod i kaesar--Nk) 0)
-                 (kaesar--rot-word! temp)
-                 (kaesar--sub-word! temp)
+                 (kaesar--rot-word! word)
+                 (kaesar--sub-word! word)
                  (kaesar--word-xor!
-                  temp
+                  word
                   ;; `i' is start from 1
                   (aref kaesar--Rcon (1- (/ i kaesar--Nk)))))
                 ((and (> kaesar--Nk 6)
                       (= (mod i kaesar--Nk) 4))
-                 (kaesar--sub-word! temp)))
+                 (kaesar--sub-word! word)))
                (kaesar--word-xor!
-                temp
+                word
                 (nth (1- kaesar--Nk) res))
-               (setq res (cons temp res))))
+               (setq res (cons word res))))
     (nreverse res)))
 
 (defsubst kaesar--add-round-key! (state key)
@@ -606,7 +608,7 @@ to create AES key and initial vector."
         collect (kaesar--multiply i 8) into res
         finally return (vconcat res)))
 
-(defsubst kaesar--mix-column! (word key)
+(defsubst kaesar--mix-column-with-key! (word key)
   (let ((w1 (vconcat word))
         (w2 (vconcat (mapcar
                       (lambda (b)
@@ -638,11 +640,11 @@ to create AES key and initial vector."
                          (aref key 3)))))
 
 ;; Call mix-column and `kaesar--add-round-key!'
-(defsubst kaesar--mix-columns-with-add-key! (state keys)
-  (kaesar--mix-column! (aref state 0) (aref keys 0))
-  (kaesar--mix-column! (aref state 1) (aref keys 1))
-  (kaesar--mix-column! (aref state 2) (aref keys 2))
-  (kaesar--mix-column! (aref state 3) (aref keys 3))
+(defsubst kaesar--mix-columns-with-key! (state keys)
+  (kaesar--mix-column-with-key! (aref state 0) (aref keys 0))
+  (kaesar--mix-column-with-key! (aref state 1) (aref keys 1))
+  (kaesar--mix-column-with-key! (aref state 2) (aref keys 2))
+  (kaesar--mix-column-with-key! (aref state 3) (aref keys 3))
   state)
 
 (defsubst kaesar--inv-mix-column! (word)
@@ -744,7 +746,7 @@ to create AES key and initial vector."
         do (let ((part-key (kaesar--round-key key (* round kaesar--Nb))))
              (kaesar--sub-bytes! state)
              (kaesar--shift-rows! state)
-             (kaesar--mix-columns-with-add-key! state part-key)))
+             (kaesar--mix-columns-with-key! state part-key)))
   (kaesar--sub-bytes! state)
   (kaesar--shift-rows! state)
   (kaesar--add-round-key!
