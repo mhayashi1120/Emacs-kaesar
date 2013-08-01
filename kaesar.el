@@ -387,31 +387,33 @@ to create AES key and initial vector."
 ;; 4.2 Multiplication
 ;; 4.2.1 xtime
 (defconst kaesar--xtime-cache
-  (loop for byte from 0 below ?\x100
-        with table = (make-vector ?\x100 nil)
-        do (aset table byte
-                 (if (< byte ?\x80)
-                     (lsh byte 1)
-                   (logand (logxor (lsh byte 1) ?\x11b) ?\xff)))
-        finally return table))
+  (eval-when-compile
+    (loop for byte from 0 below ?\x100
+          with table = (make-vector ?\x100 nil)
+          do (aset table byte
+                   (if (< byte ?\x80)
+                       (lsh byte 1)
+                     (logand (logxor (lsh byte 1) ?\x11b) ?\xff)))
+          finally return table)))
 
 (defun kaesar--xtime (byte)
   (aref kaesar--xtime-cache byte))
 
 (defconst kaesar--multiply-log
-  (loop for i from 0 to ?\xff
-        with table = (make-vector ?\x100 nil)
-        do
-        (loop for j from 1 to 7
-              with l = (make-vector 8 nil)
-              with v = i
-              initially (progn
-                          (aset table i l)
-                          (aset l 0 i))
-              do (let ((n (kaesar--xtime v)))
-                   (aset l j n)
-                   (setq v n)))
-        finally return table))
+  (eval-when-compile
+    (loop for i from 0 to ?\xff
+          with table = (make-vector ?\x100 nil)
+          do
+          (loop for j from 1 to 7
+                with l = (make-vector 8 nil)
+                with v = i
+                initially (progn
+                            (aset table i l)
+                            (aset l 0 i))
+                do (let ((n (kaesar--xtime v)))
+                     (aset l j n)
+                     (setq v n)))
+          finally return table)))
 
 (defun kaesar--multiply-0 (byte1 byte2)
   (let ((table (aref kaesar--multiply-log byte1)))
@@ -421,41 +423,43 @@ to create AES key and initial vector."
                  collect (aref table i)))))
 
 (defconst kaesar--multiply-cache
-  (loop for b1 from 0 to ?\xff
-        collect
-        (loop for b2 from 0 to ?\xff
-              collect (kaesar--multiply-0 b1 b2) into res
-              finally return (vconcat res))
-        into res
-        finally return (vconcat res)))
+  (eval-when-compile
+    (loop for b1 from 0 to ?\xff
+          collect
+          (loop for b2 from 0 to ?\xff
+                collect (kaesar--multiply-0 b1 b2) into res
+                finally return (vconcat res))
+          into res
+          finally return (vconcat res))))
 
 (defsubst kaesar--multiply (byte1 byte2)
   (aref (aref kaesar--multiply-cache byte1) byte2))
 
 (defconst kaesar--S-box
-  (loop with inv-cache =
-        (loop with v = (make-vector 256 nil)
-              for byte from 0 to 255
-              do (aset v byte
-                       (loop for b across (aref kaesar--multiply-cache byte)
-                             for i from 0
-                             if (= b 1)
-                             return i
-                             finally return 0))
-              finally return v)
-        with boxing = (lambda (byte)
-                        (let* ((inv (aref inv-cache byte))
-                               (s inv)
-                               (x inv))
-                          (loop repeat 4
-                                do (progn
-                                     (setq s (kaesar--byte-rot s 1))
-                                     (setq x (logxor s x))))
-                          (logxor x ?\x63)))
-        for b from 0 to ?\xff
-        with box = (make-vector ?\x100 nil)
-        do (aset box b (funcall boxing b))
-        finally return box))
+  (eval-when-compile
+    (loop with inv-cache =
+          (loop with v = (make-vector 256 nil)
+                for byte from 0 to 255
+                do (aset v byte
+                         (loop for b across (aref kaesar--multiply-cache byte)
+                               for i from 0
+                               if (= b 1)
+                               return i
+                               finally return 0))
+                finally return v)
+          with boxing = (lambda (byte)
+                          (let* ((inv (aref inv-cache byte))
+                                 (s inv)
+                                 (x inv))
+                            (loop repeat 4
+                                  do (progn
+                                       (setq s (kaesar--byte-rot s 1))
+                                       (setq x (logxor s x))))
+                            (logxor x ?\x63)))
+          for b from 0 to ?\xff
+          with box = (make-vector ?\x100 nil)
+          do (aset box b (funcall boxing b))
+          finally return box)))
 
 (defsubst kaesar--sub-word! (word)
   (aset word 0 (aref kaesar--S-box (aref word 0)))
@@ -478,10 +482,11 @@ to create AES key and initial vector."
     word))
 
 (defconst kaesar--Rcon
-  (loop repeat 10
-        for v = 1 then (kaesar--xtime v)
-        collect (vector v 0 0 0) into res
-        finally return (vconcat res)))
+  (eval-when-compile
+    (loop repeat 10
+          for v = 1 then (kaesar--xtime v)
+          collect (vector v 0 0 0) into res
+          finally return (vconcat res))))
 
 (defun kaesar--key-expansion (key)
   (let (res)
@@ -528,19 +533,22 @@ to create AES key and initial vector."
      (nth 3 rest))))
 
 (defconst kaesar--2time-table
-  (loop for i from 0 to ?\xff
-        collect (kaesar--multiply i 2) into res
-        finally return (vconcat res)))
+  (eval-when-compile
+    (loop for i from 0 to ?\xff
+          collect (kaesar--multiply i 2) into res
+          finally return (vconcat res))))
 
 (defconst kaesar--4time-table
-  (loop for i from 0 to ?\xff
-        collect (kaesar--multiply i 4) into res
-        finally return (vconcat res)))
+  (eval-when-compile
+    (loop for i from 0 to ?\xff
+          collect (kaesar--multiply i 4) into res
+          finally return (vconcat res))))
 
 (defconst kaesar--8time-table
-  (loop for i from 0 to ?\xff
-        collect (kaesar--multiply i 8) into res
-        finally return (vconcat res)))
+  (eval-when-compile
+    (loop for i from 0 to ?\xff
+          collect (kaesar--multiply i 8) into res
+          finally return (vconcat res))))
 
 (defsubst kaesar--mix-column-with-key! (word key)
   (let ((w1 (vconcat word))
@@ -657,11 +665,12 @@ to create AES key and initial vector."
   state)
 
 (defconst kaesar--inv-S-box
-  (loop for s across kaesar--S-box
-        for b from 0
-        with ibox = (make-vector ?\x100 nil)
-        do (aset ibox s b)
-        finally return ibox))
+  (eval-when-compile
+    (loop for s across kaesar--S-box
+          for b from 0
+          with ibox = (make-vector ?\x100 nil)
+          do (aset ibox s b)
+          finally return ibox)))
 
 (defsubst kaesar--inv-sub-word! (word)
   (aset word 0 (aref kaesar--inv-S-box (aref word 0)))
