@@ -125,72 +125,6 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
            (kaesar--block-algorithm ,block-mode
              ,@form))))))
 
-;;;###autoload
-(defun kaesar-encrypt-string (string)
-  "Encrypt a well encoded STRING to encrypted string
-which can be decrypted by `kaesar-decrypt-string'."
-  (let ((unibytes (encode-coding-string string default-terminal-coding-system)))
-    (kaesar-encrypt unibytes)))
-
-;;;###autoload
-(defun kaesar-decrypt-string (encrypted-string)
-  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt-string'"
-  (let ((unibytes (kaesar-decrypt encrypted-string)))
-    (decode-coding-string unibytes default-terminal-coding-system)))
-
-;;;###autoload
-(defun kaesar-encrypt (unibyte-string &optional algorithm)
-  "Encrypt a UNIBYTE-STRING with ALGORITHM.
-See `kaesar-algorithm' list the supported ALGORITHM ."
-  (kaesar--check-unibytes unibyte-string)
-  (let* ((salt (kaesar--create-salt))
-         (pass (kaesar--read-passwd
-                (or kaesar-encrypt-prompt
-                    "Password to encrypt: ") t)))
-    (kaesar--proc algorithm
-      (destructuring-bind (raw-key iv) (kaesar--bytes-to-key pass salt)
-        (kaesar--encrypt-0 unibyte-string raw-key salt iv)))))
-
-;;;###autoload
-(defun kaesar-decrypt (encrypted-string &optional algorithm)
-  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt'"
-  (kaesar--check-encrypted encrypted-string)
-  (let ((algorithm (or algorithm
-                       (get-text-property 0 'encrypted-algorithm encrypted-string))))
-    (kaesar--proc algorithm
-      (destructuring-bind (salt encrypted-string)
-          (kaesar--parse-salt encrypted-string)
-        (let ((pass (kaesar--read-passwd
-                     (or kaesar-decrypt-prompt
-                         "Password to decrypt: "))))
-          (destructuring-bind (raw-key iv) (kaesar--bytes-to-key pass salt)
-            (kaesar--decrypt-0 encrypted-string raw-key iv)))))))
-
-;;;###autoload
-(defun kaesar-encrypt-by-key (unibyte-string algorithm raw-key &optional iv)
-  "Encrypt a UNIBYTE-STRING with ALGORITHM and RAW-KEY (Before expansion).
-See `kaesar-algorithm' list the supported ALGORITHM .
-Low level API to encrypt like other implementation."
-  (kaesar--check-unibytes unibyte-string)
-  (kaesar--proc algorithm
-    ;;TODO check raw-key length?
-    (let* ((key (kaesar--key-expansion raw-key))
-           (encrypted (funcall kaesar--Enc unibyte-string key iv))
-           (full-data (append encrypted)))
-      (apply 'kaesar--unibyte-string full-data))))
-
-;;;###autoload
-(defun kaesar-decrypt-by-key (encrypted-string algorithm raw-key &optional iv)
-  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt' with RAW-KEY.
-RAW-KEY before expansion
-Low level API to decrypt data that was encrypted by other implementation."
-  (kaesar--check-encrypted encrypted-string)
-  (kaesar--proc algorithm
-    ;;TODO check raw-key length?
-    (let* ((key (kaesar--key-expansion raw-key))
-           (decrypted (funcall kaesar--Dec encrypted-string key iv)))
-      (apply 'kaesar--unibyte-string decrypted))))
-
 (defvar kaesar-password nil
   "To suppress the minibuffer prompt.
 This is a hiding parameter which hold password as vector.")
@@ -852,6 +786,76 @@ to create AES key and initial vector."
                    (setq bytes (kaesar--check-end-of-decrypted bytes)))
                  (append bytes nil))
         while pos))
+
+;;;
+;;; User level API
+;;;
+
+;;;###autoload
+(defun kaesar-encrypt-string (string)
+  "Encrypt a well encoded STRING to encrypted string
+which can be decrypted by `kaesar-decrypt-string'."
+  (let ((unibytes (encode-coding-string string default-terminal-coding-system)))
+    (kaesar-encrypt unibytes)))
+
+;;;###autoload
+(defun kaesar-decrypt-string (encrypted-string)
+  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt-string'"
+  (let ((unibytes (kaesar-decrypt encrypted-string)))
+    (decode-coding-string unibytes default-terminal-coding-system)))
+
+;;;###autoload
+(defun kaesar-encrypt (unibyte-string &optional algorithm)
+  "Encrypt a UNIBYTE-STRING with ALGORITHM.
+See `kaesar-algorithm' list the supported ALGORITHM ."
+  (kaesar--check-unibytes unibyte-string)
+  (let* ((salt (kaesar--create-salt))
+         (pass (kaesar--read-passwd
+                (or kaesar-encrypt-prompt
+                    "Password to encrypt: ") t)))
+    (kaesar--proc algorithm
+      (destructuring-bind (raw-key iv) (kaesar--bytes-to-key pass salt)
+        (kaesar--encrypt-0 unibyte-string raw-key salt iv)))))
+
+;;;###autoload
+(defun kaesar-decrypt (encrypted-string &optional algorithm)
+  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt'"
+  (kaesar--check-encrypted encrypted-string)
+  (let ((algorithm (or algorithm
+                       (get-text-property 0 'encrypted-algorithm encrypted-string))))
+    (kaesar--proc algorithm
+      (destructuring-bind (salt encrypted-string)
+          (kaesar--parse-salt encrypted-string)
+        (let ((pass (kaesar--read-passwd
+                     (or kaesar-decrypt-prompt
+                         "Password to decrypt: "))))
+          (destructuring-bind (raw-key iv) (kaesar--bytes-to-key pass salt)
+            (kaesar--decrypt-0 encrypted-string raw-key iv)))))))
+
+;;;###autoload
+(defun kaesar-encrypt-by-key (unibyte-string algorithm raw-key &optional iv)
+  "Encrypt a UNIBYTE-STRING with ALGORITHM and RAW-KEY (Before expansion).
+See `kaesar-algorithm' list the supported ALGORITHM .
+Low level API to encrypt like other implementation."
+  (kaesar--check-unibytes unibyte-string)
+  (kaesar--proc algorithm
+    ;;TODO check raw-key length?
+    (let* ((key (kaesar--key-expansion raw-key))
+           (encrypted (funcall kaesar--Enc unibyte-string key iv))
+           (full-data (append encrypted)))
+      (apply 'kaesar--unibyte-string full-data))))
+
+;;;###autoload
+(defun kaesar-decrypt-by-key (encrypted-string algorithm raw-key &optional iv)
+  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt' with RAW-KEY.
+RAW-KEY before expansion
+Low level API to decrypt data that was encrypted by other implementation."
+  (kaesar--check-encrypted encrypted-string)
+  (kaesar--proc algorithm
+    ;;TODO check raw-key length?
+    (let* ((key (kaesar--key-expansion raw-key))
+           (decrypted (funcall kaesar--Dec encrypted-string key iv)))
+      (apply 'kaesar--unibyte-string decrypted))))
 
 (provide 'kaesar)
 
