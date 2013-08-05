@@ -201,7 +201,7 @@ This is a hiding parameter which hold password as vector.")
 (defconst kaesar--openssl-magic-word "Salted__")
 
 (defun kaesar--encrypt-0 (unibyte-string raw-key &optional salt iv)
-  (let* ((key (kaesar--key-expansion raw-key))
+  (let* ((key (kaesar--expand-to-block-key raw-key))
          (salt-magic (string-to-list kaesar--openssl-magic-word))
          (encrypted (funcall kaesar--Enc unibyte-string key iv))
          (full-data (append salt-magic salt encrypted))
@@ -209,7 +209,7 @@ This is a hiding parameter which hold password as vector.")
     (kaesar--create-encrypted unibytes)))
 
 (defun kaesar--decrypt-0 (encbyte-string raw-key &optional iv)
-  (let* ((key (kaesar--key-expansion raw-key))
+  (let* ((key (kaesar--expand-to-block-key raw-key))
          (decrypted (funcall kaesar--Dec encbyte-string key iv)))
     (apply 'kaesar--unibyte-string decrypted)))
 
@@ -516,6 +516,16 @@ to create AES key and initial vector."
                (setq res (cons word res))))
     (nreverse res)))
 
+(defun kaesar--key-make-block (expanded-key)
+  (loop for xs on expanded-key by (lambda (x) (nthcdr 4 xs))
+        collect (vector (nth 0 xs) (nth 1 xs) (nth 2 xs) (nth 3 xs))
+        into res
+        finally return (vconcat res)))
+
+(defun kaesar--expand-to-block-key (key)
+  (let ((raw-key (kaesar--key-expansion key)))
+    (kaesar--key-make-block raw-key)))
+
 (defsubst kaesar--add-round-key! (state key)
   (kaesar--word-xor! (aref state 0) (aref key 0))
   (kaesar--word-xor! (aref state 1) (aref key 1))
@@ -524,12 +534,7 @@ to create AES key and initial vector."
   state)
 
 (defsubst kaesar--round-key (key n)
-  (let ((rest (nthcdr n key)))
-    (vector
-     (nth 0 rest)
-     (nth 1 rest)
-     (nth 2 rest)
-     (nth 3 rest))))
+  (aref key n))
 
 (defconst kaesar--2time-table
   (eval-when-compile
@@ -695,7 +700,7 @@ to create AES key and initial vector."
 
 (defsubst kaesar--sub-shift-mix! (key state)
   (loop for round from 1 to (1- kaesar--Nr)
-        do (let ((part-key (kaesar--round-key key (* round kaesar--Nb))))
+        do (let ((part-key (kaesar--round-key key round)))
              ;; FIXME: first row only S-box
              (kaesar--sub/shift-box! state 0 '(0 1 2 3) kaesar--S-box)
              (kaesar--sub/shift-box! state 1 '(1 2 3 0) kaesar--S-box)
@@ -708,13 +713,12 @@ to create AES key and initial vector."
   (kaesar--sub-shift-mix! key state)
   (kaesar--sub-bytes! state)
   (kaesar--shift-rows! state)
-  (kaesar--add-round-key!
-   state (kaesar--round-key key (* kaesar--Nr kaesar--Nb)))
+  (kaesar--add-round-key! state (kaesar--round-key key kaesar--Nr))
   state)
 
 (defsubst kaesar--inv-shift-sub-mix! (state key)
   (loop for round downfrom (1- kaesar--Nr) to 1
-        do (let ((part-key (kaesar--round-key key (* round kaesar--Nb))))
+        do (let ((part-key (kaesar--round-key key round)))
              ;; FIXME: first row only inv-S-box
              (kaesar--sub/shift-box! state 0 '(0 1 2 3) kaesar--inv-S-box)
              (kaesar--sub/shift-box! state 1 '(3 0 1 2) kaesar--inv-S-box)
@@ -723,8 +727,7 @@ to create AES key and initial vector."
              (kaesar--inv-key-with-mix-columns! part-key state))))
 
 (defsubst kaesar--inv-cipher (state key)
-  (kaesar--add-round-key!
-   state (kaesar--round-key key (* kaesar--Nr kaesar--Nb)))
+  (kaesar--add-round-key! state (kaesar--round-key key kaesar--Nr))
   (kaesar--inv-shift-sub-mix! state key)
   (kaesar--inv-shift-rows! state)
   (kaesar--inv-sub-bytes! state)
@@ -870,7 +873,7 @@ Low level API to encrypt like other implementation."
   (kaesar--check-unibytes unibyte-string)
   (kaesar--proc algorithm
     ;;TODO check raw-key length?
-    (let* ((key (kaesar--key-expansion raw-key))
+    (let* ((key (kaesar--expand-to-block-key raw-key))
            (encrypted (funcall kaesar--Enc unibyte-string key iv))
            (full-data (append encrypted)))
       (apply 'kaesar--unibyte-string full-data))))
@@ -883,7 +886,7 @@ Low level API to decrypt data that was encrypted by other implementation."
   (kaesar--check-encrypted encrypted-string)
   (kaesar--proc algorithm
     ;;TODO check raw-key length?
-    (let* ((key (kaesar--key-expansion raw-key))
+    (let* ((key (kaesar--expand-to-block-key raw-key))
            (decrypted (funcall kaesar--Dec encrypted-string key iv)))
       (apply 'kaesar--unibyte-string decrypted))))
 

@@ -359,7 +359,7 @@
         (kaesar--inv-key-with-mix-columns! dummy-key (kaesar--mix-columns-with-key! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP") dummy-key))))
 
     (kaesar-test-should (string-to-list "ABCDEFGHIJKLMNOP")
-      (let ((key (kaesar--key-expansion kaesar--test-aes256-key)))
+      (let ((key (kaesar--expand-to-block-key kaesar--test-aes256-key)))
         (kaesar--state-to-bytes
          (kaesar--inv-cipher
           (kaesar--cipher (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP") key)
@@ -437,17 +437,17 @@
   ;; Appendix B 
   (kaesar--cipher-algorithm 'aes-128
     (kaesar-test-should [[?\x2b ?\x7e ?\x15 ?\x16] [?\x28 ?\xae ?\xd2 ?\xa6] [?\xab ?\xf7 ?\x15 ?\x88] [?\x09 ?\xcf ?\x4f ?\x3c]]
-                   (kaesar--round-key (kaesar--key-expansion kaesar--test-appendix-b-key) 0))
+      (kaesar--round-key (kaesar--expand-to-block-key kaesar--test-appendix-b-key) 0))
 
     (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-1)
-                   (kaesar--add-round-key! (kaesar--test-view-to-state kaesar--test-appendix-b-input-state) 
-                                              (kaesar--test-view-to-state kaesar--test-appendix-b-first-round-key)))
+      (kaesar--add-round-key! (kaesar--test-view-to-state kaesar--test-appendix-b-input-state) 
+                              (kaesar--test-view-to-state kaesar--test-appendix-b-first-round-key)))
 
     (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-2)
       (kaesar--sub-bytes! (kaesar--test-view-to-state kaesar--test-appendix-b-1-1)))
 
     (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-3)
-                   (kaesar--shift-rows! (kaesar--test-view-to-state kaesar--test-appendix-b-1-2)))
+      (kaesar--shift-rows! (kaesar--test-view-to-state kaesar--test-appendix-b-1-2)))
 
     ;; This case originally just test MixColumns but now is merged with AddRoundKey.
     ;; xor with key which is filled by zero get same result of original case.
@@ -456,11 +456,11 @@
                                      [[0 0 0 0][0 0 0 0][0 0 0 0][0 0 0 0]]))
   
     (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-round-key)
-      (kaesar--round-key (kaesar--key-expansion kaesar--test-appendix-b-key) (* 1 kaesar--Nb)))
+      (kaesar--round-key (kaesar--expand-to-block-key kaesar--test-appendix-b-key) 1))
     
     (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-last-output)
       (kaesar--cipher (kaesar--test-view-to-state kaesar--test-appendix-b-input-state)
-                          (kaesar--key-expansion kaesar--test-appendix-b-key)))
+                      (kaesar--expand-to-block-key kaesar--test-appendix-b-key)))
     ))
 
 (ert-deftest kaesar-test--enc/dec ()
