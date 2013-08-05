@@ -730,6 +730,12 @@ to create AES key and initial vector."
 ;; Block mode Algorithm
 ;;
 
+(defsubst kaesar--cbc-state-xor! (state0 state-1)
+  (loop for w1 across state-1
+        for w2 across state0
+        do (kaesar--word-xor! w2 w1)
+        finally return state0))
+
 (defun kaesar--cbc-encrypt (unibyte-string key iv)
   (loop with pos = 0
         with state-1 = (kaesar--unibytes-to-state iv)
@@ -758,12 +764,6 @@ to create AES key and initial vector."
                    (setq bytes (kaesar--check-end-of-decrypted bytes)))
                  (append bytes nil))
         while pos))
-
-(defun kaesar--cbc-state-xor! (state0 state-1)
-  (loop for w1 across state-1
-        for w2 across state0
-        do (kaesar--word-xor! w2 w1)
-        finally return state0))
 
 (put 'kaesar-decryption-failed
      'error-conditions '(kaesar-decryption-failed error))
