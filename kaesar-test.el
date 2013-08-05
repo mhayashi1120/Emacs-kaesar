@@ -322,7 +322,7 @@
 
 (ert-deftest kaesar-test--rot ()
   :tags '(kaesar)
-  (kaesar-test-should [2 3 4 1] (kaesar--rot-word! [1 2 3 4]))
+  (kaesar-test-should [2 3 4 1] (kaesar--rot-word! (vconcat [1 2 3 4])))
   )
 
 (ert-deftest kaesar-test--basic ()
@@ -355,7 +355,8 @@
       (kaesar--inv-sub-bytes! (kaesar--sub-bytes! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
 
     (kaesar-test-should (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
-      (kaesar--inv-mix-columns! (kaesar--mix-columns! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
+      (let ((dummy-key [[0 0 0 0][0 0 0 0][0 0 0 0][0 0 0 0]]))
+        (kaesar--inv-key-with-mix-columns! dummy-key (kaesar--mix-columns-with-key! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP") dummy-key))))
 
     (kaesar-test-should (string-to-list "ABCDEFGHIJKLMNOP")
       (let ((key (kaesar--key-expansion kaesar--test-aes256-key)))
@@ -448,9 +449,12 @@
     (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-3)
                    (kaesar--shift-rows! (kaesar--test-view-to-state kaesar--test-appendix-b-1-2)))
 
+    ;; This case originally just test MixColumns but now is merged with AddRoundKey.
+    ;; xor with key which is filled by zero get same result of original case.
     (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-4)
-      (kaesar--mix-columns! (kaesar--test-view-to-state kaesar--test-appendix-b-1-3)))
-
+      (kaesar--mix-columns-with-key! (kaesar--test-view-to-state kaesar--test-appendix-b-1-3)
+                                     [[0 0 0 0][0 0 0 0][0 0 0 0][0 0 0 0]]))
+  
     (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-round-key)
       (kaesar--round-key (kaesar--key-expansion kaesar--test-appendix-b-key) (* 1 kaesar--Nb)))
     

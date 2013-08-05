@@ -650,6 +650,16 @@ to create AES key and initial vector."
           do
           (aset (aref state col) row new-val))))
 
+(defsubst kaesar--sub-shift-row! (state row columns)
+  (let ((new-rows (mapcar
+                   (lambda (col)
+                     (aref kaesar--S-box (aref (aref state col) row)))
+                   columns)))
+    (loop for col from 0
+          for new-val in new-rows
+          do
+          (aset (aref state col) row new-val))))
+
 (defsubst kaesar--shift-rows! (state)
   ;; ignore first row
   (kaesar--shift-row! state 1 '(1 2 3 0))
@@ -684,13 +694,19 @@ to create AES key and initial vector."
         do (kaesar--inv-sub-word! w))
   state)
 
-(defsubst kaesar--cipher (state key)
-  (kaesar--add-round-key! state (kaesar--round-key key 0))
+(defsubst kaesar--sub-shift-mix! (key state)
   (loop for round from 1 to (1- kaesar--Nr)
         do (let ((part-key (kaesar--round-key key (* round kaesar--Nb))))
-             (kaesar--sub-bytes! state)
-             (kaesar--shift-rows! state)
-             (kaesar--mix-columns-with-key! state part-key)))
+             ;; FIXME: first row only S-box
+             (kaesar--sub-shift-row! state 0 '(0 1 2 3))
+             (kaesar--sub-shift-row! state 1 '(1 2 3 0))
+             (kaesar--sub-shift-row! state 2 '(2 3 0 1))
+             (kaesar--sub-shift-row! state 3 '(3 0 1 2))
+             (kaesar--mix-columns-with-key! state part-key))))
+
+(defsubst kaesar--cipher (state key)
+  (kaesar--add-round-key! state (kaesar--round-key key 0))
+  (kaesar--sub-shift-mix! key state)
   (kaesar--sub-bytes! state)
   (kaesar--shift-rows! state)
   (kaesar--add-round-key!
