@@ -307,13 +307,12 @@
 
 (defun kaesar--test-block-random-test ()
   (flet ((read-passwd (&rest dummy) (copy-seq "d")))
-    (loop repeat 16
-          do (let ((bytes (kaesar--test-random-bytes))
-                   results)
-               (setq results (openssl-cipher-decrypt-unibytes (kaesar-encrypt bytes)))
-               (kaesar-test-should results bytes)
-               (setq results (kaesar-decrypt (openssl-cipher-encrypt-unibytes bytes)))
-               (kaesar-test-should results bytes)))))
+    (let ((bytes (kaesar--test-random-bytes))
+          results)
+      (setq results (openssl-cipher-decrypt-unibytes (kaesar-encrypt bytes)))
+      (kaesar-test-should results bytes)
+      (setq results (kaesar-decrypt (openssl-cipher-encrypt-unibytes bytes)))
+      (kaesar-test-should results bytes))))
 
 (defun kaesar-test-enc/dec (raw-bytes &optional algorithm)
   (flet ((read-passwd (&rest dummy) (copy-seq "d")))
@@ -405,16 +404,12 @@
       (destructuring-bind (key iv) (kaesar--bytes-to-key (vconcat "pass"))
         (list (kaesar--test-unibytes-to-hex key) (kaesar--test-unibytes-to-hex iv)))))
 
-  ;; ECB
-  (let ((kaesar-algorithm "aes-128-ecb")
-        (openssl-cipher-algorithm "aes-128-ecb"))
-    (kaesar--test-block-random-test))
-
-  ;; CBC
-  (let ((kaesar-algorithm "aes-128-cbc")
-        (openssl-cipher-algorithm "aes-128-cbc"))
-    (kaesar--test-block-random-test))
-  )
+  ;; check interoperability openssl command
+  (dolist (algorithm '("aes-128-ecb" "aes-192-ecb" "aes-256-ecb"
+                       "aes-128-cbc" "aes-192-cbc" "aes-256-cbc"))
+    (let ((kaesar-algorithm algorithm)
+          (openssl-cipher-algorithm algorithm))
+      (kaesar--test-block-random-test))))
 
 
 (ert-deftest kaesar-test--appendix ()
@@ -743,6 +738,9 @@
 
 
 
+;;TODO
+;; (let ((text (decode-coding-string "\244\242\244\244\244\246\244\250\244\252" 'euc-jp)))
+;;   (equal text (kaesar-decrypt-string (kaesar-encrypt-string text 'euc-jp) 'euc-jp)))
 
 (provide 'kaesar-test)
 
