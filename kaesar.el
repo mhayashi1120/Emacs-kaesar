@@ -113,17 +113,6 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 (defvar kaesar--Enc)
 (defvar kaesar--Dec)
 
-(defmacro kaesar--proc (algorithm &rest form)
-  (declare (indent 1))
-  (let ((cipher (make-symbol "cipher"))
-        (block-mode (make-symbol "block-mode")))
-    `(let ((kaesar--Algorithm (or ,algorithm kaesar-algorithm)))
-       (destructuring-bind (,cipher ,block-mode)
-           (kaesar--parse-algorithm kaesar--Algorithm)
-         (kaesar--cipher-algorithm ,cipher
-           (kaesar--block-algorithm ,block-mode
-             ,@form))))))
-
 (defvar kaesar-password nil
   "To suppress the minibuffer prompt.
 This is a hiding parameter which hold password as vector.")
@@ -200,19 +189,6 @@ This is a hiding parameter which hold password as vector.")
 (defconst kaesar--pkcs5-salt-length 8)
 (defconst kaesar--openssl-magic-word "Salted__")
 
-(defun kaesar--encrypt-0 (unibyte-string raw-key &optional salt iv)
-  (let* ((key (kaesar--expand-to-block-key raw-key))
-         (salt-magic (string-to-list kaesar--openssl-magic-word))
-         (encrypted (funcall kaesar--Enc unibyte-string key iv))
-         (full-data (append salt-magic salt encrypted))
-         (unibytes (apply 'kaesar--unibyte-string full-data)))
-    (kaesar--create-encrypted unibytes)))
-
-(defun kaesar--decrypt-0 (encbyte-string raw-key &optional iv)
-  (let* ((key (kaesar--expand-to-block-key raw-key))
-         (decrypted (funcall kaesar--Dec encbyte-string key iv)))
-    (apply 'kaesar--unibyte-string decrypted)))
-
 (defun kaesar--parse-algorithm (name)
   (unless (string-match "^\\(aes-\\(?:128\\|192\\|256\\)\\)-\\(ecb\\|cbc\\)$" name)
     (error "%s is not supported" name))
@@ -245,8 +221,19 @@ This is a hiding parameter which hold password as vector.")
               (kaesar--IV (eval (nth 3 ,cell))))
          ,@form))))
 
+(defmacro kaesar--proc (algorithm &rest form)
+  (declare (indent 1))
+  (let ((cipher (make-symbol "cipher"))
+        (block-mode (make-symbol "block-mode")))
+    `(let ((kaesar--Algorithm (or ,algorithm kaesar-algorithm)))
+       (destructuring-bind (,cipher ,block-mode)
+           (kaesar--parse-algorithm kaesar--Algorithm)
+         (kaesar--cipher-algorithm ,cipher
+           (kaesar--block-algorithm ,block-mode
+             ,@form))))))
+
 ;;
-;; bit/number operation for Emacs
+;; bit/byte/number operation for Emacs
 ;;
 
 (defsubst kaesar--unibytes-to-state (unibytes)
@@ -820,22 +807,51 @@ to create AES key and initial vector."
                  (append bytes nil))
         while pos))
 
+;;
+;; inner functions
+;;
+
+(defun kaesar--encrypt-0 (unibyte-string raw-key &optional salt iv)
+  (let* ((key (kaesar--expand-to-block-key raw-key))
+         (salt-magic (string-to-list kaesar--openssl-magic-word))
+         (encrypted (funcall kaesar--Enc unibyte-string key iv))
+         (full-data (append salt-magic salt encrypted))
+         (unibytes (apply 'kaesar--unibyte-string full-data)))
+    (kaesar--create-encrypted unibytes)))
+
+(defun kaesar--decrypt-0 (encbyte-string raw-key &optional iv)
+  (let* ((key (kaesar--expand-to-block-key raw-key))
+         (decrypted (funcall kaesar--Dec encbyte-string key iv)))
+    (apply 'kaesar--unibyte-string decrypted)))
+
 ;;;
 ;;; User level API
 ;;;
 
-;;;###autoload
-(defun kaesar-encrypt-string (string)
-  "Encrypt a well encoded STRING to encrypted string
-which can be decrypted by `kaesar-decrypt-string'."
-  (let ((unibytes (encode-coding-string string default-terminal-coding-system)))
-    (kaesar-encrypt unibytes)))
+;;TODO 
+;; (defun kaesar-encrypt-string (string &optional coding-system algorithm))
+;; (defun kaesar-decrypt-string (string &optional coding-system algorithm))
+;; (defun kaesar-encrypt (unibyte-string &optional algorithm))
+;; (defun kaesar-decrypt (encrypted-string &optional algorithm))
+;; IV, RAW-KEY accept hex/u8vector/unibytes
+;; (defun kaesar-encrypt-by-key (unibyte-string algorithm raw-key &optional iv))
+;; (defun kaesar-decrypt-by-key (encrypted-string algorithm raw-key &optional iv))
 
 ;;;###autoload
-(defun kaesar-decrypt-string (encrypted-string)
+(defun kaesar-encrypt-string (string &optional coding-system algorithm)
+  "Encrypt a well encoded STRING to encrypted string
+which can be decrypted by `kaesar-decrypt-string'."
+  (let ((unibytes (encode-coding-string
+                   string
+                   (or coding-system default-terminal-coding-system))))
+    (kaesar-encrypt unibytes algorithm)))
+
+;;;###autoload
+(defun kaesar-decrypt-string (encrypted-string &optional coding-system algorithm)
   "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt-string'"
-  (let ((unibytes (kaesar-decrypt encrypted-string)))
-    (decode-coding-string unibytes default-terminal-coding-system)))
+  (let ((unibytes (kaesar-decrypt encrypted-string algorithm)))
+    (decode-coding-string
+     unibytes (or coding-system default-terminal-coding-system))))
 
 ;;;###autoload
 (defun kaesar-encrypt (unibyte-string &optional algorithm)
