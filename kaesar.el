@@ -88,6 +88,8 @@
 
 (defgroup kaesar nil
   "Encrypt/Decrypt string with password"
+  :prefix "kaesar-"
+  ;;TODO consider group
   :group 'environment)
 
 (defcustom kaesar-algorithm "aes-256-cbc"
@@ -98,7 +100,13 @@ aes-256-ecb, aes-192-ecb, aes-128-ecb,
 aes-256-cbc, aes-192-cbc, aes-128-cbc
 "
   :group 'kaesar
-  :type 'string)
+  :type '(choice
+          (const "aes-128-ecb")
+          (const "aes-192-ecb")
+          (const "aes-256-ecb")
+          (const "aes-128-cbc")
+          (const "aes-192-cbc")
+          (const "aes-256-cbc")))
 
 (defcustom kaesar-encrypt-prompt nil
   "Password prompt when read password to encrypt."
@@ -874,6 +882,11 @@ to create AES key and initial vector."
          (decrypted (funcall kaesar--Dec encbyte-string key iv)))
     (apply 'kaesar--unibyte-string decrypted)))
 
+
+;;TODO
+(defun kaesar--check-key (key)
+  )
+
 ;;;
 ;;; User level API
 ;;;
@@ -890,7 +903,9 @@ to create AES key and initial vector."
 ;;;###autoload
 (defun kaesar-encrypt-string (string &optional coding-system algorithm)
   "Encrypt a well encoded STRING to encrypted string
-which can be decrypted by `kaesar-decrypt-string'."
+which can be decrypted by `kaesar-decrypt-string'.
+
+TODO other args"
   (let ((unibytes (encode-coding-string
                    string
                    (or coding-system default-terminal-coding-system))))
@@ -898,7 +913,8 @@ which can be decrypted by `kaesar-decrypt-string'."
 
 ;;;###autoload
 (defun kaesar-decrypt-string (encrypted-string &optional coding-system algorithm)
-  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt-string'"
+  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt-string'
+TODO other args"
   (let ((unibytes (kaesar-decrypt encrypted-string algorithm)))
     (decode-coding-string
      unibytes (or coding-system default-terminal-coding-system))))
@@ -922,15 +938,16 @@ See `kaesar-algorithm' list the supported ALGORITHM ."
   (kaesar--check-encrypted encrypted-string)
   (let ((algorithm (or algorithm
                        (get-text-property 0 'encrypted-algorithm encrypted-string))))
-    (kaesar--proc algorithm
-      (destructuring-bind (salt encrypted-string)
-          (kaesar--parse-salt encrypted-string)
-        (let ((pass (kaesar--read-passwd
-                     (or kaesar-decrypt-prompt
-                         "Password to decrypt: "))))
+    (destructuring-bind (salt encrypted-string)
+        (kaesar--parse-salt encrypted-string)
+      (let ((pass (kaesar--read-passwd
+                   (or kaesar-decrypt-prompt
+                       "Password to decrypt: "))))
+        (kaesar--proc algorithm
           (destructuring-bind (raw-key iv) (kaesar--bytes-to-key pass salt)
             (kaesar--decrypt-0 encrypted-string raw-key iv)))))))
 
+;;TODO rename
 ;;;###autoload
 (defun kaesar-encrypt-by-key (unibyte-string algorithm raw-key &optional iv)
   "Encrypt a UNIBYTE-STRING with ALGORITHM and RAW-KEY (Before expansion).
