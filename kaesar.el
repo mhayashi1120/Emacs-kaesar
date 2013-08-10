@@ -144,11 +144,12 @@ This is a hiding parameter which hold password as vector.")
   (aset word1 2 (logxor (aref word1 2) (aref word2 2)))
   (aset word1 3 (logxor (aref word1 3) (aref word2 3))))
 
-(defsubst kaesar--byte-rot (byte count)
-  (let ((v (lsh byte count)))
-    (logior
-     (logand ?\xff v)
-     (lsh (logand ?\xff00 v) -8))))
+(eval-when-compile
+  (defun kaesar--byte-rot (byte count)
+    (let ((v (lsh byte count)))
+      (logior
+       (logand ?\xff v)
+       (lsh (logand ?\xff00 v) -8)))))
 
 ;; Algorithm specifications
 
@@ -172,15 +173,16 @@ This is a hiding parameter which hold password as vector.")
 (defvar kaesar--Nb 4)
 
 ;; Key length
-(defvar kaesar--Nk)
+(defvar kaesar--Nk 8)
 
 ;; Number of rounds
-(defvar kaesar--Nr)
+(defvar kaesar--Nr 14)
 
 ;; count of row in State
 (defconst kaesar--Row 4)
 ;; size of State
-(defvar kaesar--Block)
+(defvar kaesar--Block (* kaesar--Nb kaesar--Row))
+
 ;; size of IV (Initial Vector)
 (defvar kaesar--IV)
 
@@ -189,8 +191,17 @@ This is a hiding parameter which hold password as vector.")
 (defconst kaesar--pkcs5-salt-length 8)
 (defconst kaesar--openssl-magic-word "Salted__")
 
+(defconst kaesar--algorithm-regexp
+  (eval-when-compile
+    (concat 
+     "\\`"
+     "\\(aes-\\(?:128\\|192\\|256\\)\\)"
+     "-"
+     "\\(ecb\\|cbc\\)"
+     "\\'")))
+
 (defun kaesar--parse-algorithm (name)
-  (unless (string-match "^\\(aes-\\(?:128\\|192\\|256\\)\\)-\\(ecb\\|cbc\\)$" name)
+  (unless (string-match kaesar--algorithm-regexp name)
     (error "%s is not supported" name))
   (list (intern (match-string 1 name))
         (intern (match-string 2 name))))
@@ -198,6 +209,7 @@ This is a hiding parameter which hold password as vector.")
 (defun kaesar--create-encrypted (string)
   (propertize string 'encrypted-algorithm kaesar--Algorithm))
 
+;;TODO reconsider it
 (defmacro kaesar--cipher-algorithm (algorithm &rest form)
   (declare (indent 1))
   (let ((cell (make-symbol "cell")))
@@ -210,6 +222,7 @@ This is a hiding parameter which hold password as vector.")
               (kaesar--Block (* kaesar--Nb kaesar--Row)))
          ,@form))))
 
+;;TODO reconsider it
 (defmacro kaesar--block-algorithm (algorithm &rest form)
   (declare (indent 1))
   (let ((cell (make-symbol "cell")))
@@ -239,17 +252,20 @@ This is a hiding parameter which hold password as vector.")
 (defsubst kaesar--unibytes-to-state (unibytes)
   (loop for r from 0 below kaesar--Row
         with state = (make-vector kaesar--Row nil)
+        with i = 0
         with len = (length unibytes)
-        with suffix-len = (- kaesar--Block len)
         do (loop for c from 0 below kaesar--Nb
-                 with from = (* kaesar--Nb r)
-                 with word = (make-vector kaesar--Nb suffix-len)
+                 with word = (make-vector kaesar--Nb nil)
                  initially (aset state r word)
-                 while (< (+ from c) len)
                  ;; word in unibytes
                  ;; if unibytes are before encrypted, state suffixed by length
                  ;; of rest of State
-                 do (aset word c (aref unibytes (+ from c))))
+                 do (cond
+                     ((= i len)
+                      (aset word c (- kaesar--Block len)))
+                     (t
+                      (aset word c (aref unibytes i))
+                      (setq i (1+ i)))))
         finally return state))
 
 (defsubst kaesar--read-unibytes (unibyte-string pos)
@@ -269,11 +285,8 @@ This is a hiding parameter which hold password as vector.")
     (list state rest)))
 
 (defsubst kaesar--state-to-bytes (state)
-  (loop for i from 0 below (* kaesar--Row kaesar--Nb)
-        collect
-        (let ((r (/ i kaesar--Row))
-              (c (% i kaesar--Nb)))
-          (aref (aref state r) c))))
+  (loop for word across state
+        append (append word nil)))
 
 (defsubst kaesar--state-clone (state)
   (loop for r across state
@@ -289,7 +302,7 @@ This is a hiding parameter which hold password as vector.")
         finally return salt))
 
 (defun kaesar--parse-salt (unibyte-string)
-  (let ((regexp (format "^%s\\([\000-\377]\\{%d\\}\\)"
+  (let ((regexp (format "\\`%s\\([\000-\377]\\{%d\\}\\)"
                         kaesar--openssl-magic-word kaesar--pkcs5-salt-length)))
     (unless (string-match regexp unibyte-string)
       (error "No salted"))
@@ -340,7 +353,7 @@ to create AES key and initial vector."
                          (aset iv j (aref hash i))
                          (incf i))
                     finally (setq ii j)))))
-    ;; clear raw password text
+    ;; Destructive clear raw password text
     (fillarray data nil)
     (list key iv)))
 
@@ -367,13 +380,14 @@ to create AES key and initial vector."
 ;;
 
 ;; 4.1 Addition
-(defsubst kaesar--add (&rest numbers)
-  (apply 'logxor numbers))
+(eval-when-compile
+  (defun kaesar--add (&rest numbers)
+    (apply 'logxor numbers)))
 
 ;; 4.2 Multiplication
 ;; 4.2.1 xtime
-(defconst kaesar--xtime-cache
-  (eval-when-compile
+(eval-and-compile
+  (defconst kaesar--xtime-cache
     (loop for byte from 0 below ?\x100
           with table = (make-vector ?\x100 nil)
           do (aset table byte
@@ -382,11 +396,12 @@ to create AES key and initial vector."
                      (logand (logxor (lsh byte 1) ?\x11b) ?\xff)))
           finally return table)))
 
-(defun kaesar--xtime (byte)
-  (aref kaesar--xtime-cache byte))
+(eval-and-compile
+  (defun kaesar--xtime (byte)
+    (aref kaesar--xtime-cache byte)))
 
-(defconst kaesar--multiply-log
-  (eval-when-compile
+(eval-and-compile
+  (defconst kaesar--multiply-log
     (loop for i from 0 to ?\xff
           with table = (make-vector ?\x100 nil)
           do
@@ -401,51 +416,55 @@ to create AES key and initial vector."
                      (setq v n)))
           finally return table)))
 
-(defun kaesar--multiply-0 (byte1 byte2)
-  (let ((table (aref kaesar--multiply-log byte1)))
-    (apply 'kaesar--add
-           (loop for i from 0 to 7
-                 unless (zerop (logand byte2 (lsh 1 i)))
-                 collect (aref table i)))))
+(eval-when-compile
+  (defun kaesar--multiply-0 (byte1 byte2)
+    (let ((table (aref kaesar--multiply-log byte1)))
+      (apply 'kaesar--add
+             (loop for i from 0 to 7
+                   unless (zerop (logand byte2 (lsh 1 i)))
+                   collect (aref table i))))))
 
-(defconst kaesar--multiply-cache
-  (eval-when-compile
-    (loop for b1 from 0 to ?\xff
-          collect
-          (loop for b2 from 0 to ?\xff
-                collect (kaesar--multiply-0 b1 b2) into res
-                finally return (vconcat res))
-          into res
-          finally return (vconcat res))))
+(eval-and-compile
+  (defconst kaesar--multiply-cache
+    (eval-when-compile
+      (loop for b1 from 0 to ?\xff
+            collect
+            (loop for b2 from 0 to ?\xff
+                  collect (kaesar--multiply-0 b1 b2) into res
+                  finally return (vconcat res))
+            into res
+            finally return (vconcat res)))))
 
-(defsubst kaesar--multiply (byte1 byte2)
-  (aref (aref kaesar--multiply-cache byte1) byte2))
+(eval-when-compile
+  (defun kaesar--multiply (byte1 byte2)
+    (aref (aref kaesar--multiply-cache byte1) byte2)))
 
-(defconst kaesar--S-box
-  (eval-when-compile
-    (loop with inv-cache =
-          (loop with v = (make-vector 256 nil)
-                for byte from 0 to 255
-                do (aset v byte
-                         (loop for b across (aref kaesar--multiply-cache byte)
-                               for i from 0
-                               if (= b 1)
-                               return i
-                               finally return 0))
-                finally return v)
-          with boxing = (lambda (byte)
-                          (let* ((inv (aref inv-cache byte))
-                                 (s inv)
-                                 (x inv))
-                            (loop repeat 4
-                                  do (progn
-                                       (setq s (kaesar--byte-rot s 1))
-                                       (setq x (logxor s x))))
-                            (logxor x ?\x63)))
-          for b from 0 to ?\xff
-          with box = (make-vector ?\x100 nil)
-          do (aset box b (funcall boxing b))
-          finally return box)))
+(eval-and-compile
+  (defconst kaesar--S-box
+    (eval-when-compile
+      (loop with inv-cache =
+            (loop with v = (make-vector 256 nil)
+                  for byte from 0 to 255
+                  do (aset v byte
+                           (loop for b across (aref kaesar--multiply-cache byte)
+                                 for i from 0
+                                 if (= b 1)
+                                 return i
+                                 finally return 0))
+                  finally return v)
+            with boxing = (lambda (byte)
+                            (let* ((inv (aref inv-cache byte))
+                                   (s inv)
+                                   (x inv))
+                              (loop repeat 4
+                                    do (progn
+                                         (setq s (kaesar--byte-rot s 1))
+                                         (setq x (logxor s x))))
+                              (logxor x ?\x63)))
+            for b from 0 to ?\xff
+            with box = (make-vector ?\x100 nil)
+            do (aset box b (funcall boxing b))
+            finally return box))))
 
 (defsubst kaesar--sub-word! (word)
   (aset word 0 (aref kaesar--S-box (aref word 0)))
@@ -453,11 +472,6 @@ to create AES key and initial vector."
   (aset word 2 (aref kaesar--S-box (aref word 2)))
   (aset word 3 (aref kaesar--S-box (aref word 3)))
   word)
-
-(defsubst kaesar--sub-bytes! (state)
-  (loop for w across state
-        do (kaesar--sub-word! w))
-  state)
 
 (defsubst kaesar--rot-word! (word)
   (let ((b0 (aref word 0)))
@@ -513,15 +527,17 @@ to create AES key and initial vector."
   (let ((raw-key (kaesar--key-expansion key)))
     (kaesar--key-make-block raw-key)))
 
-(defsubst kaesar--add-round-key! (state key)
-  (kaesar--word-xor! (aref state 0) (aref key 0))
-  (kaesar--word-xor! (aref state 1) (aref key 1))
-  (kaesar--word-xor! (aref state 2) (aref key 2))
-  (kaesar--word-xor! (aref state 3) (aref key 3))
-  state)
+(eval-when-compile
+  (defsubst kaesar--add-round-key! (state key)
+    (kaesar--word-xor! (aref state 0) (aref key 0))
+    (kaesar--word-xor! (aref state 1) (aref key 1))
+    (kaesar--word-xor! (aref state 2) (aref key 2))
+    (kaesar--word-xor! (aref state 3) (aref key 3))
+    state))
 
-(defsubst kaesar--round-key (key n)
-  (aref key n))
+(eval-when-compile
+  (defsubst kaesar--round-key (key n)
+    (aref key n)))
 
 (defconst kaesar--2time-table
   (eval-when-compile
@@ -541,183 +557,216 @@ to create AES key and initial vector."
           collect (kaesar--multiply i 8) into res
           finally return (vconcat res))))
 
-(defsubst kaesar--mix-column-with-key! (word key)
-  (let ((w1 (vconcat word))
-        (w2 (vconcat (mapcar
-                      (lambda (b)
-                        (aref kaesar--2time-table b)) word))))
-    ;; Coefficients of word Matrix
-    ;; 2 3 1 1
-    ;; 1 2 3 1
-    ;; 1 1 2 3
-    ;; 3 1 1 2
-    (aset word 0 (logxor (aref w2 0)
-                         (aref w2 1) (aref w1 1)
-                         (aref w1 2)
-                         (aref w1 3)
-                         (aref key 0)))
-    (aset word 1 (logxor (aref w1 0)
-                         (aref w2 1)
-                         (aref w1 2) (aref w2 2)
-                         (aref w1 3)
-                         (aref key 1)))
-    (aset word 2 (logxor (aref w1 0)
-                         (aref w1 1)
-                         (aref w2 2)
-                         (aref w1 3) (aref w2 3)
-                         (aref key 2)))
-    (aset word 3 (logxor (aref w1 0) (aref w2 0)
-                         (aref w1 1)
-                         (aref w1 2)
-                         (aref w2 3)
-                         (aref key 3)))))
+;; MixColumn and AddRoundKey
+(eval-when-compile
+  (defsubst kaesar--mix-column-with-key! (word key)
+    (let ((w1-0 (aref word 0))
+          (w1-1 (aref word 1))
+          (w1-2 (aref word 2))
+          (w1-3 (aref word 3))
+          (w2-0 (aref kaesar--2time-table (aref word 0)))
+          (w2-1 (aref kaesar--2time-table (aref word 1)))
+          (w2-2 (aref kaesar--2time-table (aref word 2)))
+          (w2-3 (aref kaesar--2time-table (aref word 3))))
+      ;; Coefficients of word Matrix
+      ;; 2 3 1 1
+      ;; 1 2 3 1
+      ;; 1 1 2 3
+      ;; 3 1 1 2
+      (aset word 0 (logxor w2-0
+                           w2-1 w1-1
+                           w1-2
+                           w1-3
+                           (aref key 0)))
+      (aset word 1 (logxor w1-0
+                           w2-1
+                           w1-2 w2-2
+                           w1-3
+                           (aref key 1)))
+      (aset word 2 (logxor w1-0
+                           w1-1
+                           w2-2
+                           w1-3 w2-3
+                           (aref key 2)))
+      (aset word 3 (logxor w1-0 w2-0
+                           w1-1
+                           w1-2
+                           w2-3
+                           (aref key 3)))
+      word)))
 
 ;; Call mix-column and `kaesar--add-round-key!'
-(defsubst kaesar--mix-columns-with-key! (state keys)
-  (kaesar--mix-column-with-key! (aref state 0) (aref keys 0))
-  (kaesar--mix-column-with-key! (aref state 1) (aref keys 1))
-  (kaesar--mix-column-with-key! (aref state 2) (aref keys 2))
-  (kaesar--mix-column-with-key! (aref state 3) (aref keys 3))
-  state)
+(eval-when-compile
+  (defsubst kaesar--mix-columns-with-key! (state keys)
+    (kaesar--mix-column-with-key! (aref state 0) (aref keys 0))
+    (kaesar--mix-column-with-key! (aref state 1) (aref keys 1))
+    (kaesar--mix-column-with-key! (aref state 2) (aref keys 2))
+    (kaesar--mix-column-with-key! (aref state 3) (aref keys 3))
+    state))
 
-(defsubst kaesar--inv-key-with-mix-column! (key word)
-  (kaesar--word-xor! word key)
-  (let ((w1 (vconcat word))
-        (w2 (vconcat (mapcar
-                      (lambda (b)
-                        (aref kaesar--2time-table b)) word)))
-        (w4 (vconcat (mapcar
-                      (lambda (b)
-                        (aref kaesar--4time-table b)) word)))
-        (w8 (vconcat (mapcar
-                      (lambda (b)
-                        (aref kaesar--8time-table b)) word))))
-    ;; Coefficients of word Matrix
-    ;; 14 11 13  9
-    ;;  9 14 11 13
-    ;; 13  9 14 11
-    ;; 11 13  9 14
+;; InvMixColumn and AddRoundKey
+(eval-when-compile
+  (defsubst kaesar--inv-key-with-mix-column! (key word)
+    ;; AddRoundKey
+    (kaesar--word-xor! word key)
+    (let ((w1-0 (aref word 0))
+          (w1-1 (aref word 1))
+          (w1-2 (aref word 2))
+          (w1-3 (aref word 3))
+          (w2-0 (aref kaesar--2time-table (aref word 0)))
+          (w2-1 (aref kaesar--2time-table (aref word 1)))
+          (w2-2 (aref kaesar--2time-table (aref word 2)))
+          (w2-3 (aref kaesar--2time-table (aref word 3)))
+          (w4-0 (aref kaesar--4time-table (aref word 0)))
+          (w4-1 (aref kaesar--4time-table (aref word 1)))
+          (w4-2 (aref kaesar--4time-table (aref word 2)))
+          (w4-3 (aref kaesar--4time-table (aref word 3)))
+          (w8-0 (aref kaesar--8time-table (aref word 0)))
+          (w8-1 (aref kaesar--8time-table (aref word 1)))
+          (w8-2 (aref kaesar--8time-table (aref word 2)))
+          (w8-3 (aref kaesar--8time-table (aref word 3))))
+      ;; Coefficients of word Matrix
+      ;; 14 11 13  9
+      ;;  9 14 11 13
+      ;; 13  9 14 11
+      ;; 11 13  9 14
 
-    ;;  9 <- 8     1
-    ;; 11 <- 8   2 1
-    ;; 13 <- 8 4   1
-    ;; 14 <- 8 4 2
+      ;;  9 <- 8     1
+      ;; 11 <- 8   2 1
+      ;; 13 <- 8 4   1
+      ;; 14 <- 8 4 2
 
-    (aset word 0 (logxor
-                  (aref w8 0) (aref w4 0) (aref w2 0) ; 14
-                  (aref w8 1) (aref w2 1) (aref w1 1) ; 11
-                  (aref w8 2) (aref w4 2) (aref w1 2) ; 13
-                  (aref w8 3) (aref w1 3)))           ;  9
-    (aset word 1 (logxor
-                  (aref w8 0) (aref w1 0)               ;  9
-                  (aref w8 1) (aref w4 1) (aref w2 1)   ; 14
-                  (aref w8 2) (aref w2 2) (aref w1 2)   ; 11
-                  (aref w8 3) (aref w4 3) (aref w1 3))) ; 13
-    (aset word 2 (logxor
-                  (aref w8 0) (aref w4 0) (aref w1 0)   ; 13
-                  (aref w8 1) (aref w1 1)               ;  9
-                  (aref w8 2) (aref w4 2) (aref w2 2)   ; 14
-                  (aref w8 3) (aref w2 3) (aref w1 3))) ; 11
-    (aset word 3 (logxor
-                  (aref w8 0) (aref w2 0) (aref w1 0)   ; 11
-                  (aref w8 1) (aref w4 1) (aref w1 1)   ; 13
-                  (aref w8 2) (aref w1 2)               ;  9
-                  (aref w8 3) (aref w4 3) (aref w2 3))) ; 14
-    ))
+      (aset word 0 (logxor
+                    w8-0 w4-0 w2-0      ; 14
+                    w8-1 w2-1 w1-1      ; 11
+                    w8-2 w4-2 w1-2      ; 13
+                    w8-3 w1-3))         ;  9
+      (aset word 1 (logxor
+                    w8-0 w1-0           ;  9
+                    w8-1 w4-1 w2-1      ; 14
+                    w8-2 w2-2 w1-2      ; 11
+                    w8-3 w4-3 w1-3))    ; 13
+      (aset word 2 (logxor
+                    w8-0 w4-0 w1-0      ; 13
+                    w8-1 w1-1           ;  9
+                    w8-2 w4-2 w2-2      ; 14
+                    w8-3 w2-3 w1-3))    ; 11
+      (aset word 3 (logxor
+                    w8-0 w2-0 w1-0      ; 11
+                    w8-1 w4-1 w1-1      ; 13
+                    w8-2 w1-2           ;  9
+                    w8-3 w4-3 w2-3))    ; 14
+      word)))
 
-(defsubst kaesar--inv-key-with-mix-columns! (keys state)
-  (kaesar--inv-key-with-mix-column! (aref keys 0) (aref state 0))
-  (kaesar--inv-key-with-mix-column! (aref keys 1) (aref state 1))
-  (kaesar--inv-key-with-mix-column! (aref keys 2) (aref state 2))
-  (kaesar--inv-key-with-mix-column! (aref keys 3) (aref state 3))
-  state)
+(eval-when-compile
+  (defsubst kaesar--inv-key-with-mix-columns! (keys state)
+    (kaesar--inv-key-with-mix-column! (aref keys 0) (aref state 0))
+    (kaesar--inv-key-with-mix-column! (aref keys 1) (aref state 1))
+    (kaesar--inv-key-with-mix-column! (aref keys 2) (aref state 2))
+    (kaesar--inv-key-with-mix-column! (aref keys 3) (aref state 3))
+    state))
 
-(defsubst kaesar--shift-row! (state row columns)
-  (let ((new-rows (mapcar
-                   (lambda (col)
-                     (aref (aref state col) row)) columns)))
-    (loop for col from 0
-          for new-val in new-rows
-          do
-          (aset (aref state col) row new-val))))
+(eval-when-compile
+  (defsubst kaesar--adapt/sub/shift-row! (state row columns box)
+    (let ((r0 (aref box (aref (aref state (aref columns 0)) row)))
+          (r1 (aref box (aref (aref state (aref columns 1)) row)))
+          (r2 (aref box (aref (aref state (aref columns 2)) row)))
+          (r3 (aref box (aref (aref state (aref columns 3)) row))))
+      (aset (aref state 0) row r0)
+      (aset (aref state 1) row r1)
+      (aset (aref state 2) row r2)
+      (aset (aref state 3) row r3))
+    state))
 
-(defsubst kaesar--sub/shift-box! (state row columns box)
-  (let ((new-rows (mapcar
-                   (lambda (col)
-                     (aref box (aref (aref state col) row)))
-                   columns)))
-    (loop for col from 0
-          for new-val in new-rows
-          do
-          (aset (aref state col) row new-val))))
+(eval-when-compile
+  (defsubst kaesar--sub/shift-row! (state)
+    ;; FIXME: first row only S-box
+    (kaesar--adapt/sub/shift-row! state 0 [0 1 2 3] kaesar--S-box)
+    (kaesar--adapt/sub/shift-row! state 1 [1 2 3 0] kaesar--S-box)
+    (kaesar--adapt/sub/shift-row! state 2 [2 3 0 1] kaesar--S-box)
+    (kaesar--adapt/sub/shift-row! state 3 [3 0 1 2] kaesar--S-box)
+    state))
 
-(defsubst kaesar--shift-rows! (state)
-  ;; ignore first row
-  (kaesar--shift-row! state 1 '(1 2 3 0))
-  (kaesar--shift-row! state 2 '(2 3 0 1))
-  (kaesar--shift-row! state 3 '(3 0 1 2))
-  state)
-
-(defsubst kaesar--inv-shift-rows! (state)
-  ;; ignore first row
-  (kaesar--shift-row! state 1 '(3 0 1 2))
-  (kaesar--shift-row! state 2 '(2 3 0 1))
-  (kaesar--shift-row! state 3 '(1 2 3 0))
-  state)
-
-(defconst kaesar--inv-S-box
-  (eval-when-compile
+(eval-when-compile
+  (defconst kaesar--inv-S-box
     (loop for s across kaesar--S-box
           for b from 0
           with ibox = (make-vector ?\x100 nil)
           do (aset ibox s b)
           finally return ibox)))
 
-(defsubst kaesar--inv-sub-word! (word)
-  (aset word 0 (aref kaesar--inv-S-box (aref word 0)))
-  (aset word 1 (aref kaesar--inv-S-box (aref word 1)))
-  (aset word 2 (aref kaesar--inv-S-box (aref word 2)))
-  (aset word 3 (aref kaesar--inv-S-box (aref word 3)))
-  word)
+(eval-when-compile
+  (defsubst kaesar--inv-sub/shift-row! (state)
+    ;; FIXME: first row only inv-S-box
+    (kaesar--adapt/sub/shift-row! state 0 [0 1 2 3] kaesar--inv-S-box)
+    (kaesar--adapt/sub/shift-row! state 1 [3 0 1 2] kaesar--inv-S-box)
+    (kaesar--adapt/sub/shift-row! state 2 [2 3 0 1] kaesar--inv-S-box)
+    (kaesar--adapt/sub/shift-row! state 3 [1 2 3 0] kaesar--inv-S-box)
+    state))
 
-(defsubst kaesar--inv-sub-bytes! (state)
-  (loop for w across state
-        do (kaesar--inv-sub-word! w))
-  state)
+(eval-when-compile
+  (defsubst kaesar--inv-sub-word! (word)
+    (aset word 0 (aref kaesar--inv-S-box (aref word 0)))
+    (aset word 1 (aref kaesar--inv-S-box (aref word 1)))
+    (aset word 2 (aref kaesar--inv-S-box (aref word 2)))
+    (aset word 3 (aref kaesar--inv-S-box (aref word 3)))
+    word))
 
-(defsubst kaesar--sub-shift-mix! (key state)
-  (loop for round from 1 to (1- kaesar--Nr)
-        do (let ((part-key (kaesar--round-key key round)))
-             ;; FIXME: first row only S-box
-             (kaesar--sub/shift-box! state 0 '(0 1 2 3) kaesar--S-box)
-             (kaesar--sub/shift-box! state 1 '(1 2 3 0) kaesar--S-box)
-             (kaesar--sub/shift-box! state 2 '(2 3 0 1) kaesar--S-box)
-             (kaesar--sub/shift-box! state 3 '(3 0 1 2) kaesar--S-box)
-             (kaesar--mix-columns-with-key! state part-key))))
+;; Not used integrate to `kaesar--inv-sub/shift-row!'
+;; (defsubst kaesar--sub-bytes! (state)
+;;   (mapc 'kaesar--sub-word! state))
+;;
+;; (defsubst kaesar--inv-sub-bytes! (state)
+;;   (mapc 'kaesar--inv-sub-word! state))
+;;
+;; (defsubst kaesar--shift-rows! (state)
+;;   ;; ignore first row
+;;   (kaesar--shift-row! state 1 '(1 2 3 0))
+;;   (kaesar--shift-row! state 2 '(2 3 0 1))
+;;   (kaesar--shift-row! state 3 '(3 0 1 2)))
+;;
+;; (defsubst kaesar--inv-shift-rows! (state)
+;;   ;; ignore first row
+;;   (kaesar--shift-row! state 1 '(3 0 1 2))
+;;   (kaesar--shift-row! state 2 '(2 3 0 1))
+;;   (kaesar--shift-row! state 3 '(1 2 3 0)))
+;;
+;; (defsubst kaesar--shift-row! (state row columns)
+;;   (let ((new-rows (mapcar
+;;                    (lambda (col)
+;;                      (aref (aref state col) row)) columns)))
+;;     (loop for col from 0
+;;           for new-val in new-rows
+;;           do (aset (aref state col) row new-val))))
 
-(defsubst kaesar--cipher (state key)
+
+(eval-when-compile
+  (defsubst kaesar--sub-shift-mix! (key state)
+    (loop for round from 1 to (1- kaesar--Nr)
+          do (let ((part-key (kaesar--round-key key round)))
+               (kaesar--sub/shift-row! state)
+               (kaesar--mix-columns-with-key! state part-key)))
+    state))
+
+(defsubst kaesar--cipher! (state key)
   (kaesar--add-round-key! state (kaesar--round-key key 0))
   (kaesar--sub-shift-mix! key state)
-  (kaesar--sub-bytes! state)
-  (kaesar--shift-rows! state)
+  (kaesar--sub/shift-row! state)
   (kaesar--add-round-key! state (kaesar--round-key key kaesar--Nr))
   state)
 
-(defsubst kaesar--inv-shift-sub-mix! (state key)
-  (loop for round downfrom (1- kaesar--Nr) to 1
-        do (let ((part-key (kaesar--round-key key round)))
-             ;; FIXME: first row only inv-S-box
-             (kaesar--sub/shift-box! state 0 '(0 1 2 3) kaesar--inv-S-box)
-             (kaesar--sub/shift-box! state 1 '(3 0 1 2) kaesar--inv-S-box)
-             (kaesar--sub/shift-box! state 2 '(2 3 0 1) kaesar--inv-S-box)
-             (kaesar--sub/shift-box! state 3 '(1 2 3 0) kaesar--inv-S-box)
-             (kaesar--inv-key-with-mix-columns! part-key state))))
+(eval-when-compile
+  (defsubst kaesar--inv-shift-sub-mix! (state key)
+    (loop for round downfrom (1- kaesar--Nr) to 1
+          do (let ((part-key (kaesar--round-key key round)))
+               (kaesar--inv-sub/shift-row! state)
+               (kaesar--inv-key-with-mix-columns! part-key state)))
+    state))
 
-(defsubst kaesar--inv-cipher (state key)
+(defsubst kaesar--inv-cipher! (state key)
   (kaesar--add-round-key! state (kaesar--round-key key kaesar--Nr))
   (kaesar--inv-shift-sub-mix! state key)
-  (kaesar--inv-shift-rows! state)
-  (kaesar--inv-sub-bytes! state)
+  (kaesar--inv-sub/shift-row! state)
   (kaesar--add-round-key! state (kaesar--round-key key 0))
   state)
 
@@ -736,7 +785,7 @@ to create AES key and initial vector."
         with state-1 = (kaesar--unibytes-to-state iv)
         append (let* ((parsed (kaesar--read-unibytes unibyte-string pos))
                       (state-d0 (kaesar--cbc-state-xor! (nth 0 parsed) state-1))
-                      (state-e0 (kaesar--cipher state-d0 key)))
+                      (state-e0 (kaesar--cipher! state-d0 key)))
                  (setq pos (nth 1 parsed))
                  (setq state-1 state-e0)
                  (kaesar--state-to-bytes state-e0))
@@ -748,16 +797,16 @@ to create AES key and initial vector."
         with state-1 = (kaesar--unibytes-to-state iv)
         append (let* ((parsed (kaesar--read-encbytes encbyte-string pos))
                       (state-e (nth 0 parsed))
-                      ;; Clone state cause of `kaesar--inv-cipher' have side-effect
+                      ;; Clone state cause of `kaesar--inv-cipher!' have side-effect
                       (state-e0 (kaesar--state-clone state-e))
                       (state-d0 (kaesar--cbc-state-xor!
-                                 (kaesar--inv-cipher state-e key) state-1))
+                                 (kaesar--inv-cipher! state-e key) state-1))
                       (bytes (kaesar--state-to-bytes state-d0)))
                  (setq pos (nth 1 parsed))
                  (setq state-1 state-e0)
                  (unless pos
                    (setq bytes (kaesar--check-end-of-decrypted bytes)))
-                 (append bytes nil))
+                 bytes)
         while pos))
 
 (put 'kaesar-decryption-failed
@@ -785,11 +834,12 @@ to create AES key and initial vector."
   (unless (= (mod (length string) kaesar--Block) 0)
     (signal 'kaesar-decryption-failed nil)))
 
+;;TODO consider dummy args
 (defun kaesar--ecb-encrypt (unibyte-string key &rest dummy)
   (loop with pos = 0
         append (let* ((parse (kaesar--read-unibytes unibyte-string pos))
                       (in-state (nth 0 parse))
-                      (out-state (kaesar--cipher in-state key)))
+                      (out-state (kaesar--cipher! in-state key)))
                  (setq pos (nth 1 parse))
                  (kaesar--state-to-bytes out-state))
         while pos))
@@ -799,12 +849,12 @@ to create AES key and initial vector."
   (loop with pos = 0
         append (let* ((parse (kaesar--read-encbytes encbyte-string pos))
                       (in-state (nth 0 parse))
-                      (out-state (kaesar--inv-cipher in-state key))
+                      (out-state (kaesar--inv-cipher! in-state key))
                       (bytes (kaesar--state-to-bytes out-state)))
                  (setq pos (nth 1 parse))
                  (unless pos
                    (setq bytes (kaesar--check-end-of-decrypted bytes)))
-                 (append bytes nil))
+                 bytes)
         while pos))
 
 ;;
@@ -828,7 +878,7 @@ to create AES key and initial vector."
 ;;; User level API
 ;;;
 
-;;TODO 
+;;TODO
 ;; (defun kaesar-encrypt-string (string &optional coding-system algorithm))
 ;; (defun kaesar-decrypt-string (string &optional coding-system algorithm))
 ;; (defun kaesar-encrypt (unibyte-string &optional algorithm))
