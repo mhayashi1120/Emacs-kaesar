@@ -197,8 +197,10 @@ This is a hiding parameter which hold password as vector.")
 
 (defvar kaesar--Algorithm)
 
-(defconst kaesar--pkcs5-salt-length 8)
-(defconst kaesar--openssl-magic-word "Salted__")
+(eval-and-compile
+  (defconst kaesar--pkcs5-salt-length 8))
+(eval-and-compile
+  (defconst kaesar--openssl-magic-word "Salted__"))
 
 (defconst kaesar--algorithm-regexp
   (eval-when-compile
@@ -237,6 +239,7 @@ This is a hiding parameter which hold password as vector.")
          (error "%s is not supported" ,algorithm))
        (let* ((kaesar--Enc (nth 1 ,cell))
               (kaesar--Dec (nth 2 ,cell))
+              ;;TODO
               (kaesar--IV (eval (nth 3 ,cell))))
          ,@form))))
 
@@ -312,14 +315,25 @@ This is a hiding parameter which hold password as vector.")
         do (aset salt i (random ?\x100))
         finally return salt))
 
+(defconst kaesar--openssl-magic-salt-regexp
+  (eval-when-compile
+    (format "\\`%s\\([\000-\377]\\{%d\\}\\)"
+            kaesar--openssl-magic-word kaesar--pkcs5-salt-length)))
+
 (defun kaesar--parse-salt (unibyte-string)
-  (let ((regexp (format "\\`%s\\([\000-\377]\\{%d\\}\\)"
-                        kaesar--openssl-magic-word kaesar--pkcs5-salt-length)))
+  (let ((regexp kaesar--openssl-magic-salt-regexp))
     (unless (string-match regexp unibyte-string)
-      (error "No salted"))
+      (signal 'kaesar-decryption-failed (list "No salted")))
     (list
      (vconcat (match-string 1 unibyte-string))
      (substring unibyte-string (match-end 0)))))
+
+(defun kaesar--prepend-salt (salt encrypt-string)
+  (concat
+   ;;TODO consider openssl
+   (string-as-unibyte kaesar--openssl-magic-word)
+   (apply 'kaesar--unibyte-string (append salt nil))
+   encrypt-string))
 
 (defcustom kaesar-password-to-key-function
   'kaesar--openssl-evp-bytes-to-key
@@ -848,7 +862,8 @@ to create AES key and initial vector."
 
 (defun kaesar--check-encbyte-string (string)
   (unless (= (mod (length string) kaesar--Block) 0)
-    (signal 'kaesar-decryption-failed nil)))
+    (signal 'kaesar-decryption-failed
+            (list "Invalid length of encryption"))))
 
 ;;TODO consider dummy args
 (defun kaesar--ecb-encrypt (unibyte-string key &rest dummy)
@@ -878,11 +893,13 @@ to create AES key and initial vector."
 ;;
 
 (defun kaesar--encrypt-0 (unibyte-string raw-key &optional salt iv)
+  "Encrypt UNIBYTE-STRING and return encrypted text as unibyte string."
   (let* ((key (kaesar--expand-to-block-key raw-key))
          (encrypted (funcall kaesar--Enc unibyte-string key iv)))
     (apply 'kaesar--unibyte-string encrypted)))
 
 (defun kaesar--decrypt-0 (encbyte-string raw-key &optional iv)
+  "Decrypt ENCBYTE-STRING and return decrypted text as unibyte string"
   (let* ((key (kaesar--expand-to-block-key raw-key))
          (decrypted (funcall kaesar--Dec encbyte-string key iv)))
     (apply 'kaesar--unibyte-string decrypted)))
@@ -905,8 +922,8 @@ to create AES key and initial vector."
 ;; (defun kaesar-encrypt-bytes (unibyte-string &optional algorithm))
 ;; (defun kaesar-decrypt-bytes (encrypted-string &optional algorithm))
 ;; IV, RAW-KEY accept hex/u8vector/unibytes
-;; (defun kaesar-encrypt-by-key (unibyte-string algorithm raw-key &optional iv))
-;; (defun kaesar-decrypt-by-key (encrypted-string algorithm raw-key &optional iv))
+;; (defun kaesar-encrypt (unibyte-string algorithm raw-key &optional iv))
+;; (defun kaesar-decrypt (encrypted-string algorithm raw-key &optional iv))
 
 ;;;###autoload
 (defun kaesar-encrypt-string (string &optional coding-system algorithm)
@@ -933,8 +950,9 @@ to decrypt string"
 ;;;###autoload
 (defun kaesar-encrypt-bytes (unibyte-string &optional algorithm)
   "Encrypt a UNIBYTE-STRING with ALGORITHM.
-See `kaesar-algorithm' list the supported ALGORITHM .
-TODO password propmt"
+See `kaesar-algorithm' list of the supported ALGORITHM .
+
+To suppress the password prompt, set password to `kaesar-password' as a vector."
   (kaesar--check-unibytes unibyte-string)
   (let* ((salt (kaesar--create-salt))
          (pass (kaesar--read-passwd
@@ -943,8 +961,7 @@ TODO password propmt"
     (kaesar--with-algorithm algorithm
       (destructuring-bind (raw-key iv) (kaesar--bytes-to-key pass salt)
         (let ((body (kaesar--encrypt-0 unibyte-string raw-key salt iv)))
-          ;;TODO multibyte?
-          (concat kaesar--openssl-magic-word salt body))))))
+          (kaesar--prepend-salt salt body))))))
 
 ;;;###autoload
 (defun kaesar-decrypt-bytes (encrypted-string &optional algorithm)
@@ -960,9 +977,8 @@ TODO password propmt"
         (destructuring-bind (raw-key iv) (kaesar--bytes-to-key pass salt)
           (kaesar--decrypt-0 encbytes raw-key iv))))))
 
-;;TODO rename
 ;;;###autoload
-(defun kaesar-encrypt-by-key (unibyte-string algorithm raw-key &optional iv)
+(defun kaesar-encrypt (unibyte-string algorithm raw-key &optional iv)
   "Encrypt a UNIBYTE-STRING with ALGORITHM and RAW-KEY (Before expansion).
 See `kaesar-algorithm' list the supported ALGORITHM .
 Low level API to encrypt like other implementation."
@@ -972,7 +988,7 @@ Low level API to encrypt like other implementation."
     (kaesar--encrypt-0 unibyte-string raw-key nil iv)))
 
 ;;;###autoload
-(defun kaesar-decrypt-by-key (encrypted-string algorithm raw-key &optional iv)
+(defun kaesar-decrypt (encrypted-string algorithm raw-key &optional iv)
   "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt-bytes' with RAW-KEY.
 RAW-KEY before expansion
 Low level API to decrypt data that was encrypted by other implementation."
