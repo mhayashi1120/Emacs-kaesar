@@ -739,13 +739,14 @@ to create AES key and initial vector."
     (kaesar--adapt/sub/shift-row! state 3 [3 0 1 2] kaesar--S-box)
     state))
 
-(eval-when-compile
+(eval-and-compile
   (defconst kaesar--inv-S-box
-    (loop for s across kaesar--S-box
-          for b from 0
-          with ibox = (make-vector ?\x100 nil)
-          do (aset ibox s b)
-          finally return ibox)))
+    (eval-when-compile
+      (loop for s across kaesar--S-box
+            for b from 0
+            with ibox = (make-vector ?\x100 nil)
+            do (aset ibox s b)
+            finally return ibox))))
 
 (eval-when-compile
   (defsubst kaesar--inv-sub/shift-row! (state)
@@ -839,26 +840,29 @@ to create AES key and initial vector."
   (loop with pos = 0
         with state-1 = (kaesar--unibytes-to-state iv)
         append (let* ((parsed (kaesar--read-unibytes unibyte-string pos))
-                      (state-d0 (kaesar--cbc-state-xor! (nth 0 parsed) state-1))
-                      (state-e0 (kaesar--cipher! state-d0 key)))
+                      (state (nth 0 parsed))
+                      (_ (kaesar--cbc-state-xor! state state-1))
+                      (_ (kaesar--cipher! state key)))
                  (setq pos (nth 1 parsed))
-                 (setq state-1 state-e0)
-                 (kaesar--state-to-bytes state-e0))
+                 (setq state-1 state)
+                 (kaesar--state-to-bytes state))
         while pos))
 
 (defun kaesar--cbc-decrypt (encbyte-string key iv)
   (kaesar--check-encbyte-string encbyte-string)
   (loop with pos = 0
         with state-1 = (kaesar--unibytes-to-state iv)
+        ;; create state as empty table
+        with state = (kaesar--unibytes-to-state "")
         append (let* ((parsed (kaesar--read-encbytes encbyte-string pos))
-                      (state (nth 0 parsed))
+                      (state0 (nth 0 parsed))
                       ;; Clone state cause of `kaesar--inv-cipher!' have side-effect
-                      (state-e0 (kaesar--state-clone state))
+                      (_ (kaesar--state-copy! state state0))
                       (_ (kaesar--inv-cipher! state key))
                       (_ (kaesar--cbc-state-xor! state state-1))
                       (bytes (kaesar--state-to-bytes state)))
                  (setq pos (nth 1 parsed))
-                 (setq state-1 state-e0)
+                 (setq state-1 state0)
                  (unless pos
                    (setq bytes (kaesar--check-end-of-decrypted bytes)))
                  bytes)
