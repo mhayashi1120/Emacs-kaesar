@@ -302,6 +302,13 @@ This is a hiding parameter which hold password as vector.")
           append (append word nil))))
 
 (eval-when-compile
+  (defsubst kaesar--state-copy! (dst src)
+    (loop for sr across src
+          for dr across dst
+          do (loop for s across sr
+                   for i from 0
+                   do (aset dr i s))))
+
   (defsubst kaesar--state-clone (state)
     (loop for r across state
           for i from 0
@@ -350,7 +357,7 @@ This is a hiding parameter which hold password as vector.")
      (vconcat (match-string 1 unibyte-string))
      (substring unibyte-string (match-end 0)))))
 
-(defun kaesar--openssl-prepend-salt (salt unibyte-string)
+(defun kaesar--openssl-prepend-salt (salt encrypt-string)
   (concat
    (string-as-unibyte kaesar--openssl-magic-word)
    (apply 'kaesar--unibyte-string (append salt nil))
@@ -823,9 +830,9 @@ to create AES key and initial vector."
 
 (eval-when-compile
   (defsubst kaesar--cbc-state-xor! (state0 state-1)
-    (loop for w1 across state-1
-          for w2 across state0
-          do (kaesar--word-xor! w2 w1)
+    (loop for w0 across state0
+          for w-1 across state-1
+          do (kaesar--word-xor! w0 w-1)
           finally return state0)))
 
 (defun kaesar--cbc-encrypt (unibyte-string key iv)
@@ -844,12 +851,12 @@ to create AES key and initial vector."
   (loop with pos = 0
         with state-1 = (kaesar--unibytes-to-state iv)
         append (let* ((parsed (kaesar--read-encbytes encbyte-string pos))
-                      (state-e (nth 0 parsed))
+                      (state (nth 0 parsed))
                       ;; Clone state cause of `kaesar--inv-cipher!' have side-effect
-                      (state-e0 (kaesar--state-clone state-e))
-                      (state-d0 (kaesar--cbc-state-xor!
-                                 (kaesar--inv-cipher! state-e key) state-1))
-                      (bytes (kaesar--state-to-bytes state-d0)))
+                      (state-e0 (kaesar--state-clone state))
+                      (_ (kaesar--inv-cipher! state key))
+                      (_ (kaesar--cbc-state-xor! state state-1))
+                      (bytes (kaesar--state-to-bytes state)))
                  (setq pos (nth 1 parsed))
                  (setq state-1 state-e0)
                  (unless pos
