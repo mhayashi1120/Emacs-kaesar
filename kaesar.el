@@ -89,8 +89,7 @@
 (defgroup kaesar nil
   "Encrypt/Decrypt string with password"
   :prefix "kaesar-"
-  ;;TODO consider group
-  :group 'environment)
+  :group 'data)
 
 (defcustom kaesar-algorithm "aes-256-cbc"
   "Cipher algorithm to encrypt a message.
@@ -259,10 +258,10 @@ This is a hiding parameter which hold password as vector.")
 ;;
 
 (eval-when-compile
-  (defsubst kaesar--unibytes-to-state (unibytes)
+  (defsubst kaesar--unibytes-to-state (unibytes start)
     (loop for r from 0 below kaesar--Row
           with state = (make-vector kaesar--Row nil)
-          with i = 0
+          with i = start
           with len = (length unibytes)
           do (loop for c from 0 below kaesar--Nb
                    with word = (make-vector kaesar--Nb nil)
@@ -272,7 +271,7 @@ This is a hiding parameter which hold password as vector.")
                    ;; of rest of State
                    do (cond
                        ((= i len)
-                        (aset word c (- kaesar--Block len)))
+                        (aset word c (- kaesar--Block (- i start))))
                        (t
                         (aset word c (aref unibytes i))
                         (setq i (1+ i)))))
@@ -282,7 +281,7 @@ This is a hiding parameter which hold password as vector.")
   (defsubst kaesar--read-unibytes (unibyte-string pos)
     (let* ((len (length unibyte-string))
            (end-pos (min len (+ pos kaesar--Block)))
-           (state (kaesar--unibytes-to-state (substring unibyte-string pos end-pos)))
+           (state (kaesar--unibytes-to-state unibyte-string pos))
            (rest (if (and (= len end-pos)
                           (< (- end-pos pos) kaesar--Block))
                      nil end-pos)))
@@ -292,7 +291,7 @@ This is a hiding parameter which hold password as vector.")
   (defsubst kaesar--read-encbytes (encbyte-string pos)
     (let* ((len (length encbyte-string))
            (end-pos (min len (+ pos kaesar--Block)))
-           (state (kaesar--unibytes-to-state (substring encbyte-string pos end-pos)))
+           (state (kaesar--unibytes-to-state encbyte-string pos))
            (rest (if (= len end-pos) nil end-pos)))
       (list state rest))))
 
@@ -307,14 +306,7 @@ This is a hiding parameter which hold password as vector.")
           for dr across dst
           do (loop for s across sr
                    for i from 0
-                   do (aset dr i s))))
-
-  (defsubst kaesar--state-clone (state)
-    (loop for r across state
-          for i from 0
-          with v = (vconcat state)
-          do (aset v i (vconcat r))
-          finally return v)))
+                   do (aset dr i s)))))
 
 (defun kaesar--create-salt ()
   (loop for i from 0 below kaesar--pkcs5-salt-length
@@ -838,7 +830,7 @@ to create AES key and initial vector."
 
 (defun kaesar--cbc-encrypt (unibyte-string key iv)
   (loop with pos = 0
-        with state-1 = (kaesar--unibytes-to-state iv)
+        with state-1 = (kaesar--unibytes-to-state iv 0)
         append (let* ((parsed (kaesar--read-unibytes unibyte-string pos))
                       (state (nth 0 parsed))
                       (_ (kaesar--cbc-state-xor! state state-1))
@@ -851,9 +843,9 @@ to create AES key and initial vector."
 (defun kaesar--cbc-decrypt (encbyte-string key iv)
   (kaesar--check-encbyte-string encbyte-string)
   (loop with pos = 0
-        with state-1 = (kaesar--unibytes-to-state iv)
+        with state-1 = (kaesar--unibytes-to-state iv 0)
         ;; create state as empty table
-        with state = (kaesar--unibytes-to-state "")
+        with state = (kaesar--unibytes-to-state "" 0)
         append (let* ((parsed (kaesar--read-encbytes encbyte-string pos))
                       (state0 (nth 0 parsed))
                       ;; Clone state cause of `kaesar--inv-cipher!' have side-effect

@@ -309,15 +309,15 @@
   (flet ((read-passwd (&rest dummy) (copy-seq "d")))
     (let ((bytes (kaesar--test-random-bytes))
           results)
-      (setq results (openssl-cipher-decrypt-unibytes (kaesar-encrypt bytes)))
+      (setq results (openssl-cipher-decrypt-unibytes (kaesar-encrypt-bytes bytes)))
       (kaesar-test-should results bytes)
-      (setq results (kaesar-decrypt (openssl-cipher-encrypt-unibytes bytes)))
+      (setq results (kaesar-decrypt-bytes (openssl-cipher-encrypt-unibytes bytes)))
       (kaesar-test-should results bytes))))
 
 (defun kaesar-test-enc/dec (raw-bytes &optional algorithm)
   (flet ((read-passwd (&rest dummy) (copy-seq "d")))
     (kaesar-test-should raw-bytes
-      (kaesar-decrypt (kaesar-encrypt raw-bytes algorithm) algorithm))))
+      (kaesar-decrypt-bytes (kaesar-encrypt-bytes raw-bytes algorithm) algorithm))))
 
 (ert-deftest kaesar-test--rot ()
   :tags '(kaesar)
@@ -341,17 +341,10 @@
 (ert-deftest kaesar-test--inner-functions ()
   :tags '(kaesar)
   (kaesar--cipher-algorithm 'aes-256
-    (kaesar-test-should [[65 70 75 80] [69 74 79 68] [73 78 67 72] [77 66 71 76]]
-      (kaesar--shift-rows! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")))
 
-    (kaesar-test-should [[65 78 75 72] [69 66 79 76] [73 70 67 80] [77 74 71 68]] 
-      (kaesar--inv-shift-rows! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")))
-
+    ;; Sub Bytes and Shift Row with inverse
     (kaesar-test-should (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
-      (kaesar--inv-shift-rows! (kaesar--shift-rows! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
-
-    (kaesar-test-should (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
-      (kaesar--inv-sub-bytes! (kaesar--sub-bytes! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
+      (kaesar--inv-sub/shift-row! (kaesar--sub/shift-row! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
 
     (kaesar-test-should (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
       (let ((dummy-key [[0 0 0 0][0 0 0 0][0 0 0 0][0 0 0 0]]))
@@ -360,8 +353,8 @@
     (kaesar-test-should (string-to-list "ABCDEFGHIJKLMNOP")
       (let ((key (kaesar--expand-to-block-key kaesar--test-aes256-key)))
         (kaesar--state-to-bytes
-         (kaesar--inv-cipher
-          (kaesar--cipher (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP") key)
+         (kaesar--inv-cipher!
+          (kaesar--cipher! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP") key)
           key))))))
 
 (ert-deftest kaesar-test--parser-functions ()
@@ -385,22 +378,22 @@
   :tags '(kaesar)
 
   (kaesar-test-should (kaesar--test-openssl-key&iv "aes-128-cbc" "d")
-    (kaesar--proc "aes-128-cbc"
+    (kaesar--with-algorithm "aes-128-cbc"
       (destructuring-bind (key iv) (kaesar--bytes-to-key (vconcat "d"))
         (list (kaesar--test-unibytes-to-hex key) (kaesar--test-unibytes-to-hex iv)))))
 
   (kaesar-test-should (kaesar--test-openssl-key&iv "aes-128-ecb" "d")
-    (kaesar--proc "aes-128-ecb"
+    (kaesar--with-algorithm "aes-128-ecb"
       (destructuring-bind (key iv) (kaesar--bytes-to-key (vconcat "d"))
         (list (kaesar--test-unibytes-to-hex key) (kaesar--test-unibytes-to-hex iv)))))
 
   (kaesar-test-should (kaesar--test-openssl-key&iv "aes-256-ecb" "pass")
-    (kaesar--proc "aes-256-ecb"
+    (kaesar--with-algorithm "aes-256-ecb"
       (destructuring-bind (key iv) (kaesar--bytes-to-key (vconcat "pass"))
         (list (kaesar--test-unibytes-to-hex key) (kaesar--test-unibytes-to-hex iv)))))
 
   (kaesar-test-should (kaesar--test-openssl-key&iv "aes-256-cbc" "pass")
-    (kaesar--proc "aes-256-cbc"
+    (kaesar--with-algorithm "aes-256-cbc"
       (destructuring-bind (key iv) (kaesar--bytes-to-key (vconcat "pass"))
         (list (kaesar--test-unibytes-to-hex key) (kaesar--test-unibytes-to-hex iv)))))
 
@@ -438,11 +431,8 @@
       (kaesar--add-round-key! (kaesar--test-view-to-state kaesar--test-appendix-b-input-state) 
                               (kaesar--test-view-to-state kaesar--test-appendix-b-first-round-key)))
 
-    (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-2)
-      (kaesar--sub-bytes! (kaesar--test-view-to-state kaesar--test-appendix-b-1-1)))
-
     (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-3)
-      (kaesar--shift-rows! (kaesar--test-view-to-state kaesar--test-appendix-b-1-2)))
+      (kaesar--sub/shift-row! (kaesar--test-view-to-state kaesar--test-appendix-b-1-1)))
 
     ;; This case originally just test MixColumns but now is merged with AddRoundKey.
     ;; xor with key which is filled by zero get same result of original case.
@@ -454,7 +444,7 @@
       (kaesar--round-key (kaesar--expand-to-block-key kaesar--test-appendix-b-key) 1))
     
     (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-last-output)
-      (kaesar--cipher (kaesar--test-view-to-state kaesar--test-appendix-b-input-state)
+      (kaesar--cipher! (kaesar--test-view-to-state kaesar--test-appendix-b-input-state)
                       (kaesar--expand-to-block-key kaesar--test-appendix-b-key)))
     ))
 
@@ -464,7 +454,7 @@
   ;; check accept vector
   (kaesar-test-should "abcdefg"
     (flet ((read-passwd (&rest dummy) (copy-seq "d")))
-      (kaesar-decrypt (kaesar-encrypt (vconcat "abcdefg")))))
+      (kaesar-decrypt-bytes (kaesar-encrypt-bytes (vconcat "abcdefg")))))
 
   ;; less than block size
   (kaesar-test-enc/dec "abcdefghijklmno" "aes-128-ecb")
@@ -566,7 +556,7 @@
                   (let* ((key (cdr (assoc "KEY" test)))
                          (ct (cdr (assoc "CT" test)))
                          (raw-key (kaesar-test--hex-to-vector key))
-                         (enc (kaesar-encrypt-by-key data algo raw-key))
+                         (enc (kaesar-encrypt data algo raw-key))
                          (hex (kaesar--test-unibytes-to-hex enc))
                          (test-target (substring hex 0 (length ct))))
                     (kaesar-test-should ct test-target)))))))
@@ -585,7 +575,7 @@
                   do
                   (let* ((data (kaesar-test--hex-to-vector (cdr (assoc "PT" test))))
                          (ct (cdr (assoc "CT" test)))
-                         (enc (kaesar-encrypt-by-key data algo raw-key))
+                         (enc (kaesar-encrypt data algo raw-key))
                          (hex (kaesar--test-unibytes-to-hex enc))
                          (test-target (substring hex 0 (length ct))))
                     (kaesar-test-should ct test-target)))))))
@@ -603,7 +593,7 @@
                   (let* ((raw-key (kaesar-test--hex-to-vector (cdr (assoc "KEY" test))))
                          (data (kaesar-test--hex-to-vector (cdr (assoc "PT" test))))
                          (ct (cdr (assoc "CT" test)))
-                         (enc (kaesar-encrypt-by-key data algo raw-key))
+                         (enc (kaesar-encrypt data algo raw-key))
                          (hex (kaesar--test-unibytes-to-hex enc))
                          (test-target (substring hex 0 (length ct))))
                     (kaesar-test-should ct test-target)))))))
@@ -613,7 +603,7 @@
 (defun kaesar-test--ecb-mct (func hex-key hex-data algo)
   (let* ((raw-key (kaesar-test--hex-to-vector hex-key))
          (data (kaesar-test--hex-to-vector hex-data)))
-    (kaesar--proc algo
+    (kaesar--with-algorithm algo
       (loop with key = (kaesar--key-expansion raw-key)
             with state = (kaesar--unibytes-to-state data)
             repeat 10000
@@ -667,7 +657,7 @@
          (pt (kaesar-test--hex-to-vector hex-pt))
          (iv (kaesar-test--hex-to-vector hex-iv))
          (cv iv))
-    (kaesar--proc algo
+    (kaesar--with-algorithm algo
       (loop with key = (kaesar--key-expansion raw-key)
             with cv = (kaesar--unibytes-to-state cv)
             with pt = (kaesar--unibytes-to-state pt)
@@ -675,7 +665,7 @@
             with ct = nil
             repeat 10000
             do (let* ((tmp (kaesar--cbc-state-xor pt cv)))
-                 (setq ct (kaesar--cipher tmp key))
+                 (setq ct (kaesar--cipher! tmp key))
                  (if (null ct-1)
                      (setq pt cv)
                    (setq pt ct-1))
