@@ -315,12 +315,34 @@ This is a hiding parameter which hold password as vector.")
         do (aset salt i (random ?\x100))
         finally return salt))
 
+(defun kaesar--key-md5-digest (hash data)
+  (loop with unibytes = (apply 'kaesar--unibyte-string data)
+        with md5-hash = (md5 unibytes)
+        for v across (kaesar--hex-to-vector md5-hash)
+        for i from 0
+        do (aset hash i v)))
+
+(defun kaesar--hex-to-vector (hex-string)
+  (loop for i from 0 below (length hex-string) by 2
+        collect (string-to-number (substring hex-string i (+ i 2)) 16)
+        into res
+        finally return (vconcat res)))
+
+(if (fboundp 'unibyte-string)
+    (defalias 'kaesar--unibyte-string 'unibyte-string)
+  (defun kaesar--unibyte-string (&rest bytes)
+    (concat bytes)))
+
+;;
+;; Interoperability with openssl
+;;
+
 (defconst kaesar--openssl-magic-salt-regexp
   (eval-when-compile
     (format "\\`%s\\([\000-\377]\\{%d\\}\\)"
             kaesar--openssl-magic-word kaesar--pkcs5-salt-length)))
 
-(defun kaesar--parse-salt (unibyte-string)
+(defun kaesar--openssl-parse-salt (unibyte-string)
   (let ((regexp kaesar--openssl-magic-salt-regexp))
     (unless (string-match regexp unibyte-string)
       (signal 'kaesar-decryption-failed (list "No salted")))
@@ -328,23 +350,11 @@ This is a hiding parameter which hold password as vector.")
      (vconcat (match-string 1 unibyte-string))
      (substring unibyte-string (match-end 0)))))
 
-(defun kaesar--prepend-salt (salt encrypt-string)
+(defun kaesar--openssl-prepend-salt (salt unibyte-string)
   (concat
-   ;;TODO consider openssl
    (string-as-unibyte kaesar--openssl-magic-word)
    (apply 'kaesar--unibyte-string (append salt nil))
    encrypt-string))
-
-(defcustom kaesar-password-to-key-function
-  'kaesar--openssl-evp-bytes-to-key
-  "Function which accepts password and optional salt,
-to create AES key and initial vector."
-  :group 'kaesar
-  :type 'function)
-
-;; password -> '(key iv)
-(defun kaesar--bytes-to-key (data &optional salt)
-  (funcall kaesar-password-to-key-function data salt))
 
 ;; Emulate openssl EVP_BytesToKey function
 (defun kaesar--openssl-evp-bytes-to-key (data &optional salt)
@@ -382,23 +392,31 @@ to create AES key and initial vector."
     (fillarray data nil)
     (list key iv)))
 
-(defun kaesar--key-md5-digest (hash data)
-  (loop with unibytes = (apply 'kaesar--unibyte-string data)
-        with md5-hash = (md5 unibytes)
-        for v across (kaesar--hex-to-vector md5-hash)
-        for i from 0
-        do (aset hash i v)))
+;;
+;; TODO pull down
+;;
 
-(defun kaesar--hex-to-vector (hex-string)
-  (loop for i from 0 below (length hex-string) by 2
-        collect (string-to-number (substring hex-string i (+ i 2)) 16)
-        into res
-        finally return (vconcat res)))
+(defvar kaesar--parse-salt-function 'kaesar--openssl-parse-salt)
+(defvar kaesar--prepend-salt-function 'kaesar--openssl-prepend-salt)
 
-(if (fboundp 'unibyte-string)
-    (defalias 'kaesar--unibyte-string 'unibyte-string)
-  (defun kaesar--unibyte-string (&rest bytes)
-    (concat bytes)))
+;;TODO describe
+(defun kaesar--parse-salt (unibyte-string)
+  (funcall kaesar--parse-salt-function unibyte-string))
+
+;;TODO describe
+(defun kaesar--prepend-salt (salt encrypt-string)
+  (funcall kaesar--prepend-salt-function salt encrypt-string))
+
+(defcustom kaesar-password-to-key-function
+  'kaesar--openssl-evp-bytes-to-key
+  "Function which accepts password and optional salt,
+to create AES key and initial vector."
+  :group 'kaesar
+  :type 'function)
+
+;; password -> '(key iv)
+(defun kaesar--bytes-to-key (data &optional salt)
+  (funcall kaesar-password-to-key-function data salt))
 
 ;;
 ;; AES Algorithm defined functions
@@ -892,7 +910,7 @@ to create AES key and initial vector."
 ;; inner functions
 ;;
 
-(defun kaesar--encrypt-0 (unibyte-string raw-key &optional salt iv)
+(defun kaesar--encrypt-0 (unibyte-string raw-key &optional iv)
   "Encrypt UNIBYTE-STRING and return encrypted text as unibyte string."
   (let* ((key (kaesar--expand-to-block-key raw-key))
          (encrypted (funcall kaesar--Enc unibyte-string key iv)))
@@ -917,10 +935,6 @@ to create AES key and initial vector."
 ;;;
 
 ;;TODO
-;; (defun kaesar-encrypt-string (string &optional coding-system algorithm))
-;; (defun kaesar-decrypt-string (string &optional coding-system algorithm))
-;; (defun kaesar-encrypt-bytes (unibyte-string &optional algorithm))
-;; (defun kaesar-decrypt-bytes (encrypted-string &optional algorithm))
 ;; IV, RAW-KEY accept hex/u8vector/unibytes
 ;; (defun kaesar-encrypt (unibyte-string algorithm raw-key &optional iv))
 ;; (defun kaesar-decrypt (encrypted-string algorithm raw-key &optional iv))
@@ -960,7 +974,7 @@ To suppress the password prompt, set password to `kaesar-password' as a vector."
                     "Password to encrypt: ") t)))
     (kaesar--with-algorithm algorithm
       (destructuring-bind (raw-key iv) (kaesar--bytes-to-key pass salt)
-        (let ((body (kaesar--encrypt-0 unibyte-string raw-key salt iv)))
+        (let ((body (kaesar--encrypt-0 unibyte-string raw-key iv)))
           (kaesar--prepend-salt salt body))))))
 
 ;;;###autoload
@@ -985,7 +999,7 @@ Low level API to encrypt like other implementation."
   (kaesar--check-unibytes unibyte-string)
   ;;TODO check raw-key length?
   (kaesar--with-algorithm algorithm
-    (kaesar--encrypt-0 unibyte-string raw-key nil iv)))
+    (kaesar--encrypt-0 unibyte-string raw-key iv)))
 
 ;;;###autoload
 (defun kaesar-decrypt (encrypted-string algorithm raw-key &optional iv)
