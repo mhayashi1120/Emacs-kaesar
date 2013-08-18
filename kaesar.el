@@ -297,8 +297,12 @@ This is a hiding parameter which hold password as vector.")
 
 (eval-when-compile
   (defsubst kaesar--state-to-bytes (state)
-    (loop for word across state
-          append (append word nil))))
+    (let (res)
+      (mapc
+       (lambda (word)
+         (setq res (nconc res (append word nil))))
+       state)
+      res)))
 
 (eval-when-compile
   (defsubst kaesar--state-copy! (dst src)
@@ -406,6 +410,7 @@ This is a hiding parameter which hold password as vector.")
 (defun kaesar--prepend-salt (salt encrypt-string)
   (funcall kaesar--prepend-salt-function salt encrypt-string))
 
+;;TODO
 (defcustom kaesar-password-to-key-function
   'kaesar--openssl-evp-bytes-to-key
   "Function which accepts password and optional salt,
@@ -925,22 +930,53 @@ to create AES key and initial vector."
          (decrypted (funcall kaesar--Dec encbyte-string key iv)))
     (apply 'kaesar--unibyte-string decrypted)))
 
+;;TODO test
+;; (should (equal (kaesar--check-unibyte-vector [0 255]) [0 255]))
+;; (should-error (kaesar--check-unibyte-vector [-1]))
+;; (should-error (kaesar--check-unibyte-vector [256]))
+;; (should-error (kaesar--check-unibyte-vector [a]))
+;; (should-error (kaesar--check-unibyte-vector "a"))
+;; (should-error (kaesar--check-unibyte-vector (decode-coding-string "\343\201\202" 'utf-8)))
 
-;;TODO
+(defun kaesar--check-unibyte-vector (vector)
+  (mapc
+   (lambda (x)
+     (unless (and (numberp x)(<= 0 x) (<= x 255))
+       (error "Invalid unibyte vector")))
+   vector))
+
 (defun kaesar--check-key (key)
-  ;; 128: 16
-  ;; 192: 24
-  ;; 256: 32
-  )
+  (let ((keylength (* kaesar--Nk 4))
+        veckey)
+    (cond
+     ((and (stringp key)
+           (string-match "\\`[0-9a-fA-F]+\\'" key))
+      (setq veckey (kaesar--hex-to-vector key)))
+     ((vectorp key)
+      (setq veckey (kaesar--check-unibyte-vector key)))
+     (t
+      (error "Not supported key format")))
+    (unless (eq keylength (length veckey))
+      (error "Invalid key length (Must be %d bytes)" keylength))
+    veckey))
+
+(defun kaesar--check-iv (iv)
+  (let (veciv)
+    (cond
+     ((and (stringp iv)
+           (string-match "\\`[0-9a-fA-F]+\\'" iv))
+      (setq veciv (kaesar--hex-to-vector iv)))
+     ((vectorp iv)
+      (setq veciv (kaesar--check-unibyte-vector iv)))
+     (t
+      (error "Not supported key format")))
+    (unless (eq kaesar--IV (length veciv))
+      (error "Invalid length of IV (Must be %d byte(s))" kaesar--IV))
+    veciv))
 
 ;;;
 ;;; User level API
 ;;;
-
-;;TODO
-;; IV, RAW-KEY accept hex/u8vector/unibytes
-;; (defun kaesar-encrypt (unibyte-string algorithm raw-key &optional iv))
-;; (defun kaesar-decrypt (encrypted-string algorithm raw-key &optional iv))
 
 ;;;###autoload
 (defun kaesar-encrypt-string (string &optional coding-system algorithm)
@@ -982,8 +1018,7 @@ To suppress the password prompt, set password to `kaesar-password' as a vector."
 
 ;;;###autoload
 (defun kaesar-decrypt-bytes (encrypted-string &optional algorithm)
-  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt-bytes'
-TODO password propmt"
+  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt-bytes'"
   (kaesar--check-encrypted encrypted-string)
   (destructuring-bind (salt encbytes)
       (kaesar--parse-salt encrypted-string)
@@ -995,24 +1030,26 @@ TODO password propmt"
           (kaesar--decrypt-0 encbytes raw-key iv))))))
 
 ;;;###autoload
-(defun kaesar-encrypt (unibyte-string algorithm raw-key &optional iv)
+(defun kaesar-encrypt (unibyte-string raw-key &optional algorithm iv)
   "Encrypt a UNIBYTE-STRING with ALGORITHM and RAW-KEY (Before expansion).
+RAW-KEY before expansion which expects valid length of hex string or vector (0 - 255).
 See `kaesar-algorithm' list the supported ALGORITHM .
+
 Low level API to encrypt like other implementation."
   (kaesar--check-unibytes unibyte-string)
-  ;;TODO check raw-key length?
   (kaesar--with-algorithm algorithm
-    (kaesar--encrypt-0 unibyte-string raw-key iv)))
+    (let ((key (kaesar--check-key raw-key)))
+      (kaesar--encrypt-0 unibyte-string key iv))))
 
 ;;;###autoload
-(defun kaesar-decrypt (encrypted-string algorithm raw-key &optional iv)
-  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt-bytes' with RAW-KEY.
-RAW-KEY before expansion
+(defun kaesar-decrypt (encrypted-string raw-key &optional algorithm iv)
+  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt' with RAW-KEY.
+
 Low level API to decrypt data that was encrypted by other implementation."
   (kaesar--check-encrypted encrypted-string)
-  ;;TODO check raw-key length?
-  (kaesar--with-algorithm algorithm
-    (kaesar--decrypt-0 encrypted-string raw-key iv)))
+    (kaesar--with-algorithm algorithm
+      (let ((key (kaesar--check-key raw-key)))
+        (kaesar--decrypt-0 encrypted-string key iv))))
 
 (provide 'kaesar)
 
