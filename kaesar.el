@@ -77,7 +77,9 @@
 
 ;; * cleanup temporary vector? or simply garbage-collect?
 
-;; * CTR mode
+;; * Block mode
+;; done: ecb, cbc, ctr, ofb
+;; todo: cfb, cfb1, cfb8, gcm
 
 ;; * validation -> AESAVS.pdf
 
@@ -119,6 +121,7 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
 
 (defvar kaesar--Enc)
 (defvar kaesar--Dec)
+;;TODO rename
 (defvar kaesar--Check)
 
 (defvar kaesar-password nil
@@ -191,12 +194,12 @@ This is a hiding parameter which hold password as vector.")
      kaesar--check-block-bytes kaesar--Block)
     ;; Output FeedBack
     (ofb
-     kaesar--ofb-encrypt kaesar--ofb-decrypt
+     kaesar--ofb-encrypt kaesar--ofb-encrypt
      nil kaesar--Block)
 
     ;; CounTeR (Other word, `KAK' Key Auto-Key)
-    (testing-ctr
-     kaesar--ctr-encrypt kaesar--ctr-decrypt
+    (ctr
+     kaesar--ctr-encrypt kaesar--ctr-encrypt
      ;;TODO check
      nil kaesar--Block)
     ))
@@ -232,7 +235,7 @@ This is a hiding parameter which hold password as vector.")
      "\\(aes-\\(?:128\\|192\\|256\\)\\)"
      "-"
      (regexp-opt
-      '("ecb" "cbc" "ofb" "testing-ctr") t)
+      '("ecb" "cbc" "ofb" "ctr") t)
      "\\'")))
 
 (defun kaesar--parse-algorithm (name)
@@ -264,7 +267,7 @@ This is a hiding parameter which hold password as vector.")
        (let* ((kaesar--Enc (nth 1 ,cell))
               (kaesar--Dec (nth 2 ,cell))
               (kaesar--Check (nth 3 ,cell))
-              ;;TODO
+              ;;TODO risky-local-variable?
               (kaesar--IV (eval (nth 4 ,cell))))
          ,@form))))
 
@@ -870,6 +873,10 @@ to create AES key and initial vector."
           do (signal 'kaesar-decryption-failed nil))
     (nreverse (nthcdr pad rbytes))))
 
+(defun kaesar--finish-truncate-bytes (input-bytes reverse-output-list)
+  (let ((trash-len (- (length reverse-output-list) (length input-bytes))))
+    (nreverse (nthcdr trash-len reverse-output-list))))
+
 (defun kaesar--cbc-encrypt (unibyte-string key iv)
   (loop with pos = 0
         with state-1 = (kaesar--unibytes-to-state iv 0)
@@ -925,8 +932,8 @@ to create AES key and initial vector."
         finally return (kaesar--check-decrypted res)))
 
 ;;TODO test
-;; openssl-1.0.1e/crypto/modes/ofb128.c
-;; H0 = IV, Hi = Ek(Hi-1), Ci = Mi + Hi
+;; Encrypt: H0 = IV, Hi = Ek(Hi-1), Ci = Mi + Hi
+;; Decrypt: H0 = IV, Hi = Ek(Hi-1), Mi = Ci + Hi
 (defun kaesar--ofb-encrypt (unibyte-string key iv)
   (loop with pos = 0
         with h = (kaesar--unibytes-to-state iv 0)
@@ -939,34 +946,42 @@ to create AES key and initial vector."
              (setq res (nconc (nreverse (kaesar--state-to-bytes state)) res)))
         while pos
         finally return
-        (let ((trash-len (- (length res) (length unibyte-string))))
-          (nreverse (nthcdr trash-len res)))))
+        (kaesar--finish-truncate-bytes unibyte-string res)))
 
-;; H0 = IV, Hi = Ek(Hi-1), Mi = Ci + Hi
-(defun kaesar--ofb-decrypt (encbyte-string key iv)
+(defconst kaesar--ctr-increment-byte-table
+  (eval-when-compile
+    (loop with vec = (make-vector ?\x100 nil)
+          for i from 0 to ?\xff
+          do (aset vec i (% (1+ i) ?\x100))
+          finally return vec)))
+
+(defun kaesar--ctr-increment! (state)
+  (loop with table = kaesar--ctr-increment-byte-table
+        for w across state
+        do (loop for i from 0 below (length w)
+                 do (aset w i (aref table (aref w i))))))
+
+;;TODO test
+;; Encrypt: Ci = Mi + Ek(Ri), Ri+1 = Ri + 1
+;; Decrypt: Mi = Ci + Ek(Ri), Ri+1 = Ri + 1
+(defun kaesar--ctr-encrypt (unibyte-string key iv)
   (loop with pos = 0
-        with h = (kaesar--unibytes-to-state iv 0)
+        with r = (kaesar--unibytes-to-state iv 0)
         with res = '()
-        do (let* ((parse (kaesar--read-encbytes encbyte-string pos))
+        with next = (kaesar--unibytes-to-state "" 0)
+        do (let* ((parse (kaesar--read-unibytes unibyte-string pos))
                   (state (nth 0 parse))
-                  (_ (kaesar--cipher! h key))
-                  (_ (kaesar--state-xor! state h))
+                  (_ (kaesar--state-copy! next r))
+                  (_ (kaesar--cipher! r key))
+                  (_ (kaesar--state-xor! state r))
                   (bytes (kaesar--state-to-bytes state)))
+             (kaesar--ctr-increment! next)
+             (setq r next)
              (setq pos (nth 1 parse))
              (setq res (nconc (nreverse bytes) res)))
         while pos
         finally return
-        (let ((trash-len (- (length res) (length encbyte-string))))
-          (nreverse (nthcdr trash-len res)))))
-
-;;TODO test
-;; Ci = Mi + Ek(Ri), Ri+1 = Ri + 1
-(defun kaesar--ctr-encrypt (unibyte-string key &rest dummy)
-  )
-
-;; TODO Mi = Ci + Ek(Ri), Ri+1 = Ri + 1
-(defun kaesar--ctr-decrypt (encbyte-string key &rest dummy)
-  )
+        (kaesar--finish-truncate-bytes unibyte-string res)))
 
 ;;
 ;; inner functions
