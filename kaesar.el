@@ -134,26 +134,6 @@ This is a hiding parameter which hold password as vector.")
            (vconcat kaesar-password))
       (vconcat (read-passwd prompt confirm))))
 
-(defun kaesar--check-unibytes (unibytes)
-  (cond
-   ((stringp unibytes)
-    (when (multibyte-string-p unibytes)
-      (error "Not a unibyte string")))
-   ((vectorp unibytes))))
-
-(defun kaesar--check-encrypted (encbyte-string)
-  (cond
-   ((stringp encbyte-string)
-    (when (multibyte-string-p encbyte-string)
-      (error "Not a encrypted string"))))
-  (when kaesar--Check
-    (funcall kaesar--Check encbyte-string)))
-
-(defun kaesar--check-block-bytes (string)
-  (when (/= (mod (length string) kaesar--Block) 0)
-    (signal 'kaesar-decryption-failed
-            (list "Invalid length of encryption"))))
-
 ;; Basic utilities
 
 (eval-when-compile
@@ -1026,6 +1006,26 @@ to create AES key and initial vector."
 
 ;;TODO consider threshold of encrypt size
 
+(defun kaesar--check-block-bytes (string)
+  (when (/= (mod (length string) kaesar--Block) 0)
+    (signal 'kaesar-decryption-failed
+            (list "Invalid length of encryption"))))
+
+(defun kaesar--check-unibytes (unibytes)
+  (cond
+   ((stringp unibytes)
+    (when (multibyte-string-p unibytes)
+      (error "Not a unibyte string")))
+   ((vectorp unibytes))))
+
+(defun kaesar--check-encrypted (encbyte-string)
+  (cond
+   ((stringp encbyte-string)
+    (when (multibyte-string-p encbyte-string)
+      (error "Not a encrypted string"))))
+  (when kaesar--Check
+    (funcall kaesar--Check encbyte-string)))
+
 (defun kaesar--check-unibyte-vector (vector)
   (mapc
    (lambda (x)
@@ -1064,28 +1064,6 @@ to create AES key and initial vector."
 ;;;
 
 ;;;###autoload
-(defun kaesar-encrypt-string (string &optional coding-system algorithm)
-  "Encrypt a well encoded STRING to encrypted string
-which can be decrypted by `kaesar-decrypt-string'.
-
-This function is a wrapper function of `kaesar-encrypt-bytes'
-to encrypt string."
-  (let ((unibytes (encode-coding-string
-                   string
-                   (or coding-system default-terminal-coding-system))))
-    (kaesar-encrypt-bytes unibytes algorithm)))
-
-;;;###autoload
-(defun kaesar-decrypt-string (encrypted-string &optional coding-system algorithm)
-  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt-string'.
-
-This function is a wrapper function of `kaesar-decrypt-bytes'
-to decrypt string"
-  (let ((unibytes (kaesar-decrypt-bytes encrypted-string algorithm)))
-    (decode-coding-string
-     unibytes (or coding-system default-terminal-coding-system))))
-
-;;;###autoload
 (defun kaesar-encrypt-bytes (unibyte-string &optional algorithm)
   "Encrypt a UNIBYTE-STRING with ALGORITHM.
 If no ALGORITHM is supplied, default value is `kaesar-algorithm'.
@@ -1114,6 +1092,28 @@ To suppress the password prompt, set password to `kaesar-password' as a vector."
                        "Password to decrypt: "))))
         (destructuring-bind (raw-key iv) (kaesar--bytes-to-key pass salt)
           (kaesar--decrypt-0 encbytes raw-key iv))))))
+
+;;;###autoload
+(defun kaesar-encrypt-string (string &optional coding-system algorithm)
+  "Encrypt a well encoded STRING to encrypted string
+which can be decrypted by `kaesar-decrypt-string'.
+
+This function is a wrapper function of `kaesar-encrypt-bytes'
+to encrypt string."
+  (let ((unibytes (encode-coding-string
+                   string
+                   (or coding-system default-terminal-coding-system))))
+    (kaesar-encrypt-bytes unibytes algorithm)))
+
+;;;###autoload
+(defun kaesar-decrypt-string (encrypted-string &optional coding-system algorithm)
+  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt-string'.
+
+This function is a wrapper function of `kaesar-decrypt-bytes'
+to decrypt string"
+  (let ((unibytes (kaesar-decrypt-bytes encrypted-string algorithm)))
+    (decode-coding-string
+     unibytes (or coding-system default-terminal-coding-system))))
 
 ;;;###autoload
 (defun kaesar-encrypt (unibyte-string key-text &optional algorithm iv-text)
