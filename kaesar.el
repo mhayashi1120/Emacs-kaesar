@@ -2,7 +2,7 @@
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
-;; URL: http://github.com/mhayashi1120/Emacs-kaesar/raw/master/kaesar.el
+;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/kaesar.el
 ;; Emacs: GNU Emacs 22 or later
 ;; Version: 0.1.0
 ;; Package-Requires: ()
@@ -75,8 +75,6 @@
 ;; http://csrc.nist.gov/archive/aes/rijndael/wsdindex.html
 ;; Rijndael algorithm
 
-;; * cleanup temporary vector? or simply garbage-collect?
-
 ;; * Block mode
 ;; done: ecb, cbc, ctr, ofb
 ;; todo: cfb, cfb1, cfb8, gcm
@@ -98,7 +96,9 @@
 Following algorithms are supported.
 
 aes-256-ecb, aes-192-ecb, aes-128-ecb,
-aes-256-cbc, aes-192-cbc, aes-128-cbc
+aes-256-cbc, aes-192-cbc, aes-128-cbc,
+aes-256-ofb, aes-192-ofb, aes-128-ofb,
+aes-256-ctr, aes-192-ctr, aes-128-ctr
 "
   :group 'kaesar
   :type '(choice
@@ -107,7 +107,13 @@ aes-256-cbc, aes-192-cbc, aes-128-cbc
           (const "aes-256-ecb")
           (const "aes-128-cbc")
           (const "aes-192-cbc")
-          (const "aes-256-cbc")))
+          (const "aes-256-cbc")
+          (const "aes-128-ofb")
+          (const "aes-192-ofb")
+          (const "aes-256-ofb")
+          (const "aes-128-ctr")
+          (const "aes-192-ctr")
+          (const "aes-256-ctr")))
 
 (defcustom kaesar-encrypt-prompt nil
   "Password prompt when read password to encrypt."
@@ -1121,7 +1127,8 @@ to decrypt string"
 KEY-TEXT arg expects valid length of hex string or vector (0 - 255).
 See `kaesar-algorithm' list the supported ALGORITHM .
 
-Low level API to encrypt like other implementation."
+This is a low level API to create the data which can be decrypted
+ by other implementation."
   (kaesar--with-algorithm algorithm
     (kaesar--check-unibytes unibyte-string)
     (let ((key (kaesar--validate-key key-text))
@@ -1132,7 +1139,7 @@ Low level API to encrypt like other implementation."
 (defun kaesar-decrypt (encrypted-string key-text &optional algorithm iv-text)
   "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt' with RAW-KEY.
 
-Low level API to decrypt data that was encrypted by other implementation."
+This is a low level API to decrypt data that was encrypted by other implementation."
   (kaesar--with-algorithm algorithm
     (kaesar--check-encrypted encrypted-string)
     (let ((key (kaesar--validate-key key-text))
