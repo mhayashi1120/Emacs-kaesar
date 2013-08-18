@@ -1,8 +1,8 @@
-;;; kaesar.el --- Another AES encryptin/decryptin string with password.
+;;; kaesar.el --- Another AES encryptin/decryptin. (string with password)
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
-;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/kaesar.el
+;; URL: http://github.com/mhayashi1120/Emacs-kaesar/raw/master/kaesar.el
 ;; Emacs: GNU Emacs 22 or later
 ;; Version: 0.1.0
 ;; Package-Requires: ()
@@ -192,7 +192,7 @@ This is a hiding parameter which hold password as vector.")
 (defvar kaesar--Block (* kaesar--Nb kaesar--Row))
 
 ;; size of IV (Initial Vector)
-(defvar kaesar--IV)
+(defvar kaesar--IV kaesar--Block)
 
 (defvar kaesar--Algorithm)
 
@@ -245,10 +245,11 @@ This is a hiding parameter which hold password as vector.")
 (defmacro kaesar--with-algorithm (algorithm &rest form)
   (declare (indent 1))
   (let ((cipher (make-symbol "cipher"))
-        (block-mode (make-symbol "block-mode")))
-    `(let ((kaesar--Algorithm (or ,algorithm kaesar-algorithm)))
+        (block-mode (make-symbol "block-mode"))
+        (algo-var (make-symbol "algo-var")))
+    `(let ((,algo-var (or ,algorithm kaesar-algorithm)))
        (destructuring-bind (,cipher ,block-mode)
-           (kaesar--parse-algorithm kaesar--Algorithm)
+           (kaesar--parse-algorithm ,algo-var)
          (kaesar--cipher-algorithm ,cipher
            (kaesar--block-algorithm ,block-mode
              ,@form))))))
@@ -566,16 +567,6 @@ to create AES key and initial vector."
                (setq res (cons word res))))
     (nreverse res)))
 
-(defun kaesar--key-make-block (expanded-key)
-  (loop for xs on expanded-key by (lambda (x) (nthcdr 4 xs))
-        collect (vector (nth 0 xs) (nth 1 xs) (nth 2 xs) (nth 3 xs))
-        into res
-        finally return (vconcat res)))
-
-(defun kaesar--expand-to-block-key (key)
-  (let ((raw-key (kaesar--key-expansion key)))
-    (kaesar--key-make-block raw-key)))
-
 (eval-when-compile
   (defsubst kaesar--add-round-key! (state key)
     (kaesar--word-xor! (aref state 0) (aref key 0))
@@ -762,7 +753,7 @@ to create AES key and initial vector."
     (aset word 3 (aref kaesar--inv-S-box (aref word 3)))
     word))
 
-;; Not used integrate to `kaesar--inv-sub/shift-row!'
+;; No longer used, integrated to `kaesar--inv-sub/shift-row!' `kaesar--sub/shift-row!'
 ;; (defsubst kaesar--sub-bytes! (state)
 ;;   (mapc 'kaesar--sub-word! state))
 ;;
@@ -918,6 +909,16 @@ to create AES key and initial vector."
 ;; inner functions
 ;;
 
+(defun kaesar--key-make-block (expanded-key)
+  (loop for xs on expanded-key by (lambda (x) (nthcdr 4 xs))
+        collect (vector (nth 0 xs) (nth 1 xs) (nth 2 xs) (nth 3 xs))
+        into res
+        finally return (vconcat res)))
+
+(defun kaesar--expand-to-block-key (key)
+  (let ((raw-key (kaesar--key-expansion key)))
+    (kaesar--key-make-block raw-key)))
+
 (defun kaesar--encrypt-0 (unibyte-string raw-key &optional iv)
   "Encrypt UNIBYTE-STRING and return encrypted text as unibyte string."
   (let* ((key (kaesar--expand-to-block-key raw-key))
@@ -937,6 +938,15 @@ to create AES key and initial vector."
 ;; (should-error (kaesar--check-unibyte-vector [a]))
 ;; (should-error (kaesar--check-unibyte-vector "a"))
 ;; (should-error (kaesar--check-unibyte-vector (decode-coding-string "\343\201\202" 'utf-8)))
+;; (kaesar--with-algorithm "aes-128-cbc"
+;;   (should (equal (make-vector 16 170) (kaesar--validate-key "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")))
+;;   (should (equal (make-vector 16 170) (kaesar--validate-key "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")))
+;;   (should (equal (make-vector 16 ?a) (kaesar--validate-key "aaaaaaaaaaaaaaaa")))
+;;   (should-error (kaesar--validate-key "aaaaaaaaaaaaaaa"))
+;;   (should (equal (make-vector 16 ?b) (kaesar--validate-key (make-vector 16 ?b))))
+;;   )
+
+;;TODO consider threshold of encrypt size
 
 (defun kaesar--check-unibyte-vector (vector)
   (mapc
@@ -945,31 +955,28 @@ to create AES key and initial vector."
        (error "Invalid unibyte vector")))
    vector))
 
-(defun kaesar--check-key (key)
-  (let ((keylength (* kaesar--Nk 4))
-        veckey)
-    (cond
-     ((and (stringp key)
-           (string-match "\\`[0-9a-fA-F]+\\'" key))
-      (setq veckey (kaesar--hex-to-vector key)))
-     ((vectorp key)
-      (setq veckey (kaesar--check-unibyte-vector key)))
-     (t
-      (error "Not supported key format")))
+(defun kaesar--validate-input-bytes (bytes require-length)
+  (cond
+   ((and (stringp bytes)
+         (string-match "\\`[0-9a-fA-F][0-9a-fA-F]+\\'" bytes)
+         (= (/ (length bytes) 2) require-length))
+    (kaesar--hex-to-vector bytes))
+   ((stringp bytes)
+    (kaesar--check-unibyte-vector (vconcat bytes)))
+   ((vectorp bytes)
+    (kaesar--check-unibyte-vector bytes))
+   (t
+    (error "Not supported byte stream format"))))
+
+(defun kaesar--validate-key (key)
+  (let* ((keylength (* kaesar--Nk 4))
+         (veckey (kaesar--validate-input-bytes key keylength)))
     (unless (eq keylength (length veckey))
       (error "Invalid key length (Must be %d bytes)" keylength))
     veckey))
 
-(defun kaesar--check-iv (iv)
-  (let (veciv)
-    (cond
-     ((and (stringp iv)
-           (string-match "\\`[0-9a-fA-F]+\\'" iv))
-      (setq veciv (kaesar--hex-to-vector iv)))
-     ((vectorp iv)
-      (setq veciv (kaesar--check-unibyte-vector iv)))
-     (t
-      (error "Not supported key format")))
+(defun kaesar--validate-iv (iv)
+  (let ((veciv (kaesar--validate-input-bytes iv kaesar--IV)))
     (unless (eq kaesar--IV (length veciv))
       (error "Invalid length of IV (Must be %d byte(s))" kaesar--IV))
     veciv))
@@ -1003,6 +1010,7 @@ to decrypt string"
 ;;;###autoload
 (defun kaesar-encrypt-bytes (unibyte-string &optional algorithm)
   "Encrypt a UNIBYTE-STRING with ALGORITHM.
+If no ALGORITHM is supplied, default value is `kaesar-algorithm'.
 See `kaesar-algorithm' list of the supported ALGORITHM .
 
 To suppress the password prompt, set password to `kaesar-password' as a vector."
@@ -1030,26 +1038,28 @@ To suppress the password prompt, set password to `kaesar-password' as a vector."
           (kaesar--decrypt-0 encbytes raw-key iv))))))
 
 ;;;###autoload
-(defun kaesar-encrypt (unibyte-string raw-key &optional algorithm iv)
-  "Encrypt a UNIBYTE-STRING with ALGORITHM and RAW-KEY (Before expansion).
-RAW-KEY before expansion which expects valid length of hex string or vector (0 - 255).
+(defun kaesar-encrypt (unibyte-string key-text &optional algorithm iv-text)
+  "Encrypt a UNIBYTE-STRING with KEY-TEXT (Before expansion).
+KEY-TEXT arg expects valid length of hex string or vector (0 - 255).
 See `kaesar-algorithm' list the supported ALGORITHM .
 
 Low level API to encrypt like other implementation."
   (kaesar--check-unibytes unibyte-string)
   (kaesar--with-algorithm algorithm
-    (let ((key (kaesar--check-key raw-key)))
+    (let ((key (kaesar--validate-key key-text))
+          (iv (and iv-text (kaesar--validate-iv iv-text))))
       (kaesar--encrypt-0 unibyte-string key iv))))
 
 ;;;###autoload
-(defun kaesar-decrypt (encrypted-string raw-key &optional algorithm iv)
+(defun kaesar-decrypt (encrypted-string key-text &optional algorithm iv-text)
   "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt' with RAW-KEY.
 
 Low level API to decrypt data that was encrypted by other implementation."
   (kaesar--check-encrypted encrypted-string)
-    (kaesar--with-algorithm algorithm
-      (let ((key (kaesar--check-key raw-key)))
-        (kaesar--decrypt-0 encrypted-string key iv))))
+  (kaesar--with-algorithm algorithm
+    (let ((key (kaesar--validate-key key-text))
+          (iv (and iv-text (kaesar--validate-iv iv-text))))
+      (kaesar--decrypt-0 encrypted-string key iv))))
 
 (provide 'kaesar)
 
