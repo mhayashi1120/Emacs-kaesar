@@ -274,6 +274,15 @@ This is a hiding parameter which hold password as vector.")
 ;;
 
 (eval-when-compile
+  (defsubst kaesar--construct-state ()
+    (loop for r from 0 below kaesar--Row
+          with state = (make-vector kaesar--Row nil)
+          do (loop repeat kaesar--Row
+                   with word = (make-vector kaesar--Nb nil)
+                   do (aset state r word))
+          finally return state)))
+
+(eval-when-compile
   (defsubst kaesar--unibytes-to-state (unibytes start)
     (loop for r from 0 below kaesar--Row
           with state = (make-vector kaesar--Row nil)
@@ -292,6 +301,49 @@ This is a hiding parameter which hold password as vector.")
                         (aset word c (aref unibytes i))
                         (setq i (1+ i)))))
           finally return state)))
+
+(eval-when-compile
+  (defsubst kaesar--load-state! (state unibytes start)
+    (loop for word across state
+          with i = start
+          with len = (length unibytes)
+          do (loop for b from 0 below (length word)
+                   do (progn
+                        (cond
+                         ((= i len)
+                          (aset word b (- kaesar--Block (- i start))))
+                         (t
+                          (aset word b (aref unibytes i))
+                          (setq i (1+ i))))))
+          finally return state)))
+
+(eval-when-compile
+  (defsubst kaesar--load-unibytes! (state unibyte-string pos)
+    (let* ((len (length unibyte-string))
+           (end-pos (min len (+ pos kaesar--Block)))
+           (state (kaesar--load-state! state unibyte-string pos))
+           (rest (if (and (= len end-pos)
+                          (< (- end-pos pos) kaesar--Block))
+                     nil end-pos)))
+      rest)))
+
+(eval-when-compile
+  (defsubst kaesar--load-unibytes! (state unibyte-string pos)
+    (let* ((len (length unibyte-string))
+           (end-pos (min len (+ pos kaesar--Block)))
+           (state (kaesar--load-state! state unibyte-string pos))
+           (rest (if (and (= len end-pos)
+                          (< (- end-pos pos) kaesar--Block))
+                     nil end-pos)))
+      rest)))
+
+(eval-when-compile
+  (defsubst kaesar--load-encbytes! (state unibyte-string pos)
+    (let* ((len (length unibyte-string))
+           (end-pos (min len (+ pos kaesar--Block)))
+           (state (kaesar--load-state! state unibyte-string pos))
+           (rest (if (= len end-pos) nil end-pos)))
+      rest)))
 
 (eval-when-compile
   (defsubst kaesar--read-unibytes (unibyte-string pos)
@@ -866,30 +918,37 @@ to create AES key and initial vector."
 (defun kaesar--cbc-encrypt (unibyte-string key iv)
   (loop with pos = 0
         with state-1 = (kaesar--unibytes-to-state iv 0)
-        append (let* ((parsed (kaesar--read-unibytes unibyte-string pos))
-                      (state (nth 0 parsed))
+        with state = (kaesar--construct-state)
+        ;; state-1 <-> state is swapped in this loop to decrease
+        ;; allocating the new vector.
+        append (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
                       (_ (kaesar--state-xor! state state-1))
-                      (_ (kaesar--cipher! state key)))
-                 (setq pos (nth 1 parsed))
+                      (_ (kaesar--cipher! state key))
+                      (bytes (kaesar--state-to-bytes state))
+                      (swap state-1))
+                 (setq pos rest)
                  (setq state-1 state)
-                 (kaesar--state-to-bytes state))
+                 (setq state swap)
+                 bytes)
         while pos))
 
 (defun kaesar--cbc-decrypt (encbyte-string key iv)
   (loop with pos = 0
         with state-1 = (kaesar--unibytes-to-state iv 0)
         ;; create state as empty table
-        with state = (kaesar--unibytes-to-state "" 0)
+        with state = (kaesar--construct-state)
+        with state0 = (kaesar--construct-state)
         with res = '()
-        do (let* ((parsed (kaesar--read-encbytes encbyte-string pos))
-                  (state0 (nth 0 parsed))
+        do (let* ((rest (kaesar--load-encbytes! state encbyte-string pos))
+                  (_ (kaesar--state-copy! state0 state))
                   ;; Clone state cause of `kaesar--inv-cipher!' have side-effect
-                  (_ (kaesar--state-copy! state state0))
                   (_ (kaesar--inv-cipher! state key))
                   (_ (kaesar--state-xor! state state-1))
-                  (bytes (kaesar--state-to-bytes state)))
-             (setq pos (nth 1 parsed))
+                  (bytes (kaesar--state-to-bytes state))
+                  (swap state-1))
+             (setq pos rest)
              (setq state-1 state0)
+             (setq state0 swap)
              (setq res (nconc (nreverse bytes) res)))
         while pos
         finally return (kaesar--check-decrypted res)))
