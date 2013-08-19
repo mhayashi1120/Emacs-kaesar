@@ -338,24 +338,6 @@ This is a hiding parameter which hold password as vector.")
       rest)))
 
 (eval-when-compile
-  (defsubst kaesar--read-unibytes (unibyte-string pos)
-    (let* ((len (length unibyte-string))
-           (end-pos (min len (+ pos kaesar--Block)))
-           (state (kaesar--unibytes-to-state unibyte-string pos))
-           (rest (if (and (= len end-pos)
-                          (< (- end-pos pos) kaesar--Block))
-                     nil end-pos)))
-      (list state rest))))
-
-(eval-when-compile
-  (defsubst kaesar--read-encbytes (encbyte-string pos)
-    (let* ((len (length encbyte-string))
-           (end-pos (min len (+ pos kaesar--Block)))
-           (state (kaesar--unibytes-to-state encbyte-string pos))
-           (rest (if (= len end-pos) nil end-pos)))
-      (list state rest))))
-
-(eval-when-compile
   (defsubst kaesar--state-to-bytes (state)
     (let (res)
       (mapc
@@ -909,6 +891,7 @@ to create AES key and initial vector."
 
 (defun kaesar--cbc-encrypt (unibyte-string key iv)
   (loop with pos = 0
+        ;;TODO when iv is nil
         with state-1 = (kaesar--unibytes-to-state iv 0)
         with state = (kaesar--construct-state)
         ;; state-1 <-> state is swapped in this loop to decrease
@@ -975,11 +958,11 @@ to create AES key and initial vector."
   (loop with pos = 0
         with h = (kaesar--unibytes-to-state iv 0)
         with res = '()
-        do (let* ((parse (kaesar--read-unibytes unibyte-string pos))
-                  (state (nth 0 parse))
+        with state = (kaesar--construct-state)
+        do (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
                   (_ (kaesar--cipher! h key))
                   (_ (kaesar--state-xor! state h)))
-             (setq pos (nth 1 parse))
+             (setq pos rest)
              (setq res (nconc (nreverse (kaesar--state-to-bytes state)) res)))
         while pos
         finally return
@@ -1022,9 +1005,9 @@ to create AES key and initial vector."
   (loop with pos = 0
         with r = (kaesar--unibytes-to-state iv 0)
         with res = '()
+        with state = (kaesar--construct-state)
         with save-r = (kaesar--construct-state)
-        do (let* ((parse (kaesar--read-unibytes unibyte-string pos))
-                  (state (nth 0 parse))
+        do (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
                   (_ (kaesar--state-copy! save-r r))
                   (_ (kaesar--cipher! r key))
                   (_ (kaesar--state-xor! state r))
@@ -1033,7 +1016,7 @@ to create AES key and initial vector."
              (kaesar--ctr-increment! save-r)
              (setq save-r r)
              (setq r swap)
-             (setq pos (nth 1 parse))
+             (setq pos rest)
              (setq res (nconc (nreverse bytes) res)))
         while pos
         finally return
@@ -1119,9 +1102,12 @@ to create AES key and initial vector."
     (kaesar--check-unibyte-vector (vconcat bytes)))
    ((vectorp bytes)
     (kaesar--check-unibyte-vector bytes))
+   ((eq nil bytes)
+    (make-vector require-length 0))
    (t
     (error "Not supported unibytes format"))))
 
+;;TODO  consider imp fill left bytes?
 (defun kaesar--validate-key (key)
   (let* ((keylength (* kaesar--Nk 4))
          (veckey (kaesar--validate-input-bytes key keylength)))
@@ -1129,6 +1115,7 @@ to create AES key and initial vector."
       (error "Invalid key length (Must be %d bytes)" keylength))
     veckey))
 
+;;TODO  consider imp fill left bytes?
 (defun kaesar--validate-iv (iv)
   (let ((veciv (kaesar--validate-input-bytes iv kaesar--IV)))
     (unless (eq kaesar--IV (length veciv))
@@ -1193,29 +1180,29 @@ to decrypt string"
 
 ;;TODO maybe iv is required
 ;;;###autoload
-(defun kaesar-encrypt (unibyte-string key-text &optional algorithm iv-text)
-  "Encrypt a UNIBYTE-STRING with KEY-TEXT (Before expansion).
-KEY-TEXT arg expects valid length of hex string or vector (0 - 255).
+(defun kaesar-encrypt (unibyte-string key-input &optional iv-input algorithm)
+  "Encrypt a UNIBYTE-STRING with KEY-INPUT (Before expansion).
+KEY-INPUT arg expects valid length of hex string or vector (0 - 255).
 See `kaesar-algorithm' list the supported ALGORITHM .
 
 This is a low level API to create the data which can be decrypted
  by other implementation."
   (kaesar--with-algorithm algorithm
     (kaesar--check-unibytes unibyte-string)
-    (let ((key (kaesar--validate-key key-text))
-          (iv (and iv-text (kaesar--validate-iv iv-text))))
+    (let ((key (kaesar--validate-key key-input))
+          (iv (kaesar--validate-iv iv-input)))
       (kaesar--encrypt-0 unibyte-string key iv))))
 
 ;;TODO maybe iv is required
 ;;;###autoload
-(defun kaesar-decrypt (encrypted-string key-text &optional algorithm iv-text)
-  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt' with RAW-KEY.
+(defun kaesar-decrypt (encrypted-string key-input &optional iv-input algorithm)
+  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt' with KEY-INPUT.
 
 This is a low level API to decrypt data that was encrypted by other implementation."
   (kaesar--with-algorithm algorithm
     (kaesar--check-encrypted encrypted-string)
-    (let ((key (kaesar--validate-key key-text))
-          (iv (and iv-text (kaesar--validate-iv iv-text))))
+    (let ((key (kaesar--validate-key key-input))
+          (iv (kaesar--validate-iv iv-input)))
       (kaesar--decrypt-0 encrypted-string key iv))))
 
 (provide 'kaesar)
