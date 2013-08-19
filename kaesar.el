@@ -136,6 +136,7 @@ This is a hiding parameter which hold password as vector.")
 
 (defun kaesar--read-passwd (prompt &optional confirm)
   (or (and (vectorp kaesar-password)
+           ;;TODO multibyte char
            ;; do not clear external password.
            (vconcat kaesar-password))
       (vconcat (read-passwd prompt confirm))))
@@ -191,6 +192,7 @@ This is a hiding parameter which hold password as vector.")
     ))
 
 ;; Block size
+;; TODO kaesar support only 4 Number of Block
 (defvar kaesar--Nb 4)
 
 ;; Key length
@@ -316,16 +318,6 @@ This is a hiding parameter which hold password as vector.")
                           (aset word b (aref unibytes i))
                           (setq i (1+ i))))))
           finally return state)))
-
-(eval-when-compile
-  (defsubst kaesar--load-unibytes! (state unibyte-string pos)
-    (let* ((len (length unibyte-string))
-           (end-pos (min len (+ pos kaesar--Block)))
-           (state (kaesar--load-state! state unibyte-string pos))
-           (rest (if (and (= len end-pos)
-                          (< (- end-pos pos) kaesar--Block))
-                     nil end-pos)))
-      rest)))
 
 (eval-when-compile
   (defsubst kaesar--load-unibytes! (state unibyte-string pos)
@@ -956,22 +948,22 @@ to create AES key and initial vector."
 ;;TODO consider dummy args
 (defun kaesar--ecb-encrypt (unibyte-string key &rest dummy)
   (loop with pos = 0
-        append (let* ((parse (kaesar--read-unibytes unibyte-string pos))
-                      (state (nth 0 parse))
+        with state = (kaesar--construct-state)
+        append (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
                       (_ (kaesar--cipher! state key))
                       (bytes (kaesar--state-to-bytes state)))
-                 (setq pos (nth 1 parse))
+                 (setq pos rest)
                  bytes)
         while pos))
 
 (defun kaesar--ecb-decrypt (encbyte-string key &rest dummy)
   (loop with pos = 0
         with res = '()
-        do (let* ((parse (kaesar--read-encbytes encbyte-string pos))
-                  (state (nth 0 parse))
+        with state = (kaesar--construct-state)
+        do (let* ((rest (kaesar--load-encbytes! state encbyte-string pos))
                   (_ (kaesar--inv-cipher! state key))
                   (bytes (kaesar--state-to-bytes state)))
-             (setq pos (nth 1 parse))
+             (setq pos rest)
              (setq res (nconc (nreverse bytes) res)))
         while pos
         finally return (kaesar--check-decrypted res)))
@@ -1000,11 +992,28 @@ to create AES key and initial vector."
           do (aset vec i (% (1+ i) ?\x100))
           finally return vec)))
 
+;;TODO
+;; (let ((s [[255 255 255 255] [255 255 255 255] [255 255 255 255] [255 255 255 254]]))
+;;   (kaesar--ctr-increment! s)
+;;   (should (equal [[255 255 255 255] [255 255 255 255] [255 255 255 255] [255 255 255 255]] s))
+;;   (kaesar--ctr-increment! s)
+;;   (should (equal [[0 0 0 0] [0 0 0 0] [0 0 0 0] [0 0 0 0]] s))
+;;   (kaesar--ctr-increment! s)
+;;   (should (equal [[0 0 0 0] [0 0 0 0] [0 0 0 0] [0 0 0 1]] s))
+;;   s)
+
 (defun kaesar--ctr-increment! (state)
-  (loop with table = kaesar--ctr-increment-byte-table
-        for w across state
-        do (loop for i from 0 below (length w)
-                 do (aset w i (aref table (aref w i))))))
+  (catch 'done
+    (loop with table = kaesar--ctr-increment-byte-table
+          for wordidx downfrom (1- (length state)) downto 0
+          do
+          (loop with word = (aref state wordidx)
+                for idx downfrom (1- (length word)) downto 0
+                do
+                (let ((inc (aref table (aref word idx))))
+                  (aset word idx inc)
+                  (when (/= inc 0)
+                    (throw 'done t)))))))
 
 ;;TODO test
 ;; Encrypt: Ci = Mi + Ek(Ri), Ri+1 = Ri + 1
@@ -1013,15 +1022,17 @@ to create AES key and initial vector."
   (loop with pos = 0
         with r = (kaesar--unibytes-to-state iv 0)
         with res = '()
-        with next = (kaesar--unibytes-to-state "" 0)
+        with save-r = (kaesar--construct-state)
         do (let* ((parse (kaesar--read-unibytes unibyte-string pos))
                   (state (nth 0 parse))
-                  (_ (kaesar--state-copy! next r))
+                  (_ (kaesar--state-copy! save-r r))
                   (_ (kaesar--cipher! r key))
                   (_ (kaesar--state-xor! state r))
-                  (bytes (kaesar--state-to-bytes state)))
-             (kaesar--ctr-increment! next)
-             (setq r next)
+                  (bytes (kaesar--state-to-bytes state))
+                  (swap save-r))
+             (kaesar--ctr-increment! save-r)
+             (setq save-r r)
+             (setq r swap)
              (setq pos (nth 1 parse))
              (setq res (nconc (nreverse bytes) res)))
         while pos
@@ -1109,7 +1120,7 @@ to create AES key and initial vector."
    ((vectorp bytes)
     (kaesar--check-unibyte-vector bytes))
    (t
-    (error "Not supported byte stream format"))))
+    (error "Not supported unibytes format"))))
 
 (defun kaesar--validate-key (key)
   (let* ((keylength (* kaesar--Nk 4))
@@ -1180,6 +1191,7 @@ to decrypt string"
     (decode-coding-string
      unibytes (or coding-system default-terminal-coding-system))))
 
+;;TODO maybe iv is required
 ;;;###autoload
 (defun kaesar-encrypt (unibyte-string key-text &optional algorithm iv-text)
   "Encrypt a UNIBYTE-STRING with KEY-TEXT (Before expansion).
@@ -1194,6 +1206,7 @@ This is a low level API to create the data which can be decrypted
           (iv (and iv-text (kaesar--validate-iv iv-text))))
       (kaesar--encrypt-0 unibyte-string key iv))))
 
+;;TODO maybe iv is required
 ;;;###autoload
 (defun kaesar-decrypt (encrypted-string key-text &optional algorithm iv-text)
   "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt' with RAW-KEY.
