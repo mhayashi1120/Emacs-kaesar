@@ -92,7 +92,7 @@
   :group 'data)
 
 (defcustom kaesar-algorithm "aes-256-cbc"
-  "Cipher algorithm to encrypt a message.
+  "Cipher default algorithm to encrypt/decrypt a message.
 Following algorithms are supported.
 
 aes-256-ecb, aes-192-ecb, aes-128-ecb,
@@ -125,21 +125,25 @@ aes-256-ctr, aes-192-ctr, aes-128-ctr
   :group 'kaesar
   :type 'string)
 
-(defvar kaesar--Enc)
-(defvar kaesar--Dec)
-;;TODO rename
-(defvar kaesar--Check)
+(defvar kaesar--encorder)
+(defvar kaesar--decorder)
+(defvar kaesar--check-before-decrypt)
 
 (defvar kaesar-password nil
   "To suppress the minibuffer prompt.
 This is a hiding parameter which hold password as vector.")
 
 (defun kaesar--read-passwd (prompt &optional confirm)
-  (or (and (vectorp kaesar-password)
-           ;;TODO multibyte char
-           ;; do not clear external password.
-           (vconcat kaesar-password))
-      (vconcat (read-passwd prompt confirm))))
+  (cond
+   ((and (vectorp kaesar-password)
+         (ignore-errors (kaesar--check-unibyte-vector kaesar-password)))
+    ;; do not clear external password.
+    (vconcat kaesar-password))
+   ((and (stringp kaesar-password)
+         (not (multibyte-string-p kaesar-password)))
+    (vconcat kaesar-password))
+   (t
+    (vconcat (read-passwd prompt confirm)))))
 
 ;; Basic utilities
 
@@ -169,31 +173,9 @@ This is a hiding parameter which hold password as vector.")
     (aes-256 8 4 14)
     ))
 
-(defconst kaesar--block-algorithm-alist
-  '(
-    ;; Electronic CodeBook
-    (ecb
-     kaesar--ecb-encrypt kaesar--ecb-decrypt
-     kaesar--check-block-bytes 0)
-    ;; Cipher Block Chaining
-    (cbc
-     kaesar--cbc-encrypt kaesar--cbc-decrypt
-     kaesar--check-block-bytes kaesar--Block)
-    ;; Output FeedBack
-    (ofb
-     kaesar--ofb-encrypt kaesar--ofb-encrypt
-     nil kaesar--Block)
-
-    ;; CounTeR (Other word, `KAK' Key Auto-Key)
-    (ctr
-     kaesar--ctr-encrypt kaesar--ctr-encrypt
-     ;;TODO check
-     nil kaesar--Block)
-    ))
-
 ;; Block size
-;; TODO kaesar support only 4 Number of Block
-(defvar kaesar--Nb 4)
+(defconst kaesar--Nb 4
+  "kaesar support only 4 Number of Blocks")
 
 ;; Key length
 (defvar kaesar--Nk 8)
@@ -204,12 +186,32 @@ This is a hiding parameter which hold password as vector.")
 ;; count of row in State
 (defconst kaesar--Row 4)
 ;; size of State
-(defvar kaesar--Block (* kaesar--Nb kaesar--Row))
+(defconst kaesar--Block (* kaesar--Nb kaesar--Row))
 
 ;; size of IV (Initial Vector)
 (defvar kaesar--IV kaesar--Block)
 
-(defvar kaesar--Algorithm)
+(defconst kaesar--block-algorithm-alist
+  `(
+    ;; Electronic CodeBook
+    (ecb
+     kaesar--ecb-encrypt kaesar--ecb-decrypt
+     kaesar--check-block-bytes 0)
+    ;; Cipher Block Chaining
+    (cbc
+     kaesar--cbc-encrypt kaesar--cbc-decrypt
+     kaesar--check-block-bytes ,kaesar--Block)
+    ;; Output FeedBack
+    (ofb
+     kaesar--ofb-encrypt kaesar--ofb-encrypt
+     nil ,kaesar--Block)
+
+    ;; CounTeR (Other word, `KAK' Key Auto-Key)
+    (ctr
+     kaesar--ctr-encrypt kaesar--ctr-encrypt
+     ;;TODO check
+     nil ,kaesar--Block)
+    ))
 
 (eval-and-compile
   (defconst kaesar--pkcs5-salt-length 8))
@@ -223,7 +225,10 @@ This is a hiding parameter which hold password as vector.")
      "\\(aes-\\(?:128\\|192\\|256\\)\\)"
      "-"
      (regexp-opt
-      '("ecb" "cbc" "ofb" "ctr") t)
+      (mapcar
+       (lambda (p)
+         (symbol-name (car p)))
+       kaesar--block-algorithm-alist) t)
      "\\'")))
 
 (defun kaesar--parse-algorithm (name)
@@ -232,7 +237,6 @@ This is a hiding parameter which hold password as vector.")
   (list (intern (match-string 1 name))
         (intern (match-string 2 name))))
 
-;;TODO reconsider it
 (defmacro kaesar--cipher-algorithm (algorithm &rest form)
   (declare (indent 1))
   (let ((cell (make-symbol "cell")))
@@ -240,23 +244,24 @@ This is a hiding parameter which hold password as vector.")
        (unless ,cell
          (error "%s is not supported" ,algorithm))
        (let* ((kaesar--Nk (nth 1 ,cell))
-              (kaesar--Nb (nth 2 ,cell))
+              ;; kaesar--Nb is constant
+              ;; (kaesar--Nb (nth 2 ,cell))
               (kaesar--Nr (nth 3 ,cell))
-              (kaesar--Block (* kaesar--Nb kaesar--Row)))
+              ;; kaesar--Block is constant
+              ;; (kaesar--Block (* kaesar--Nb kaesar--Row))
+              )
          ,@form))))
 
-;;TODO reconsider it
 (defmacro kaesar--block-algorithm (algorithm &rest form)
   (declare (indent 1))
   (let ((cell (make-symbol "cell")))
     `(let ((,cell (assq ,algorithm kaesar--block-algorithm-alist)))
        (unless ,cell
          (error "%s is not supported" ,algorithm))
-       (let* ((kaesar--Enc (nth 1 ,cell))
-              (kaesar--Dec (nth 2 ,cell))
-              (kaesar--Check (nth 3 ,cell))
-              ;;TODO risky-local-variable?
-              (kaesar--IV (eval (nth 4 ,cell))))
+       (let* ((kaesar--encorder (nth 1 ,cell))
+              (kaesar--decorder (nth 2 ,cell))
+              (kaesar--check-before-decrypt (nth 3 ,cell))
+              (kaesar--IV (nth 4 ,cell)))
          ,@form))))
 
 (defmacro kaesar--with-algorithm (algorithm &rest form)
@@ -1039,13 +1044,13 @@ to create AES key and initial vector."
 (defun kaesar--encrypt-0 (unibyte-string raw-key &optional iv)
   "Encrypt UNIBYTE-STRING and return encrypted text as unibyte string."
   (let* ((key (kaesar--expand-to-block-key raw-key))
-         (encrypted (funcall kaesar--Enc unibyte-string key iv)))
+         (encrypted (funcall kaesar--encorder unibyte-string key iv)))
     (apply 'kaesar--unibyte-string encrypted)))
 
 (defun kaesar--decrypt-0 (encbyte-string raw-key &optional iv)
   "Decrypt ENCBYTE-STRING and return decrypted text as unibyte string"
   (let ((key (kaesar--expand-to-block-key raw-key)))
-    (let ((decrypted (funcall kaesar--Dec encbyte-string key iv)))
+    (let ((decrypted (funcall kaesar--decorder encbyte-string key iv)))
       (apply 'kaesar--unibyte-string decrypted))))
 
 ;;TODO test
@@ -1082,8 +1087,8 @@ to create AES key and initial vector."
    ((stringp encbyte-string)
     (when (multibyte-string-p encbyte-string)
       (error "Not a encrypted string"))))
-  (when kaesar--Check
-    (funcall kaesar--Check encbyte-string)))
+  (when kaesar--check-before-decrypt
+    (funcall kaesar--check-before-decrypt encbyte-string)))
 
 (defun kaesar--check-unibyte-vector (vector)
   (mapc
