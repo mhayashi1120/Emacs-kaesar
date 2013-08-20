@@ -317,9 +317,14 @@
       (kaesar-test-should results bytes))))
 
 (defun kaesar-test-enc/dec (raw-bytes &optional algorithm)
-  (flet ((read-passwd (&rest dummy) (copy-seq "d")))
+  (let ((kaesar-password "d"))
     (kaesar-test-should raw-bytes
       (kaesar-decrypt-bytes (kaesar-encrypt-bytes raw-bytes algorithm) algorithm))))
+
+(defun kaesar-test--pseudo-old-reader (string pos)
+  (let* ((s (kaesar--construct-state))
+         (rest (kaesar--load-unibytes! s string 0)))
+    (list s rest)))
 
 (ert-deftest kaesar-test--rot ()
   :tags '(kaesar)
@@ -457,7 +462,7 @@
 
   ;; check accept vector
   (kaesar-test-should "abcdefg"
-    (flet ((read-passwd (&rest dummy) (copy-seq "d")))
+    (let ((kaesar-password "d"))
       (kaesar-decrypt-bytes (kaesar-encrypt-bytes (vconcat "abcdefg")))))
 
   ;; less than block size
