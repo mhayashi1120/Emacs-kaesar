@@ -174,8 +174,9 @@ This is a hiding parameter which hold password as vector.")
     ))
 
 ;; Block size
-(defconst kaesar--Nb 4
-  "kaesar support only 4 Number of Blocks")
+(eval-and-compile
+  (defconst kaesar--Nb 4
+    "kaesar support only 4 Number of Blocks"))
 
 ;; Key length
 (defvar kaesar--Nk 8)
@@ -184,34 +185,39 @@ This is a hiding parameter which hold password as vector.")
 (defvar kaesar--Nr 14)
 
 ;; count of row in State
-(defconst kaesar--Row 4)
+(eval-and-compile
+  (defconst kaesar--Row 4))
+
 ;; size of State
-(defconst kaesar--Block (* kaesar--Nb kaesar--Row))
+(eval-and-compile
+  (defconst kaesar--Block
+    (* kaesar--Nb kaesar--Row)))
 
 ;; size of IV (Initial Vector)
 (defvar kaesar--IV kaesar--Block)
 
-(defconst kaesar--block-algorithm-alist
-  `(
-    ;; Electronic CodeBook
-    (ecb
-     kaesar--ecb-encrypt kaesar--ecb-decrypt
-     kaesar--check-block-bytes 0)
-    ;; Cipher Block Chaining
-    (cbc
-     kaesar--cbc-encrypt kaesar--cbc-decrypt
-     kaesar--check-block-bytes ,kaesar--Block)
-    ;; Output FeedBack
-    (ofb
-     kaesar--ofb-encrypt kaesar--ofb-encrypt
-     nil ,kaesar--Block)
+(eval-and-compile
+  (defconst kaesar--block-algorithm-alist
+    `(
+      ;; Electronic CodeBook
+      (ecb
+       kaesar--ecb-encrypt kaesar--ecb-decrypt
+       kaesar--check-block-bytes 0)
+      ;; Cipher Block Chaining
+      (cbc
+       kaesar--cbc-encrypt kaesar--cbc-decrypt
+       kaesar--check-block-bytes ,kaesar--Block)
+      ;; Output FeedBack
+      (ofb
+       kaesar--ofb-encrypt kaesar--ofb-encrypt
+       nil ,kaesar--Block)
 
-    ;; CounTeR (Other word, `KAK' Key Auto-Key)
-    (ctr
-     kaesar--ctr-encrypt kaesar--ctr-encrypt
-     ;;TODO check
-     nil ,kaesar--Block)
-    ))
+      ;; CounTeR (Other word, `KAK' Key Auto-Key)
+      (ctr
+       kaesar--ctr-encrypt kaesar--ctr-encrypt
+       ;;TODO check
+       nil ,kaesar--Block)
+      )))
 
 (eval-and-compile
   (defconst kaesar--pkcs5-salt-length 8))
