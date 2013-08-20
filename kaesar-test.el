@@ -228,7 +228,9 @@
 
 (defun kaesar--test-unibytes-to-state (string)
   (kaesar--cipher-algorithm 'aes-256
-    (car (kaesar--read-unibytes string 0))))
+    (let ((s (kaesar--construct-state)))
+      (kaesar--load-unibytes! s string 0)
+      s)))
 
 (defun kaesar--test-view-to-state (array)
   (let ((ret (make-vector (* kaesar--Row kaesar--Nb) nil)))
@@ -362,16 +364,16 @@
   
   (kaesar--cipher-algorithm 'aes-256
     (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
-      (kaesar--read-unibytes "abcdefghijklmnopq" 0))
+      (kaesar-test--pseudo-old-reader "abcdefghijklmnopq" 0))
 
     (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
-      (kaesar--read-unibytes "abcdefghijklmnop" 0))
+      (kaesar-test--pseudo-old-reader "abcdefghijklmnop" 0))
 
     (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 1]] nil)
-      (kaesar--read-unibytes "abcdefghijklmno" 0))
+      (kaesar-test--pseudo-old-reader "abcdefghijklmno" 0))
     
     (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 5] [5 5 5 5]] nil)
-      (kaesar--read-unibytes "abcdefghijk" 0))
+      (kaesar-test--pseudo-old-reader "abcdefghijk" 0))
     ))
 
 (ert-deftest kaesar-test--openssl-compatibility ()
@@ -399,7 +401,9 @@
 
   ;; check interoperability openssl command
   (dolist (algorithm '("aes-128-ecb" "aes-192-ecb" "aes-256-ecb"
-                       "aes-128-cbc" "aes-192-cbc" "aes-256-cbc"))
+                       "aes-128-cbc" "aes-192-cbc" "aes-256-cbc"
+                       "aes-128-ofb" "aes-192-ofb" "aes-256-ofb"
+                       "aes-128-ctr" "aes-192-ctr" "aes-256-ctr"))
     (let ((kaesar-algorithm algorithm)
           (openssl-cipher-algorithm algorithm))
       (kaesar--test-block-random-test))))
@@ -556,7 +560,7 @@
                   (let* ((key (cdr (assoc "KEY" test)))
                          (ct (cdr (assoc "CT" test)))
                          (raw-key (kaesar-test--hex-to-vector key))
-                         (enc (kaesar-encrypt data raw-key algo))
+                         (enc (kaesar-encrypt data raw-key nil algo))
                          (hex (kaesar--test-unibytes-to-hex enc))
                          (test-target (substring hex 0 (length ct))))
                     (kaesar-test-should ct test-target)))))))
@@ -575,7 +579,7 @@
                   do
                   (let* ((data (kaesar-test--hex-to-vector (cdr (assoc "PT" test))))
                          (ct (cdr (assoc "CT" test)))
-                         (enc (kaesar-encrypt data raw-key algo))
+                         (enc (kaesar-encrypt data raw-key nil algo))
                          (hex (kaesar--test-unibytes-to-hex enc))
                          (test-target (substring hex 0 (length ct))))
                     (kaesar-test-should ct test-target)))))))
@@ -593,7 +597,7 @@
                   (let* ((raw-key (kaesar-test--hex-to-vector (cdr (assoc "KEY" test))))
                          (data (kaesar-test--hex-to-vector (cdr (assoc "PT" test))))
                          (ct (cdr (assoc "CT" test)))
-                         (enc (kaesar-encrypt data raw-key algo))
+                         (enc (kaesar-encrypt data raw-key nil algo))
                          (hex (kaesar--test-unibytes-to-hex enc))
                          (test-target (substring hex 0 (length ct))))
                     (kaesar-test-should ct test-target)))))))
