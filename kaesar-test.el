@@ -646,10 +646,12 @@
   (should-error (kaesar--check-unibyte-vector [a]))
   (should-error (kaesar--check-unibyte-vector (decode-coding-string "\343\201\202" 'utf-8)))
   (kaesar--with-algorithm "aes-128-cbc"
+    (should (equal (vconcat (make-vector 15 0) [1]) (kaesar--validate-key "1")))
+    (should (equal (vconcat (make-vector 15 0) [1]) (kaesar--validate-key "01")))
+    (should (equal (vconcat (make-vector 15 0) [170]) (kaesar--validate-key "aa")))
     (should (equal (make-vector 16 170) (kaesar--validate-key "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")))
     (should (equal (make-vector 16 170) (kaesar--validate-key "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")))
     (should (equal (make-vector 16 ?a) (kaesar--validate-key "aaaaaaaaaaaaaaaa")))
-    (should-error (kaesar--validate-key "aaaaaaaaaaaaaaa"))
     (should (equal (make-vector 16 ?b) (kaesar--validate-key (make-vector 16 ?b))))))
 
 (ert-deftest kaesar-test--dec-enc-string ()

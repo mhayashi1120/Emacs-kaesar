@@ -1110,10 +1110,11 @@ from memory."
     (kaesar--check-unibyte-vector bytes))
    ((and (stringp bytes)
          ;; Check bytes have sufficient hex 
-         ;; NG: "a"
-         ;; OK: "0a"
-         (string-match "\\`\\(?:[0-9a-fA-F][0-9a-fA-F]\\)+\\'" bytes))
-    (let* ((vec (kaesar--hex-to-vector bytes))
+         (string-match "\\`[0-9a-fA-F]+\\'" bytes))
+    (let* ((vec (kaesar--hex-to-vector
+                 (if (zerop (% (length bytes) 2))
+                     bytes
+                   (concat "0" bytes))))
            (lack (- require-length (length vec))))
       (when (< lack 0)
         (error "Supplied bytes are too long %s" bytes))
