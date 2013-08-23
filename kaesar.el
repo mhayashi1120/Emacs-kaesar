@@ -35,7 +35,8 @@
 
 ;; This package provides AES algorithm to encrypt/decrypt Emacs
 ;; string. Supported algorithm desired to get interoperability with
-;; openssl. You can get decrypted text if you don't forget password.
+;; openssl command. You can get decrypted text by that command if
+;; you won't forget password.
 
 ;; Why kaesar?
 ;; This package previously named 'cipher/aes' but ELPA cannot handle
@@ -44,16 +45,19 @@
 ;; consider the new name which contains "aes" string. There is the
 ;; ancient cipher algorithm caesar
 ;; http://en.wikipedia.org/wiki/Caesar_cipher
-;;  K`aes'ar is change the first character of Caesar There is no
+;;  K`aes'ar is change the first character of Caesar. There is no
 ;; meaning more than containing `aes' word.
 
 ;;; Usage:
 
-;; * To encode a well encoded string (High level API)
+;; * To encrypt a well encoded string (High level API)
 ;; `kaesar-encrypt-string' <-> `kaesar-decrypt-string'
 ;;
-;; * To encode a unibyte string with algorithm (Low level API)
+;; * To encrypt a unibyte string with algorithm (Middle level API)
 ;; `kaesar-encrypt-bytes' <-> `kaesar-decrypt-bytes'
+;;
+;; * To encrypt a unibyte with algorithm (Low level API)
+;; `kaesar-encrypt' <-> `kaesar-decrypt'
 ;;
 ;;; Sample:
 
@@ -75,7 +79,7 @@
 ;; http://csrc.nist.gov/archive/aes/rijndael/wsdindex.html
 ;; Rijndael algorithm
 
-;; * Block mode
+;; * Block mode (OpenSSL 1.0.1e support followings)
 ;; done: ecb, cbc, ctr, ofb
 ;; todo: cfb, cfb1, cfb8, gcm
 
@@ -130,20 +134,26 @@ aes-256-ctr, aes-192-ctr, aes-128-ctr
 (defvar kaesar--check-before-decrypt)
 
 (defvar kaesar-password nil
-  "To suppress the minibuffer prompt.
-This is a hiding parameter which hold password as vector.")
+  "Hold the password temporarily to suppress the minibuffer prompt.
+This is a hiding parameter, so intentionally make hard to use.")
 
 (defun kaesar--read-passwd (prompt &optional confirm)
-  (cond
-   ((and (vectorp kaesar-password)
-         (ignore-errors (kaesar--check-unibyte-vector kaesar-password)))
-    ;; do not clear external password.
-    (vconcat kaesar-password))
-   ((and (stringp kaesar-password)
-         (not (multibyte-string-p kaesar-password)))
-    (vconcat kaesar-password))
-   (t
-    (vconcat (read-passwd prompt confirm)))))
+  "Read password as vector which hold byte and clear raw password
+from memory."
+  (let (source)
+    (cond
+     ((and (vectorp kaesar-password)
+           (ignore-errors (kaesar--check-unibyte-vector kaesar-password)))
+      ;; do not clear external password.
+      (setq source kaesar-password))
+     ((and (stringp kaesar-password)
+           (not (multibyte-string-p kaesar-password)))
+      (setq source kaesar-password))
+     (t
+      (setq source (read-passwd prompt confirm))))
+    (prog1
+        (vconcat source)
+      (fillarray source 0))))
 
 ;; Basic utilities
 
@@ -221,8 +231,6 @@ This is a hiding parameter which hold password as vector.")
 
 (eval-and-compile
   (defconst kaesar--pkcs5-salt-length 8))
-(eval-and-compile
-  (defconst kaesar--openssl-magic-word "Salted__"))
 
 (defconst kaesar--algorithm-regexp
   (eval-when-compile
@@ -393,6 +401,9 @@ This is a hiding parameter which hold password as vector.")
 ;; Interoperability with openssl
 ;;
 
+(eval-and-compile
+  (defconst kaesar--openssl-magic-word "Salted__"))
+
 (defconst kaesar--openssl-magic-salt-regexp
   (eval-when-compile
     (format "\\`%s\\([\000-\377]\\{%d\\}\\)"
@@ -447,33 +458,6 @@ This is a hiding parameter which hold password as vector.")
     ;; Destructive clear raw password text
     (fillarray data nil)
     (list key iv)))
-
-;;
-;; TODO pull down
-;;
-
-(defvar kaesar--parse-salt-function 'kaesar--openssl-parse-salt)
-(defvar kaesar--prepend-salt-function 'kaesar--openssl-prepend-salt)
-
-;;TODO describe
-(defun kaesar--parse-salt (unibyte-string)
-  (funcall kaesar--parse-salt-function unibyte-string))
-
-;;TODO describe
-(defun kaesar--prepend-salt (salt encrypt-string)
-  (funcall kaesar--prepend-salt-function salt encrypt-string))
-
-;;TODO
-(defcustom kaesar-password-to-key-function
-  'kaesar--openssl-evp-bytes-to-key
-  "Function which accepts password and optional salt,
-to create AES key and initial vector."
-  :group 'kaesar
-  :type 'function)
-
-;; password -> '(key iv)
-(defun kaesar--bytes-to-key (data &optional salt)
-  (funcall kaesar-password-to-key-function data salt))
 
 ;;
 ;; AES Algorithm defined functions
@@ -939,8 +923,7 @@ to create AES key and initial vector."
         while pos
         finally return (kaesar--check-decrypted res)))
 
-;;TODO consider dummy args
-(defun kaesar--ecb-encrypt (unibyte-string key &rest dummy)
+(defun kaesar--ecb-encrypt (unibyte-string key _dummy)
   (loop with pos = 0
         with state = (kaesar--construct-state)
         append (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
@@ -950,7 +933,7 @@ to create AES key and initial vector."
                  bytes)
         while pos))
 
-(defun kaesar--ecb-decrypt (encbyte-string key &rest dummy)
+(defun kaesar--ecb-decrypt (encbyte-string key _dummy)
   (loop with pos = 0
         with res = '()
         with state = (kaesar--construct-state)
@@ -1150,9 +1133,10 @@ To suppress the password prompt, set password to `kaesar-password' as a vector."
            (pass (kaesar--read-passwd
                   (or kaesar-encrypt-prompt
                       "Password to encrypt: ") t)))
-      (destructuring-bind (raw-key iv) (kaesar--bytes-to-key pass salt)
+      (destructuring-bind (raw-key iv)
+          (kaesar--openssl-evp-bytes-to-key pass salt)
         (let ((body (kaesar--encrypt-0 unibyte-string raw-key iv)))
-          (kaesar--prepend-salt salt body))))))
+          (kaesar--openssl-prepend-salt salt body))))))
 
 ;;;###autoload
 (defun kaesar-decrypt-bytes (encrypted-string &optional algorithm)
@@ -1160,11 +1144,12 @@ To suppress the password prompt, set password to `kaesar-password' as a vector."
   (kaesar--with-algorithm algorithm
     (kaesar--check-encrypted encrypted-string)
     (destructuring-bind (salt encbytes)
-        (kaesar--parse-salt encrypted-string)
+        (kaesar--openssl-parse-salt encrypted-string)
       (let ((pass (kaesar--read-passwd
                    (or kaesar-decrypt-prompt
                        "Password to decrypt: "))))
-        (destructuring-bind (raw-key iv) (kaesar--bytes-to-key pass salt)
+        (destructuring-bind (raw-key iv)
+            (kaesar--openssl-evp-bytes-to-key pass salt)
           (kaesar--decrypt-0 encbytes raw-key iv))))))
 
 ;;;###autoload
@@ -1189,12 +1174,12 @@ to decrypt string"
     (decode-coding-string
      unibytes (or coding-system default-terminal-coding-system))))
 
-;;TODO maybe iv is required
 ;;;###autoload
 (defun kaesar-encrypt (unibyte-string key-input &optional iv-input algorithm)
   "Encrypt a UNIBYTE-STRING with KEY-INPUT (Before expansion).
 KEY-INPUT arg expects valid length of hex string or vector (0 - 255).
 See `kaesar-algorithm' list the supported ALGORITHM .
+IV-INPUT may be required if ALGORITHM need this.
 
 This is a low level API to create the data which can be decrypted
  by other implementation."
@@ -1204,10 +1189,10 @@ This is a low level API to create the data which can be decrypted
           (iv (kaesar--validate-iv iv-input)))
       (kaesar--encrypt-0 unibyte-string key iv))))
 
-;;TODO maybe iv is required
 ;;;###autoload
 (defun kaesar-decrypt (encrypted-string key-input &optional iv-input algorithm)
   "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt' with KEY-INPUT.
+IV-INPUT may be required if ALGORITHM need this.
 
 This is a low level API to decrypt data that was encrypted by other implementation."
   (kaesar--with-algorithm algorithm

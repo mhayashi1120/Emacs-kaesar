@@ -2,7 +2,7 @@
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data, convenience
-;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/cipher/aes-mode.el
+;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/cipher/kaesar-mode.el
 ;; Emacs: GNU Emacs 22 or later
 ;; Version: 0.5.0
 ;; Package-Requires: ((kaesar "0.1.0"))
@@ -39,39 +39,44 @@
 (eval-when-compile
   (require 'cl))
 
-(require 'cipher/aes)
+(require 'kaesar)
 
 (defgroup kaesar-mode nil
-  "AES cipher User Interface.")
+  "AES cipher User Interface."
+  :group 'kaesar
+  :prefix "kaesar-mode-")
 
 (defvar kaesar-mode-map nil)
 
 (let ((map (or kaesar-mode-map (make-sparse-keymap))))
+  ;;TODO remap? local-write-file-hooks?
   (define-key map "\C-x\C-s" 'kaesar-mode-save-buffer)
   (setq kaesar-mode-map map))
 
+;;;###autoload
 (define-minor-mode kaesar-mode
   "TODO"
   :init-value nil
   :lighter " AES" 
   :keymap kaesar-mode-map
   :group 'kaesar-mode
-  (when kaesar-mode
-    (cond
-     ((kaesar-mode--buffer-guessed-encrypted-p)
-      (condition-case err
-          (kaesar-mode--visit-again)
-        (error 
-         ;; disable the mode
-         (kaesar-mode -1)
-         (signal (car err) (cdr err)))))
-     ((not (kaesar-mode--file-guessed-encrypted-p))
-      (kaesar-mode--write-buffer)))
-    ;;TODO no effect?
-    (add-hook 'after-revert-hook 'kaesar-mode--revert-function nil t))
+  (cond
+   ((not kaesar-mode))
+   ((kaesar-mode--buffer-guessed-encrypted-p)
+    (condition-case err
+        (kaesar-mode--visit-again)
+      (error 
+       ;; disable the mode
+       (kaesar-mode -1)
+       (signal (car err) (cdr err)))))
+   ((not (kaesar-mode--file-guessed-encrypted-p))
+    (kaesar-mode--write-buffer)))
+  ;;TODO no effect?
+  (add-hook 'after-revert-hook 'kaesar-mode--revert-function nil t)
   (unless kaesar-mode
     (remove-hook 'after-revert-hook 'kaesar-mode--revert-function t)))
 
+;;;###autoload
 (define-globalized-minor-mode kaesar-global-mode
   kaesar-mode kaesar-mode-maybe
   :group 'kaesar-mode)
@@ -113,11 +118,11 @@
 
 (defun kaesar-mode--encrypt (bytes)
   (let ((kaesar-password (kaesar-mode--password t)))
-    (kaesar-encrypt bytes)))
+    (kaesar-encrypt-bytes bytes)))
 
 (defun kaesar-mode--decrypt (bytes)
   (let ((kaesar-password (kaesar-mode--password nil)))
-    (kaesar-decrypt bytes)))
+    (kaesar-decrypt-bytes bytes)))
 
 (defun kaesar-mode--password (confirm)
   (and kaesar-mode-cache-password
@@ -159,7 +164,7 @@
   (auto-save-mode nil))
 
 (defconst kaesar-mode--salted-regexp 
-  (format "^%s\\(\\(?:.\\|\n\\)\\{16\\}\\)" cipher/aes--openssl-magic-word))
+  (format "^%s\\(\\(?:.\\|\n\\)\\{16\\}\\)" kaesar--openssl-magic-word))
 
 (defconst kaesar-mode--block-size
   (* cipher/aes--Nb cipher/aes--Row))
@@ -182,7 +187,7 @@
     (save-restriction
       (widen)
       (goto-char (point-min))
-      (looking-at cipher/aes--openssl-magic-word))))
+      (looking-at kaesar--openssl-magic-word))))
 
 (defun kaesar-mode--file-guessed-encrypted-p ()
   (and buffer-file-name
@@ -194,7 +199,7 @@
          (with-temp-buffer
            (set-buffer-multibyte nil)
            (let ((coding-system-for-read 'binary))
-             ;; encrypted file must have Salted__ prefix and at least one block.
+             ;; encrypted file must have Salted__ prefix and have at least one block.
              (insert-file-contents file nil 0 (* kaesar-mode--block-size 2)))
            (goto-char (point-min))
            (and (looking-at kaesar-mode--salted-regexp)

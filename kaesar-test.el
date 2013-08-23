@@ -308,18 +308,20 @@
   `(should (equal ,expected-form ,test-form)))
 
 (defun kaesar--test-block-random-test ()
-  (flet ((read-passwd (&rest dummy) (copy-seq "d")))
-    (let ((bytes (kaesar--test-random-bytes))
-          results)
-      (setq results (openssl-cipher-decrypt-unibytes (kaesar-encrypt-bytes bytes)))
-      (kaesar-test-should results bytes)
-      (setq results (kaesar-decrypt-bytes (openssl-cipher-encrypt-unibytes bytes)))
-      (kaesar-test-should results bytes))))
+  (let* ((openssl-cipher-password (copy-seq "d"))
+         (bytes (kaesar--test-random-bytes))
+         results)
+    (setq results (openssl-cipher-decrypt-unibytes (kaesar-encrypt-bytes bytes)))
+    (kaesar-test-should results bytes)
+    (setq results (kaesar-decrypt-bytes (openssl-cipher-encrypt-unibytes bytes)))
+    (kaesar-test-should results bytes)))
 
 (defun kaesar-test-enc/dec (raw-bytes &optional algorithm)
-  (let ((kaesar-password "d"))
-    (kaesar-test-should raw-bytes
-      (kaesar-decrypt-bytes (kaesar-encrypt-bytes raw-bytes algorithm) algorithm))))
+  (kaesar-test-should raw-bytes
+    (let ((kaesar-password (copy-sequence "d")))
+      (kaesar-decrypt-bytes 
+       (let ((kaesar-password (copy-sequence "d")))
+         (kaesar-encrypt-bytes raw-bytes algorithm)) algorithm))))
 
 (defun kaesar-test--pseudo-old-reader (string pos)
   (let* ((s (kaesar--construct-state))
@@ -462,8 +464,10 @@
 
   ;; check accept vector
   (kaesar-test-should "abcdefg"
-    (let ((kaesar-password "d"))
-      (kaesar-decrypt-bytes (kaesar-encrypt-bytes (vconcat "abcdefg")))))
+    (let ((kaesar-password (copy-sequence "d")))
+      (kaesar-decrypt-bytes
+       (let ((kaesar-password (copy-sequence "d")))
+         (kaesar-encrypt-bytes (vconcat "abcdefg"))))))
 
   ;; less than block size
   (kaesar-test-enc/dec "abcdefghijklmno" "aes-128-ecb")
@@ -488,6 +492,8 @@
   (kaesar-test-enc/dec "abcdefghijklmnopq" "aes-128-cbc")
   (kaesar-test-enc/dec "abcdefghijklmnopq" "aes-192-cbc")
   (kaesar-test-enc/dec "abcdefghijklmnopq" "aes-256-cbc")
+
+  ;;TODO
 
   )
 

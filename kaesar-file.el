@@ -2,7 +2,7 @@
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data, files
-;; URL: http://github.com/mhayashi1120/Emacs-cipher/raw/master/cipher/aes-file.el
+;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/cipher/kaesar-file.el
 ;; Emacs: GNU Emacs 22 or later
 ;; Version: 0.5.0
 ;; Package-Requires: ((kaesar "0.1.0"))
@@ -37,65 +37,19 @@
 
 (require 'kaesar)
 
-;;;###autoload
-(defun kaesar-encrypt-file (file &optional algorithm with-base64 save-file)
-  "Encrypt a FILE by `kaesar-algorithm'
-which contents can be decrypted by `kaesar-decrypt-file-contents'."
-  (with-temp-buffer
-    (kaesar--insert-file-contents file)
-    (let ((encrypted (kaesar-encrypt (buffer-string) algorithm)))
-      (erase-buffer)
-      (cond
-       (with-base64
-        (kaesar-prepare-base64
-         encrypted (or algorithm kaesar-algorithm)))
-       (t
-        (insert encrypted)))
-      (kaesar--write-buffer (or save-file file)))))
+(defgroup 'kaesar-file ()
+  :prefix "kaesar-file-"
+  :gruop 'kaesar)
 
-;;;###autoload
-(defun kaesar-decrypt-file (file &optional algorithm save-file)
-  "Decrypt a FILE contents with getting string.
-FILE was encrypted by `kaesar-encrypt-file'."
-  (with-temp-buffer
-    (kaesar--insert-file-contents file)
-    (let* ((enc-algo (kaesar-decode-if-base64))
-           (decrypted
-            (kaesar-decrypt
-             (buffer-string) (or algorithm enc-algo))))
-      (erase-buffer)
-      (insert decrypted)
-      (kaesar--write-buffer (or save-file file)))))
-
-;;;###autoload
-(defun kaesar-decrypt-file-contents (file &optional algorithm coding-system)
-  "Decrypt a FILE contents with getting string.
-FILE was encrypted by `kaesar-encrypt-file'."
-  (with-temp-buffer
-    (kaesar--insert-file-contents file)
-    (let ((decrypted (kaesar-decrypt (buffer-string) algorithm)))
-      (if coding-system
-          (decode-coding-string decrypted coding-system)
-        decrypted))))
-
-;;;###autoload
-(defun kaesar-encrypt-write-region (start end file)
-  "Write START END region to FILE with encryption."
-  (interactive "r\nF")
-  (let* ((str (buffer-substring start end))
-         (cs (or buffer-file-coding-system default-terminal-coding-system))
-         (s (encode-coding-string str cs))
-         (encrypted (kaesar-encrypt s)))
-    (kaesar--write-region encrypted nil file)))
-
-(defun kaesar-prepare-base64 (encrypted-data algorithm)
+(defun kaesar-file--prepare-base64 (algorithm)
   (insert "-----BEGIN ENCRYPTED DATA-----\n")
   (insert (format "Algorithm: %s\n" algorithm))
   (insert "\n")
-  (insert (base64-encode-string encrypted-data) "\n")
+  (base64-encode-region (point-min) (point-max))
+  (insert  "\n")
   (insert "-----END ENCRYPTED DATA-----\n"))
 
-(defun kaesar-decode-if-base64 ()
+(defun kaesar-file--decode-if-base64 ()
   ;; decode buffer if valid base64 encoded.
   ;; return a algorithm of encryption.
   (let (algorithm)
@@ -132,6 +86,67 @@ FILE was encrypted by `kaesar-encrypt-file'."
         (coding-system-for-read 'binary))
     (insert-file-contents file)
     (set-buffer-multibyte nil)))
+
+;;TODO consider interface
+
+;;;###autoload
+(defun kaesar-encrypt-file (file &optional algorithm mode save-file)
+  "Encrypt a FILE by `kaesar-algorithm'
+which contents can be decrypted by `kaesar-decrypt-file-contents'.
+
+MODE: TODO
+"
+  (with-temp-buffer
+    (kaesar--insert-file-contents file)
+    (let ((encrypted (kaesar-encrypt-bytes (buffer-string) algorithm)))
+      (erase-buffer)
+      (insert encrypted)
+      (cond
+       ((or (null mode) (eq mode 'binary)))
+       ((eq mode 'base64-with-header)
+        (kaesar-file--prepare-base64 (or algorithm kaesar-algorithm)))
+       ((eq mode 'base64)
+        (base64-decode-region (point-min) (point-max)))
+       (t
+        ;;TODO
+        (error "Not a supported mode %s" mode)))
+      (kaesar--write-buffer (or save-file file)))))
+
+;;;###autoload
+(defun kaesar-decrypt-file (file &optional algorithm save-file)
+  "Decrypt a FILE contents with getting string.
+FILE was encrypted by `kaesar-encrypt-file'."
+  (with-temp-buffer
+    (kaesar--insert-file-contents file)
+    (let* ((enc-algo (kaesar-file--decode-if-base64))
+           (decrypted
+            (kaesar-decrypt-bytes
+             (buffer-string)
+             (or algorithm enc-algo kaesar-algorithm))))
+      (erase-buffer)
+      (insert decrypted)
+      (kaesar--write-buffer (or save-file file)))))
+
+;;;###autoload
+(defun kaesar-decrypt-file-contents (file &optional algorithm coding-system)
+  "Decrypt a FILE contents with getting string.
+FILE was encrypted by `kaesar-encrypt-file'."
+  (with-temp-buffer
+    (kaesar--insert-file-contents file)
+    (let ((decrypted (kaesar-decrypt-bytes (buffer-string) algorithm)))
+      (if coding-system
+          (decode-coding-string decrypted coding-system)
+        decrypted))))
+
+;;;###autoload
+(defun kaesar-encrypt-write-region (start end file)
+  "Write START END region to FILE with encryption."
+  (interactive "r\nF")
+  (let* ((str (buffer-substring start end))
+         (cs (or buffer-file-coding-system default-terminal-coding-system))
+         (s (encode-coding-string str cs))
+         (encrypted (kaesar-encrypt-bytes s)))
+    (kaesar--write-region encrypted nil file)))
 
 (provide 'kaesar-file)
 
