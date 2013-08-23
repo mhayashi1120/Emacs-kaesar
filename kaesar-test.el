@@ -1,6 +1,6 @@
 
 (require 'kaesar)
-(require 'openssl-cipher nil t)
+(require 'openssl-cipher)
 (require 'ert)
 
 (defun kaesar--test-random-bytes ()
@@ -308,19 +308,23 @@
   `(should (equal ,expected-form ,test-form)))
 
 (defun kaesar--test-block-random-test ()
-  (let* ((openssl-cipher-password (copy-seq "d"))
-         (bytes (kaesar--test-random-bytes))
+  (let* ((bytes (kaesar--test-random-bytes))
          results)
-    (setq results (openssl-cipher-decrypt-unibytes (kaesar-encrypt-bytes bytes)))
-    (kaesar-test-should results bytes)
-    (setq results (kaesar-decrypt-bytes (openssl-cipher-encrypt-unibytes bytes)))
-    (kaesar-test-should results bytes)))
+    (let ((openssl-cipher-password (copy-seq "d"))
+          (kaesar-password (copy-seq "d")))
+      (setq results (openssl-cipher-decrypt-unibytes (kaesar-encrypt-bytes bytes)))
+      (kaesar-test-should results bytes))
+
+    (let ((openssl-cipher-password (copy-seq "d"))
+          (kaesar-password (copy-seq "d")))
+      (setq results (kaesar-decrypt-bytes (openssl-cipher-encrypt-unibytes bytes)))
+      (kaesar-test-should results bytes))))
 
 (defun kaesar-test-enc/dec (raw-bytes &optional algorithm)
   (kaesar-test-should raw-bytes
-    (let ((kaesar-password (copy-sequence "d")))
+    (let ((kaesar-password (copy-seq "d")))
       (kaesar-decrypt-bytes 
-       (let ((kaesar-password (copy-sequence "d")))
+       (let ((kaesar-password (copy-seq "d")))
          (kaesar-encrypt-bytes raw-bytes algorithm)) algorithm))))
 
 (defun kaesar-test--pseudo-old-reader (string pos)
@@ -388,22 +392,22 @@
 
   (kaesar-test-should (kaesar--test-openssl-key&iv "aes-128-cbc" "d")
     (kaesar--with-algorithm "aes-128-cbc"
-      (destructuring-bind (key iv) (kaesar--bytes-to-key (vconcat "d"))
+      (destructuring-bind (key iv) (kaesar--openssl-evp-bytes-to-key (vconcat "d"))
         (list (kaesar--test-unibytes-to-hex key) (kaesar--test-unibytes-to-hex iv)))))
 
   (kaesar-test-should (kaesar--test-openssl-key&iv "aes-128-ecb" "d")
     (kaesar--with-algorithm "aes-128-ecb"
-      (destructuring-bind (key iv) (kaesar--bytes-to-key (vconcat "d"))
+      (destructuring-bind (key iv) (kaesar--openssl-evp-bytes-to-key (vconcat "d"))
         (list (kaesar--test-unibytes-to-hex key) (kaesar--test-unibytes-to-hex iv)))))
 
   (kaesar-test-should (kaesar--test-openssl-key&iv "aes-256-ecb" "pass")
     (kaesar--with-algorithm "aes-256-ecb"
-      (destructuring-bind (key iv) (kaesar--bytes-to-key (vconcat "pass"))
+      (destructuring-bind (key iv) (kaesar--openssl-evp-bytes-to-key (vconcat "pass"))
         (list (kaesar--test-unibytes-to-hex key) (kaesar--test-unibytes-to-hex iv)))))
 
   (kaesar-test-should (kaesar--test-openssl-key&iv "aes-256-cbc" "pass")
     (kaesar--with-algorithm "aes-256-cbc"
-      (destructuring-bind (key iv) (kaesar--bytes-to-key (vconcat "pass"))
+      (destructuring-bind (key iv) (kaesar--openssl-evp-bytes-to-key (vconcat "pass"))
         (list (kaesar--test-unibytes-to-hex key) (kaesar--test-unibytes-to-hex iv)))))
 
   ;; check interoperability openssl command
@@ -464,9 +468,9 @@
 
   ;; check accept vector
   (kaesar-test-should "abcdefg"
-    (let ((kaesar-password (copy-sequence "d")))
+    (let ((kaesar-password (copy-seq "d")))
       (kaesar-decrypt-bytes
-       (let ((kaesar-password (copy-sequence "d")))
+       (let ((kaesar-password (copy-seq "d")))
          (kaesar-encrypt-bytes (vconcat "abcdefg"))))))
 
   ;; less than block size
@@ -491,11 +495,7 @@
   (kaesar-test-enc/dec "abcdefghijklmnopq" "aes-256-ecb")
   (kaesar-test-enc/dec "abcdefghijklmnopq" "aes-128-cbc")
   (kaesar-test-enc/dec "abcdefghijklmnopq" "aes-192-cbc")
-  (kaesar-test-enc/dec "abcdefghijklmnopq" "aes-256-cbc")
-
-  ;;TODO
-
-  )
+  (kaesar-test-enc/dec "abcdefghijklmnopq" "aes-256-cbc"))
 
 (ert-deftest kaesar-test--random ()
   :tags '(kaesar)
@@ -537,6 +537,10 @@
               (forward-line 1))
             (setq res (cons (list keysize (nreverse data)) res)))))
       (nreverse res))))
+
+(defun kaesar-test--hex-to-unibyte (hex)
+  (apply 'unibyte-string
+         (append (kaesar-test--hex-to-vector hex) nil)))
 
 (defun kaesar-test--hex-to-vector (hex)
   (loop with len = (length hex)
@@ -613,14 +617,60 @@
                          (test-target (substring hex 0 (length ct))))
                     (kaesar-test-should ct test-target)))))))
 
+
+(ert-deftest kaesar-test--ctr-mode ()
+  "Increment state vector"
+  :tags '(kaesar)
+  (let ((s 
+         (vector
+          (vector 255 255 255 255)
+          (vector 255 255 255 255)
+          (vector 255 255 255 255)
+          (vector 255 255 255 254))))
+    (kaesar--ctr-increment! s)
+    (should (equal [[255 255 255 255] [255 255 255 255] [255 255 255 255] [255 255 255 255]] s))
+    (kaesar--ctr-increment! s)
+    (should (equal [[0 0 0 0] [0 0 0 0] [0 0 0 0] [0 0 0 0]] s))
+    (kaesar--ctr-increment! s)
+    (should (equal [[0 0 0 0] [0 0 0 0] [0 0 0 0] [0 0 0 1]] s))
+    s))
+
+(ert-deftest kaesar-test--checking-unibyte-vector ()
+  "Increment state vector"
+  :tags '(kaesar)
+  (should (equal (kaesar--check-unibyte-vector [0 255]) [0 255]))
+  (should (kaesar--check-unibyte-vector "a"))
+  (should-error (kaesar--check-unibyte-vector [-1]))
+  (should-error (kaesar--check-unibyte-vector [256]))
+  (should-error (kaesar--check-unibyte-vector [a]))
+  (should-error (kaesar--check-unibyte-vector (decode-coding-string "\343\201\202" 'utf-8)))
+  (kaesar--with-algorithm "aes-128-cbc"
+    (should (equal (make-vector 16 170) (kaesar--validate-key "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")))
+    (should (equal (make-vector 16 170) (kaesar--validate-key "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")))
+    (should (equal (make-vector 16 ?a) (kaesar--validate-key "aaaaaaaaaaaaaaaa")))
+    (should-error (kaesar--validate-key "aaaaaaaaaaaaaaa"))
+    (should (equal (make-vector 16 ?b) (kaesar--validate-key (make-vector 16 ?b))))))
+
+(ert-deftest kaesar-test--dec-enc-string ()
+  "Increment state vector"
+  :tags '(kaesar)
+  (dolist (cs '(euc-jp utf-8 shift_jis))
+    (let* ((text (decode-coding-string "あいうえお" cs))
+           (E (let ((kaesar-password (copy-seq "d")))
+                (kaesar-encrypt-string text cs)))
+           (M (let ((kaesar-password (copy-seq "d")))
+                (kaesar-decrypt-string E cs))))
+      (should (equal text M)))))
+
 ;; TODO ecb_iv.txt
 
 (defun kaesar-test--ecb-mct (func hex-key hex-data algo)
+  (princ (format "ECB MCT ALGORITHM: %s KEY: %s DATA: %s\n" algo hex-key hex-data))
   (let* ((raw-key (kaesar-test--hex-to-vector hex-key))
-         (data (kaesar-test--hex-to-vector hex-data)))
+         (data (kaesar-test--hex-to-unibyte hex-data)))
     (kaesar--with-algorithm algo
-      (loop with key = (kaesar--key-expansion raw-key)
-            with state = (kaesar--unibytes-to-state data)
+      (loop with key = (kaesar--expand-to-block-key raw-key)
+            with state = (kaesar--unibytes-to-state data 0)
             repeat 10000
             do (setq state (funcall func state key))
             finally return (let* ((bytes (kaesar--state-to-bytes state))
@@ -628,59 +678,65 @@
                                   (hex (kaesar--test-unibytes-to-hex unibytes)))
                              hex)))))
 
-;;TODO too slow
-;; (ert-deftest kaesar-test--ecb-encrypt ()
-;;   "Monte Carlo Test ECB mode decryption"
-;;   :tags '(kaesar)
-;;   (let* ((file (kaesar-test--locate-test-data "ecb_e_m.txt"))
-;;          (suites (kaesar--parse-test-values file)))
-;;     (loop for (keysize suite) in suites
-;;           do
-;;           (let* ((algo (format "aes-%d-ecb" keysize)))
-;;             (loop for test in suite
-;;                   do
-;;                   (condition-case err
-;;                       (let* ((hex-key (cdr (assoc "KEY" test)))
-;;                              (hex-data (cdr (assoc "PT" test)))
-;;                              (ct (cdr (assoc "CT" test)))
-;;                              (enc (kaesar-test--ecb-mct 'kaesar--cipher hex-key hex-data algo)))
-;;                         (kaesar-test-should ct enc))
-;;                     (error
-;;                      (message "%s" test)
-;;                      (signal (car err) (cdr err)))))))))
+(ert-deftest kaesar-test--ecb-encrypt ()
+  "Monte Carlo Test ECB mode decryption"
+  :tags '(kaesar)
+  (loop with file = (kaesar-test--locate-test-data "ecb_e_m.txt")
+        with suites = (kaesar--parse-test-values file)
+        for (keysize suite) in suites
+        do
+        (catch 'exit
+          (loop with start = (float-time)
+                with algo = (format "aes-%d-ecb" keysize)
+                for test in suite
+                do
+                (let* ((hex-key (cdr (assoc "KEY" test)))
+                       (hex-data (cdr (assoc "PT" test)))
+                       (ct (cdr (assoc "CT" test)))
+                       (enc (kaesar-test--ecb-mct 'kaesar--cipher! hex-key hex-data algo)))
+                  (kaesar-test-should ct enc)
+                  ;; TODO All of test spent too many seconds
+                  (when (< (+ start 10) (float-time))
+                    (throw 'exit t)))))))
 
-;;TODO too slow
-;; (ert-deftest kaesar-test--ecb-decrypt ()
-;;   "Monte Carlo Test ECB mode decryption"
-;;   :tags '(kaesar)
-;;   (let* ((file (kaesar-test--locate-test-data "ecb_d_m.txt"))
-;;          (suites (kaesar--parse-test-values file)))
-;;     (loop for (keysize suite) in suites
-;;           do
-;;           (let* ((algo (format "aes-%d-ecb" keysize)))
-;;             (loop for test in suite
-;;                   do
-;;                   (let* ((hex-key (cdr (assoc "KEY" test)))
-;;                          (hex-data (cdr (assoc "CT" test)))
-;;                          (pt (cdr (assoc "PT" test)))
-;;                          (dec (kaesar-test--ecb-mct 'kaesar--inv-cipher hex-key hex-data algo)))
-;;                     (kaesar-test-should pt dec)))))))
+(ert-deftest kaesar-test--ecb-decrypt ()
+  "Monte Carlo Test ECB mode decryption"
+  :tags '(kaesar)
+  (loop with file = (kaesar-test--locate-test-data "ecb_d_m.txt")
+        with suites = (kaesar--parse-test-values file)
+        for (keysize suite) in suites
+        do
+        (catch 'exit
+          (loop with algo = (format "aes-%d-ecb" keysize)
+                with start = (float-time)
+                for test in suite
+                do
+                (let* ((hex-key (cdr (assoc "KEY" test)))
+                       (hex-data (cdr (assoc "CT" test)))
+                       (pt (cdr (assoc "PT" test)))
+                       (dec (kaesar-test--ecb-mct 'kaesar--inv-cipher! hex-key hex-data algo)))
+                  (kaesar-test-should pt dec)
+                  ;; TODO All of test spent too many seconds
+                  (when (< (+ start 10) (float-time))
+                    (throw 'exit t)))))))
 
 
 (defun kaesar-test--cbc-mct (hex-key hex-pt hex-iv algo)
+  (princ (format "CBC MCT ALGORITHM: %s KEY: %s IV %s DATA: %s\n"
+                 algo hex-key hex-iv hex-pt))
   (let* ((raw-key (kaesar-test--hex-to-vector hex-key))
-         (pt (kaesar-test--hex-to-vector hex-pt))
-         (iv (kaesar-test--hex-to-vector hex-iv))
+         (pt (kaesar-test--hex-to-unibyte hex-pt))
+         (iv (kaesar-test--hex-to-unibyte hex-iv))
          (cv iv))
     (kaesar--with-algorithm algo
-      (loop with key = (kaesar--key-expansion raw-key)
-            with cv = (kaesar--unibytes-to-state cv)
-            with pt = (kaesar--unibytes-to-state pt)
+      (loop with key = (kaesar--expand-to-block-key raw-key)
+            with cv = (kaesar--unibytes-to-state cv 0)
+            with pt = (kaesar--unibytes-to-state pt 0)
             with ct-1 = nil
             with ct = nil
             repeat 10000
-            do (let* ((tmp (kaesar--cbc-state-xor pt cv)))
-                 (setq ct (kaesar--cipher! tmp key))
+            do (let* ((_ (kaesar--state-xor! pt cv)))
+                 (setq ct (kaesar--cipher! pt key))
                  (if (null ct-1)
                      (setq pt cv)
                    (setq pt ct-1))
@@ -696,33 +752,32 @@
          (hex (kaesar--test-unibytes-to-hex unibytes)))
     hex))
 
-;;TODO too slow
-;; (ert-deftest kaesar-test--ecb-encrypt ()
-;;   "Monte Carlo Test CBC mode encryption"
-;;   :tags '(kaesar)
-;;   (let* ((file (kaesar-test--locate-test-data "cbc_e_m.txt"))
-;;          (suites (kaesar--parse-test-values file)))
-;;     (loop for (keysize suite) in suites ;TODO
-;;           do
-;;           (let* ((algo (format "aes-%d-cbc" keysize))
-;;                  prev-pt)
-;;             (loop for test in (list (car suite) (cadr suite)) ;; TODO
-;;                   do
-;;                   (condition-case err
-;;                       (let* ((hex-key (cdr (assoc "KEY" test)))
-;;                              (hex-iv (cdr (assoc "IV" test)))
-;;                              (hex-pt (cdr (assoc "PT" test)))
-;;                              (hex-ct (cdr (assoc "CT" test))))
-;;                         (when prev-pt
-;;                           (kaesar-test-should hex-pt prev-pt))
-;;                         (destructuring-bind (res-ct res-pt)
-;;                             (kaesar-test--cbc-mct hex-key hex-pt hex-iv algo)
-;;                           (kaesar-test-should hex-ct res-ct)
-;;                           (setq prev-pt res-pt))
-;;                         (message "%s" test))
-;;                     (error
-;;                      (message "Error: %s" test)
-;;                      (signal (car err) (cdr err)))))))))
+(ert-deftest kaesar-test--cbc-encrypt ()
+  "Monte Carlo Test CBC mode encryption"
+  :tags '(kaesar)
+  (loop with file = (kaesar-test--locate-test-data "cbc_e_m.txt")
+        with suites = (kaesar--parse-test-values file)
+        for (keysize suite) in suites
+        do
+        (catch 'exit
+          (loop with algo = (format "aes-%d-cbc" keysize)
+                with start = (float-time)
+                with prev-pt
+                for test in suite
+                do
+                (let* ((hex-key (cdr (assoc "KEY" test)))
+                       (hex-iv (cdr (assoc "IV" test)))
+                       (hex-pt (cdr (assoc "PT" test)))
+                       (hex-ct (cdr (assoc "CT" test))))
+                  (when prev-pt
+                    (kaesar-test-should hex-pt prev-pt))
+                  (destructuring-bind (res-ct res-pt)
+                      (kaesar-test--cbc-mct hex-key hex-pt hex-iv algo)
+                    (kaesar-test-should hex-ct res-ct)
+                    (setq prev-pt res-pt))
+                  ;; TODO All of test spent too many seconds
+                  (when (< (+ start 10) (float-time))
+                    (throw 'exit t)))))))
 
 ;;TODO too slow not yet implement
 ;; (ert-deftest kaesar-test--ecb-decrypt ()
@@ -741,11 +796,6 @@
 ;;                          (dec (kaesar-test--ecb-mct 'kaesar--inv-cipher hex-key hex-data algo)))
 ;;                     (kaesar-test-should pt dec)))))))
 
-
-
-;;TODO
-;; (let ((text (decode-coding-string "\244\242\244\244\244\246\244\250\244\252" 'euc-jp)))
-;;   (equal text (kaesar-decrypt-string (kaesar-encrypt-string text 'euc-jp) 'euc-jp)))
 
 (provide 'kaesar-test)
 
