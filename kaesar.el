@@ -80,8 +80,8 @@
 ;; Rijndael algorithm
 
 ;; * Block mode (OpenSSL 1.0.1e support followings)
-;; done: ecb, cbc, ctr, ofb
-;; todo: cfb, cfb1, cfb8, gcm
+;; done: ecb, cbc, ctr, ofb, cfb
+;; todo: cfb1, cfb8, gcm
 
 ;; * validation -> AESAVS.pdf
 
@@ -226,6 +226,11 @@ from memory."
       (ctr
        kaesar--ctr-encrypt kaesar--ctr-encrypt
        ;;TODO check
+       nil ,kaesar--Block)
+      
+      ;; Cipher FeedBack
+      (cfb
+       kaesar--cfb-encrypt kaesar--cfb-decrypt
        nil ,kaesar--Block)
       )))
 
@@ -945,7 +950,6 @@ from memory."
         while pos
         finally return (kaesar--check-decrypted res)))
 
-;;TODO test
 ;; Encrypt: H0 = IV, Hi = Ek(Hi-1), Ci = Mi + Hi
 ;; Decrypt: H0 = IV, Hi = Ek(Hi-1), Mi = Ci + Hi
 (defun kaesar--ofb-encrypt (unibyte-string key iv)
@@ -969,16 +973,6 @@ from memory."
           do (aset vec i (% (1+ i) ?\x100))
           finally return vec)))
 
-;;TODO
-;; (let ((s [[255 255 255 255] [255 255 255 255] [255 255 255 255] [255 255 255 254]]))
-;;   (kaesar--ctr-increment! s)
-;;   (should (equal [[255 255 255 255] [255 255 255 255] [255 255 255 255] [255 255 255 255]] s))
-;;   (kaesar--ctr-increment! s)
-;;   (should (equal [[0 0 0 0] [0 0 0 0] [0 0 0 0] [0 0 0 0]] s))
-;;   (kaesar--ctr-increment! s)
-;;   (should (equal [[0 0 0 0] [0 0 0 0] [0 0 0 0] [0 0 0 1]] s))
-;;   s)
-
 (defun kaesar--ctr-increment! (state)
   (catch 'done
     (loop with table = kaesar--ctr-increment-byte-table
@@ -992,7 +986,6 @@ from memory."
                   (when (/= inc 0)
                     (throw 'done t)))))))
 
-;;TODO test
 ;; Encrypt: Ci = Mi + Ek(Ri), Ri+1 = Ri + 1
 ;; Decrypt: Mi = Ci + Ek(Ri), Ri+1 = Ri + 1
 (defun kaesar--ctr-encrypt (unibyte-string key iv)
@@ -1012,6 +1005,42 @@ from memory."
              (setq r swap)
              (setq pos rest)
              (setq res (nconc (nreverse bytes) res)))
+        while pos
+        finally return
+        (kaesar--finish-truncate-bytes unibyte-string res)))
+
+;; Encrypt: C0 = IV, Ci = Mi + Ek(Ci-1)
+;; Decrypt: C0 = IV, Mi = Ci + Ek(Ci-1)
+(defun kaesar--cfb-encrypt (unibyte-string key iv)
+  (loop with pos = 0
+        with res = '()
+        with state-1 = (kaesar--unibytes-to-state iv 0)
+        with state = (kaesar--construct-state)
+        do (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
+                  (_ (kaesar--cipher! state-1 key))
+                  (_ (kaesar--state-xor! state state-1))
+                  (swap state))
+             (setq res (nconc (nreverse (kaesar--state-to-bytes state)) res))
+             (setq state state-1)
+             (setq state-1 swap)
+             (setq pos rest))
+        while pos
+        finally return
+        (kaesar--finish-truncate-bytes unibyte-string res)))
+
+(defun kaesar--cfb-decrypt (unibyte-string key iv)
+  (loop with pos = 0
+        with res = '()
+        with state-1 = (kaesar--unibytes-to-state iv 0)
+        with state = (kaesar--construct-state)
+        do (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
+                  (_ (kaesar--cipher! state-1 key))
+                  (_ (kaesar--state-xor! state-1 state))
+                  (swap state))
+             (setq state state-1)
+             (setq res (nconc (nreverse (kaesar--state-to-bytes state)) res))
+             (setq state-1 swap)
+             (setq pos rest))
         while pos
         finally return
         (kaesar--finish-truncate-bytes unibyte-string res)))
@@ -1042,21 +1071,6 @@ from memory."
     (let ((decrypted (funcall kaesar--decorder encbyte-string key iv)))
       (apply 'kaesar--unibyte-string decrypted))))
 
-;;TODO test
-;; (should (equal (kaesar--check-unibyte-vector [0 255]) [0 255]))
-;; (should-error (kaesar--check-unibyte-vector [-1]))
-;; (should-error (kaesar--check-unibyte-vector [256]))
-;; (should-error (kaesar--check-unibyte-vector [a]))
-;; (should-error (kaesar--check-unibyte-vector "a"))
-;; (should-error (kaesar--check-unibyte-vector (decode-coding-string "\343\201\202" 'utf-8)))
-;; (kaesar--with-algorithm "aes-128-cbc"
-;;   (should (equal (make-vector 16 170) (kaesar--validate-key "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")))
-;;   (should (equal (make-vector 16 170) (kaesar--validate-key "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")))
-;;   (should (equal (make-vector 16 ?a) (kaesar--validate-key "aaaaaaaaaaaaaaaa")))
-;;   (should-error (kaesar--validate-key "aaaaaaaaaaaaaaa"))
-;;   (should (equal (make-vector 16 ?b) (kaesar--validate-key (make-vector 16 ?b))))
-;;   )
-
 ;;TODO consider threshold of encrypt size
 
 (defun kaesar--check-block-bytes (string)
@@ -1082,38 +1096,40 @@ from memory."
 (defun kaesar--check-unibyte-vector (vector)
   (mapc
    (lambda (x)
-     (unless (and (numberp x)(<= 0 x) (<= x 255))
+     (unless (and (numberp x) (<= 0 x) (<= x 255))
        (error "Invalid unibyte vector")))
    vector))
 
 (defun kaesar--validate-input-bytes (bytes require-length)
   (cond
    ((and (stringp bytes)
-         (string-match "\\`[0-9a-fA-F][0-9a-fA-F]+\\'" bytes)
-         (= (/ (length bytes) 2) require-length))
-    (kaesar--hex-to-vector bytes))
-   ((stringp bytes)
+         (= (length bytes) require-length))
     (kaesar--check-unibyte-vector (vconcat bytes)))
-   ((vectorp bytes)
+   ((and (vectorp bytes)
+         (= (length bytes) require-length))
     (kaesar--check-unibyte-vector bytes))
+   ((and (stringp bytes)
+         ;; Check bytes have sufficient hex 
+         ;; NG: "a"
+         ;; OK: "0a"
+         (string-match "\\`\\(?:[0-9a-fA-F][0-9a-fA-F]\\)+\\'" bytes))
+    (let* ((vec (kaesar--hex-to-vector bytes))
+           (lack (- require-length (length vec))))
+      (when (< lack 0)
+        (error "Supplied bytes are too long %s" bytes))
+      (vconcat (make-vector lack 0) vec)))
    ((eq nil bytes)
     (make-vector require-length 0))
    (t
-    (error "Not supported unibytes format"))))
+    (error "Not supported unibytes format %s" bytes))))
 
-;;TODO  consider imp fill left bytes?
 (defun kaesar--validate-key (key)
   (let* ((keylength (* kaesar--Nk 4))
          (veckey (kaesar--validate-input-bytes key keylength)))
-    (unless (eq keylength (length veckey))
-      (error "Invalid key length (Must be %d bytes)" keylength))
     veckey))
 
-;;TODO  consider imp fill left bytes?
 (defun kaesar--validate-iv (iv)
   (let ((veciv (kaesar--validate-input-bytes iv kaesar--IV)))
-    (unless (eq kaesar--IV (length veciv))
-      (error "Invalid length of IV (Must be %d byte(s))" kaesar--IV))
     veciv))
 
 ;;;

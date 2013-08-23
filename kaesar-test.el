@@ -414,7 +414,8 @@
   (dolist (algorithm '("aes-128-ecb" "aes-192-ecb" "aes-256-ecb"
                        "aes-128-cbc" "aes-192-cbc" "aes-256-cbc"
                        "aes-128-ofb" "aes-192-ofb" "aes-256-ofb"
-                       "aes-128-ctr" "aes-192-ctr" "aes-256-ctr"))
+                       "aes-128-ctr" "aes-192-ctr" "aes-256-ctr"
+                       "aes-128-cfb" "aes-192-cfb" "aes-256-cfb"))
     (let ((kaesar-algorithm algorithm)
           (openssl-cipher-algorithm algorithm))
       (kaesar--test-block-random-test))))
@@ -665,7 +666,7 @@
 ;; TODO ecb_iv.txt
 
 (defun kaesar-test--ecb-mct (func hex-key hex-data algo)
-  (princ (format "ECB MCT ALGORITHM: %s KEY: %s DATA: %s\n" algo hex-key hex-data))
+  (princ (format "Checking ECB MCT ALGORITHM: %s KEY: %s DATA: %s\n" algo hex-key hex-data))
   (let* ((raw-key (kaesar-test--hex-to-vector hex-key))
          (data (kaesar-test--hex-to-unibyte hex-data)))
     (kaesar--with-algorithm algo
@@ -722,7 +723,7 @@
 
 
 (defun kaesar-test--cbc-mct (hex-key hex-pt hex-iv algo)
-  (princ (format "CBC MCT ALGORITHM: %s KEY: %s IV %s DATA: %s\n"
+  (princ (format "Checking CBC MCT ALGORITHM: %s KEY: %s IV %s DATA: %s\n"
                  algo hex-key hex-iv hex-pt))
   (let* ((raw-key (kaesar-test--hex-to-vector hex-key))
          (pt (kaesar-test--hex-to-unibyte hex-pt))
