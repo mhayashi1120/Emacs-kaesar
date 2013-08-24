@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/kaesar.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.1.0
+;; Version: 0.1.1
 ;; Package-Requires: ()
 
 ;; This program is free software; you can redistribute it and/or
@@ -129,8 +129,8 @@ aes-256-ctr, aes-192-ctr, aes-128-ctr
   :group 'kaesar
   :type 'string)
 
-(defvar kaesar--encorder)
-(defvar kaesar--decorder)
+(defvar kaesar--encoder)
+(defvar kaesar--decoder)
 (defvar kaesar--check-before-decrypt)
 
 (defvar kaesar-password nil
@@ -138,7 +138,7 @@ aes-256-ctr, aes-192-ctr, aes-128-ctr
 This is a hiding parameter, so intentionally make hard to use.")
 
 (defun kaesar--read-passwd (prompt &optional confirm)
-  "Read password as vector which hold byte and clear raw password
+  "Read password as a vector which hold byte and clear raw password
 from memory."
   (let (source)
     (cond
@@ -225,7 +225,6 @@ from memory."
       ;; CounTeR (Other word, `KAK' Key Auto-Key)
       (ctr
        kaesar--ctr-encrypt kaesar--ctr-encrypt
-       ;;TODO check
        nil ,kaesar--Block)
       
       ;; Cipher FeedBack
@@ -277,8 +276,8 @@ from memory."
     `(let ((,cell (assq ,algorithm kaesar--block-algorithm-alist)))
        (unless ,cell
          (error "%s is not supported" ,algorithm))
-       (let* ((kaesar--encorder (nth 1 ,cell))
-              (kaesar--decorder (nth 2 ,cell))
+       (let* ((kaesar--encoder (nth 1 ,cell))
+              (kaesar--decoder (nth 2 ,cell))
               (kaesar--check-before-decrypt (nth 3 ,cell))
               (kaesar--IV (nth 4 ,cell)))
          ,@form))))
@@ -1062,13 +1061,13 @@ from memory."
 (defun kaesar--encrypt-0 (unibyte-string raw-key &optional iv)
   "Encrypt UNIBYTE-STRING and return encrypted text as unibyte string."
   (let* ((key (kaesar--expand-to-block-key raw-key))
-         (encrypted (funcall kaesar--encorder unibyte-string key iv)))
+         (encrypted (funcall kaesar--encoder unibyte-string key iv)))
     (apply 'kaesar--unibyte-string encrypted)))
 
 (defun kaesar--decrypt-0 (encbyte-string raw-key &optional iv)
   "Decrypt ENCBYTE-STRING and return decrypted text as unibyte string"
   (let ((key (kaesar--expand-to-block-key raw-key)))
-    (let ((decrypted (funcall kaesar--decorder encbyte-string key iv)))
+    (let ((decrypted (funcall kaesar--decoder encbyte-string key iv)))
       (apply 'kaesar--unibyte-string decrypted))))
 
 ;;TODO consider threshold of encrypt size

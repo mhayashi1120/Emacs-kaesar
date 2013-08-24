@@ -4,7 +4,7 @@
 ;; Keywords: data, convenience
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/cipher/kaesar-mode.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.5.0
+;; Version: 0.1.0
 ;; Package-Requires: ((kaesar "0.1.0"))
 
 ;; This program is free software; you can redistribute it and/or
@@ -32,7 +32,8 @@
 ;;; Usage:
 
 ;; TODO
-;; revert-buffer
+;; * revert-buffer
+;; * ert test
 
 ;;; Code:
 
@@ -167,7 +168,7 @@
   (format "^%s\\(\\(?:.\\|\n\\)\\{16\\}\\)" kaesar--openssl-magic-word))
 
 (defconst kaesar-mode--block-size
-  (* cipher/aes--Nb cipher/aes--Row))
+  (* kaesar--Nb kaesar--Row))
 
 ;;TODO
 (defvar kaesar-mode-cache-password nil)

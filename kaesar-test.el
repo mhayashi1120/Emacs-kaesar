@@ -3,42 +3,42 @@
 (require 'openssl-cipher)
 (require 'ert)
 
-(defun kaesar--test-random-bytes ()
+(defun kaesar-test---random-bytes ()
   (let ((s (make-string (random 200) ?\000)))
     (loop for i from 0 below (length s)
           do (aset s i (random 256)))
     s))
 
-(defun kaesar--test-unibytes-to-hex (unibytes)
+(defun kaesar-test---unibytes-to-hex (unibytes)
   (apply 'concat
          (loop for b across unibytes
                collect (format "%02X" b))))
 
-(defun kaesar--test-hex-to-word (hex-string)
+(defun kaesar-test---hex-to-word (hex-string)
   (unless (= (length hex-string) 8)
     (error "args out of range"))
   (kaesar--hex-to-vector hex-string))
 
-(defun kaesar--test-openssl-key&iv (algorithm pass)
+(defun kaesar-test---openssl-key&iv (algorithm pass)
   (let ((key&iv (shell-command-to-string 
                  (format "openssl %s -e  -pass pass:%s -P -nosalt" algorithm pass))))
     (when (string-match "^key *=\\(.*\\)\\(?:\niv *=\\(.*\\)\\)?" key&iv)
       (list (match-string 1 key&iv) (or (match-string 2 key&iv) "")))))
 
 ;; Appendix A
-(defun kaesar--test-appendix-a-result (&rest hex-strings)
+(defun kaesar-test---appendix-a-result (&rest hex-strings)
   (mapcar
    (lambda (s)
-     (kaesar--test-hex-to-word s))
+     (kaesar-test---hex-to-word s))
    hex-strings))
 
-(defconst kaesar--test-aes128-key
+(defconst kaesar-test---aes128-key
   [
    ?\x2b ?\x7e ?\x15 ?\x16 ?\x28 ?\xae ?\xd2 ?\xa6 ?\xab ?\xf7 ?\x15 ?\x88 ?\x09 ?\xcf ?\x4f ?\x3c
          ])
 
-(defconst kaesar--test-aes128-results
-  (kaesar--test-appendix-a-result
+(defconst kaesar-test---aes128-results
+  (kaesar-test---appendix-a-result
    "2b7e1516"
    "28aed2a6"
    "abf71588"
@@ -85,12 +85,12 @@
    "b6630ca6"
    ))
 
-(defconst kaesar--test-aes192-key
+(defconst kaesar-test---aes192-key
   [?\x8e ?\x73 ?\xb0 ?\xf7 ?\xda ?\x0e ?\x64 ?\x52 ?\xc8 ?\x10 ?\xf3 ?\x2b
          ?\x80 ?\x90 ?\x79 ?\xe5 ?\x62 ?\xf8 ?\xea ?\xd2 ?\x52 ?\x2c ?\x6b ?\x7b])
 
-(defconst kaesar--test-aes192-results
-  (kaesar--test-appendix-a-result
+(defconst kaesar-test---aes192-results
+  (kaesar-test---appendix-a-result
    "8e73b0f7"
    "da0e6452"
    "c810f32b"
@@ -145,12 +145,12 @@
    "01002202"
    ))
 
-(defconst kaesar--test-aes256-key
+(defconst kaesar-test---aes256-key
   [?\x60 ?\x3d ?\xeb ?\x10 ?\x15 ?\xca ?\x71 ?\xbe ?\x2b ?\x73 ?\xae ?\xf0 ?\x85 ?\x7d ?\x77 ?\x81
          ?\x1f ?\x35 ?\x2c ?\x07 ?\x3b ?\x61 ?\x08 ?\xd7 ?\x2d ?\x98 ?\x10 ?\xa3 ?\x09 ?\x14 ?\xdf ?\xf4])
 
-(defconst kaesar--test-aes256-results
-  (kaesar--test-appendix-a-result
+(defconst kaesar-test---aes256-results
+  (kaesar-test---appendix-a-result
    "603deb10"
    "15ca71be"
    "2b73aef0"
@@ -214,7 +214,7 @@
    ))
 
 ;; Appendix B Cipher Example
-(defconst kaesar--test-appendix-b-input-state
+(defconst kaesar-test---appendix-b-input-state
   [
    ?\x32 ?\x88 ?\x31 ?\xe0
    ?\x43 ?\x5a ?\x31 ?\x37
@@ -222,26 +222,26 @@
    ?\xa8 ?\x8d ?\xa2 ?\x34
    ])
 
-(defconst kaesar--test-appendix-b-key
+(defconst kaesar-test---appendix-b-key
   [?\x2b ?\x7e ?\x15 ?\x16 ?\x28 ?\xae ?\xd2 ?\xa6 
          ?\xab ?\xf7 ?\x15 ?\x88 ?\x09 ?\xcf ?\x4f ?\x3c])
 
-(defun kaesar--test-unibytes-to-state (string)
+(defun kaesar-test---unibytes-to-state (string)
   (kaesar--cipher-algorithm 'aes-256
     (let ((s (kaesar--construct-state)))
       (kaesar--load-unibytes! s string 0)
       s)))
 
-(defun kaesar--test-view-to-state (array)
+(defun kaesar-test---view-to-state (array)
   (let ((ret (make-vector (* kaesar--Row kaesar--Nb) nil)))
     (loop for i from 0 
           for v across array
           do (aset ret (+ (/ i kaesar--Nb)
                           (* (mod i kaesar--Row) kaesar--Row)) v))
-    (kaesar--test-unibytes-to-state (concat ret))))
+    (kaesar-test---unibytes-to-state (concat ret))))
 
 
-(defconst kaesar--test-appendix-b-first-round-key
+(defconst kaesar-test---appendix-b-first-round-key
   [
    ?\x2b ?\x28 ?\xab ?\x09
    ?\x7e ?\xae ?\xf7 ?\xcf
@@ -250,7 +250,7 @@
    ])
 
 ;; 1 Start of Round
-(defconst kaesar--test-appendix-b-1-1
+(defconst kaesar-test---appendix-b-1-1
   [
    ?\x19 ?\xa0 ?\x9a ?\xe9
    ?\x3d ?\xf4 ?\xc6 ?\xf8
@@ -259,7 +259,7 @@
    ])
 
 ;; 1 After SubBytes
-(defconst kaesar--test-appendix-b-1-2
+(defconst kaesar-test---appendix-b-1-2
   [
    ?\xd4 ?\xe0 ?\xb8 ?\x1e
    ?\x27 ?\xbf ?\xb4 ?\x41
@@ -268,7 +268,7 @@
    ])
 
 ;; 1 After ShiftRows
-(defconst kaesar--test-appendix-b-1-3
+(defconst kaesar-test---appendix-b-1-3
   [
    ?\xd4 ?\xe0 ?\xb8 ?\x1e
    ?\xbf ?\xb4 ?\x41 ?\x27
@@ -277,7 +277,7 @@
    ])
 
 ;; 1 After MixColumns
-(defconst kaesar--test-appendix-b-1-4
+(defconst kaesar-test---appendix-b-1-4
   [
    ?\x04 ?\xe0 ?\x48 ?\x28
    ?\x66 ?\xcb ?\xf8 ?\x06
@@ -286,7 +286,7 @@
    ])
 
 ;; 1 Round Key Value
-(defconst kaesar--test-appendix-b-1-round-key
+(defconst kaesar-test---appendix-b-1-round-key
   [
    ?\xa0 ?\x88 ?\x23 ?\x2a
    ?\xfa ?\x54 ?\xa3 ?\x6c
@@ -295,7 +295,7 @@
    ])
 
 ;; last output
-(defconst kaesar--test-appendix-b-last-output
+(defconst kaesar-test---appendix-b-last-output
   [
    ?\x39 ?\x02 ?\xdc ?\x19
    ?\x25 ?\xdc ?\x11 ?\x6a
@@ -307,8 +307,8 @@
   (declare (indent 1))
   `(should (equal ,expected-form ,test-form)))
 
-(defun kaesar--test-block-random-test ()
-  (let* ((bytes (kaesar--test-random-bytes))
+(defun kaesar-test---block-random-test ()
+  (let* ((bytes (kaesar-test---random-bytes))
          results)
     (let ((openssl-cipher-password (copy-seq "d"))
           (kaesar-password (copy-seq "d")))
@@ -356,18 +356,18 @@
   (kaesar--cipher-algorithm 'aes-256
 
     ;; Sub Bytes and Shift Row with inverse
-    (kaesar-test-should (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
-      (kaesar--inv-sub/shift-row! (kaesar--sub/shift-row! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP"))))
+    (kaesar-test-should (kaesar-test---unibytes-to-state "ABCDEFGHIJKLMNOP")
+      (kaesar--inv-sub/shift-row! (kaesar--sub/shift-row! (kaesar-test---unibytes-to-state "ABCDEFGHIJKLMNOP"))))
 
-    (kaesar-test-should (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP")
+    (kaesar-test-should (kaesar-test---unibytes-to-state "ABCDEFGHIJKLMNOP")
       (let ((dummy-key [[0 0 0 0][0 0 0 0][0 0 0 0][0 0 0 0]]))
-        (kaesar--inv-key-with-mix-columns! dummy-key (kaesar--mix-columns-with-key! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP") dummy-key))))
+        (kaesar--inv-key-with-mix-columns! dummy-key (kaesar--mix-columns-with-key! (kaesar-test---unibytes-to-state "ABCDEFGHIJKLMNOP") dummy-key))))
 
     (kaesar-test-should (string-to-list "ABCDEFGHIJKLMNOP")
-      (let ((key (kaesar--expand-to-block-key kaesar--test-aes256-key)))
+      (let ((key (kaesar--expand-to-block-key kaesar-test---aes256-key)))
         (kaesar--state-to-bytes
          (kaesar--inv-cipher!
-          (kaesar--cipher! (kaesar--test-unibytes-to-state "ABCDEFGHIJKLMNOP") key)
+          (kaesar--cipher! (kaesar-test---unibytes-to-state "ABCDEFGHIJKLMNOP") key)
           key))))))
 
 (ert-deftest kaesar-test--parser-functions ()
@@ -390,25 +390,25 @@
 (ert-deftest kaesar-test--openssl-compatibility ()
   :tags '(kaesar)
 
-  (kaesar-test-should (kaesar--test-openssl-key&iv "aes-128-cbc" "d")
+  (kaesar-test-should (kaesar-test---openssl-key&iv "aes-128-cbc" "d")
     (kaesar--with-algorithm "aes-128-cbc"
       (destructuring-bind (key iv) (kaesar--openssl-evp-bytes-to-key (vconcat "d"))
-        (list (kaesar--test-unibytes-to-hex key) (kaesar--test-unibytes-to-hex iv)))))
+        (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
 
-  (kaesar-test-should (kaesar--test-openssl-key&iv "aes-128-ecb" "d")
+  (kaesar-test-should (kaesar-test---openssl-key&iv "aes-128-ecb" "d")
     (kaesar--with-algorithm "aes-128-ecb"
       (destructuring-bind (key iv) (kaesar--openssl-evp-bytes-to-key (vconcat "d"))
-        (list (kaesar--test-unibytes-to-hex key) (kaesar--test-unibytes-to-hex iv)))))
+        (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
 
-  (kaesar-test-should (kaesar--test-openssl-key&iv "aes-256-ecb" "pass")
+  (kaesar-test-should (kaesar-test---openssl-key&iv "aes-256-ecb" "pass")
     (kaesar--with-algorithm "aes-256-ecb"
       (destructuring-bind (key iv) (kaesar--openssl-evp-bytes-to-key (vconcat "pass"))
-        (list (kaesar--test-unibytes-to-hex key) (kaesar--test-unibytes-to-hex iv)))))
+        (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
 
-  (kaesar-test-should (kaesar--test-openssl-key&iv "aes-256-cbc" "pass")
+  (kaesar-test-should (kaesar-test---openssl-key&iv "aes-256-cbc" "pass")
     (kaesar--with-algorithm "aes-256-cbc"
       (destructuring-bind (key iv) (kaesar--openssl-evp-bytes-to-key (vconcat "pass"))
-        (list (kaesar--test-unibytes-to-hex key) (kaesar--test-unibytes-to-hex iv)))))
+        (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
 
   ;; check interoperability openssl command
   (dolist (algorithm '("aes-128-ecb" "aes-192-ecb" "aes-256-ecb"
@@ -418,50 +418,50 @@
                        "aes-128-cfb" "aes-192-cfb" "aes-256-cfb"))
     (let ((kaesar-algorithm algorithm)
           (openssl-cipher-algorithm algorithm))
-      (kaesar--test-block-random-test))))
+      (kaesar-test---block-random-test))))
 
 
 (ert-deftest kaesar-test--appendix ()
   :tags '(kaesar)
   ;; Appendix A.1
-  (kaesar-test-should kaesar--test-aes128-results
+  (kaesar-test-should kaesar-test---aes128-results
     (kaesar--cipher-algorithm 'aes-128 
-      (kaesar--key-expansion kaesar--test-aes128-key)))
+      (kaesar--key-expansion kaesar-test---aes128-key)))
 
   ;; Appendix A.2
-  (kaesar-test-should kaesar--test-aes192-results
+  (kaesar-test-should kaesar-test---aes192-results
     (kaesar--cipher-algorithm 'aes-192 
-      (kaesar--key-expansion kaesar--test-aes192-key)))
+      (kaesar--key-expansion kaesar-test---aes192-key)))
 
   ;; Appendix A.3
-  (kaesar-test-should kaesar--test-aes256-results
+  (kaesar-test-should kaesar-test---aes256-results
     (kaesar--cipher-algorithm 'aes-256
-      (kaesar--key-expansion kaesar--test-aes256-key)))
+      (kaesar--key-expansion kaesar-test---aes256-key)))
 
   ;; Appendix B 
   (kaesar--cipher-algorithm 'aes-128
     (kaesar-test-should [[?\x2b ?\x7e ?\x15 ?\x16] [?\x28 ?\xae ?\xd2 ?\xa6] [?\xab ?\xf7 ?\x15 ?\x88] [?\x09 ?\xcf ?\x4f ?\x3c]]
-      (kaesar--round-key (kaesar--expand-to-block-key kaesar--test-appendix-b-key) 0))
+      (kaesar--round-key (kaesar--expand-to-block-key kaesar-test---appendix-b-key) 0))
 
-    (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-1)
-      (kaesar--add-round-key! (kaesar--test-view-to-state kaesar--test-appendix-b-input-state) 
-                              (kaesar--test-view-to-state kaesar--test-appendix-b-first-round-key)))
+    (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-1-1)
+      (kaesar--add-round-key! (kaesar-test---view-to-state kaesar-test---appendix-b-input-state) 
+                              (kaesar-test---view-to-state kaesar-test---appendix-b-first-round-key)))
 
-    (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-3)
-      (kaesar--sub/shift-row! (kaesar--test-view-to-state kaesar--test-appendix-b-1-1)))
+    (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-1-3)
+      (kaesar--sub/shift-row! (kaesar-test---view-to-state kaesar-test---appendix-b-1-1)))
 
     ;; This case originally just test MixColumns but now is merged with AddRoundKey.
     ;; xor with key which is filled by zero get same result of original case.
-    (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-4)
-      (kaesar--mix-columns-with-key! (kaesar--test-view-to-state kaesar--test-appendix-b-1-3)
+    (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-1-4)
+      (kaesar--mix-columns-with-key! (kaesar-test---view-to-state kaesar-test---appendix-b-1-3)
                                      [[0 0 0 0][0 0 0 0][0 0 0 0][0 0 0 0]]))
   
-    (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-1-round-key)
-      (kaesar--round-key (kaesar--expand-to-block-key kaesar--test-appendix-b-key) 1))
+    (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-1-round-key)
+      (kaesar--round-key (kaesar--expand-to-block-key kaesar-test---appendix-b-key) 1))
     
-    (kaesar-test-should (kaesar--test-view-to-state kaesar--test-appendix-b-last-output)
-      (kaesar--cipher! (kaesar--test-view-to-state kaesar--test-appendix-b-input-state)
-                      (kaesar--expand-to-block-key kaesar--test-appendix-b-key)))
+    (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-last-output)
+      (kaesar--cipher! (kaesar-test---view-to-state kaesar-test---appendix-b-input-state)
+                      (kaesar--expand-to-block-key kaesar-test---appendix-b-key)))
     ))
 
 (ert-deftest kaesar-test--enc/dec ()
@@ -503,13 +503,13 @@
 
   (loop repeat 256
         do 
-        (kaesar-test-enc/dec (kaesar--test-random-bytes) "aes-256-cbc"))
+        (kaesar-test-enc/dec (kaesar-test---random-bytes) "aes-256-cbc"))
 
   (loop repeat 256
         do 
-        (kaesar-test-enc/dec (kaesar--test-random-bytes) "aes-256-ecb")))
+        (kaesar-test-enc/dec (kaesar-test---random-bytes) "aes-256-ecb")))
 
-(defun kaesar--parse-test-values (file)
+(defun kaesar-test--parse-test-values (file)
   (with-temp-buffer
     (insert-file-contents file)
     (goto-char (point-min))
@@ -566,7 +566,7 @@
   "Known Answer Test (Variable Key)"
   :tags '(kaesar)
   (let* ((file (kaesar-test--locate-test-data "ecb_vk.txt"))
-         (suites (kaesar--parse-test-values file)))
+         (suites (kaesar-test--parse-test-values file)))
     (loop for (keysize suite) in suites
           do
           (let ((algo (format "aes-%d-ecb" keysize))
@@ -577,7 +577,7 @@
                          (ct (cdr (assoc "CT" test)))
                          (raw-key (kaesar-test--hex-to-vector key))
                          (enc (kaesar-encrypt data raw-key nil algo))
-                         (hex (kaesar--test-unibytes-to-hex enc))
+                         (hex (kaesar-test---unibytes-to-hex enc))
                          (test-target (substring hex 0 (length ct))))
                     (kaesar-test-should ct test-target)))))))
 
@@ -585,7 +585,7 @@
   "Known Answer Test (Variable Text)"
   :tags '(kaesar)
   (let* ((file (kaesar-test--locate-test-data "ecb_vt.txt"))
-         (suites (kaesar--parse-test-values file)))
+         (suites (kaesar-test--parse-test-values file)))
     (loop for (keysize suite) in suites
           do
           (let* ((algo (format "aes-%d-ecb" keysize))
@@ -596,7 +596,7 @@
                   (let* ((data (kaesar-test--hex-to-vector (cdr (assoc "PT" test))))
                          (ct (cdr (assoc "CT" test)))
                          (enc (kaesar-encrypt data raw-key nil algo))
-                         (hex (kaesar--test-unibytes-to-hex enc))
+                         (hex (kaesar-test---unibytes-to-hex enc))
                          (test-target (substring hex 0 (length ct))))
                     (kaesar-test-should ct test-target)))))))
 
@@ -604,7 +604,7 @@
   "Known Answer Tests"
   :tags '(kaesar)
   (let* ((file (kaesar-test--locate-test-data "ecb_tbl.txt"))
-         (suites (kaesar--parse-test-values file)))
+         (suites (kaesar-test--parse-test-values file)))
     (loop for (keysize suite) in suites
           do
           (let* ((algo (format "aes-%d-ecb" keysize)))
@@ -614,7 +614,7 @@
                          (data (kaesar-test--hex-to-vector (cdr (assoc "PT" test))))
                          (ct (cdr (assoc "CT" test)))
                          (enc (kaesar-encrypt data raw-key nil algo))
-                         (hex (kaesar--test-unibytes-to-hex enc))
+                         (hex (kaesar-test---unibytes-to-hex enc))
                          (test-target (substring hex 0 (length ct))))
                     (kaesar-test-should ct test-target)))))))
 
@@ -678,14 +678,14 @@
             do (setq state (funcall func state key))
             finally return (let* ((bytes (kaesar--state-to-bytes state))
                                   (unibytes (vconcat bytes))
-                                  (hex (kaesar--test-unibytes-to-hex unibytes)))
+                                  (hex (kaesar-test---unibytes-to-hex unibytes)))
                              hex)))))
 
 (ert-deftest kaesar-test--ecb-encrypt ()
   "Monte Carlo Test ECB mode decryption"
   :tags '(kaesar)
   (loop with file = (kaesar-test--locate-test-data "ecb_e_m.txt")
-        with suites = (kaesar--parse-test-values file)
+        with suites = (kaesar-test--parse-test-values file)
         for (keysize suite) in suites
         do
         (catch 'exit
@@ -706,7 +706,7 @@
   "Monte Carlo Test ECB mode decryption"
   :tags '(kaesar)
   (loop with file = (kaesar-test--locate-test-data "ecb_d_m.txt")
-        with suites = (kaesar--parse-test-values file)
+        with suites = (kaesar-test--parse-test-values file)
         for (keysize suite) in suites
         do
         (catch 'exit
@@ -746,20 +746,20 @@
                  (setq cv ct)
                  (setq ct-1 ct))
             finally return
-            (list (kaesar--test-state-to-hex ct)
-                  (kaesar--test-state-to-hex pt))))))
+            (list (kaesar-test---state-to-hex ct)
+                  (kaesar-test---state-to-hex pt))))))
 
-(defun kaesar--test-state-to-hex (state)
+(defun kaesar-test---state-to-hex (state)
   (let* ((bytes (kaesar--state-to-bytes state))
          (unibytes (vconcat bytes))
-         (hex (kaesar--test-unibytes-to-hex unibytes)))
+         (hex (kaesar-test---unibytes-to-hex unibytes)))
     hex))
 
 (ert-deftest kaesar-test--cbc-encrypt ()
   "Monte Carlo Test CBC mode encryption"
   :tags '(kaesar)
   (loop with file = (kaesar-test--locate-test-data "cbc_e_m.txt")
-        with suites = (kaesar--parse-test-values file)
+        with suites = (kaesar-test--parse-test-values file)
         for (keysize suite) in suites
         do
         (catch 'exit
@@ -787,7 +787,7 @@
 ;;   "Monte Carlo Test CBC mode decryption"
 ;;   :tags '(kaesar)
 ;;   (let* ((file (kaesar-test--locate-test-data "cbc_d_m.txt"))
-;;          (suites (kaesar--parse-test-values file)))
+;;          (suites (kaesar-test--parse-test-values file)))
 ;;     (loop for (keysize suite) in suites
 ;;           do
 ;;           (let* ((algo (format "aes-%d-ecb" keysize)))
@@ -799,6 +799,50 @@
 ;;                          (dec (kaesar-test--ecb-mct 'kaesar--inv-cipher hex-key hex-data algo)))
 ;;                     (kaesar-test-should pt dec)))))))
 
+(ert-deftest kaesar-test--file-encrypt/decrypt ()
+  "Check file encryption/decryption."
+  :tags '(kaesar)
+  (dolist (mode '(nil base64 base64-with-header))
+    (let* ((string "some of multibyte char あいうえお")
+           (file (kaesar-test--create-file string)))
+      (unwind-protect
+          (progn
+            (let ((kaesar-password (copy-seq "d")))
+              (kaesar-encrypt-file file nil mode))
+            (let ((kaesar-password (copy-seq "d")))
+              ;; mode is detect automatically
+              (kaesar-decrypt-file file))
+            (should (equal string (kaesar-test--file-contents file)))
+            ;; encrypt again. This time save file to another file.
+            (let ((save-file (concat file ".save"))
+                  (restore-file (concat file ".restore")))
+              (unwind-protect
+                  ;; FILE -> [encrypt] -> SAVE-FILE -> [decrypt] -> RESTORE-FILE
+                  (progn
+                    (let ((kaesar-password (copy-seq "d")))
+                      (kaesar-encrypt-file file nil mode save-file))
+                    (let ((kaesar-password (copy-seq "d")))
+                      (kaesar-decrypt-file save-file nil restore-file))
+                    (should (equal string (kaesar-test--file-contents restore-file))))
+                (delete-file save-file)
+                (delete-file restore-file))))
+        (delete-file file)))))
+
+(ert-deftest kaesar-test--region-encrypt/decrypt ()
+  "Check region encryption/decryption."
+  :tags '(kaesar)
+  (dolist (mode '(nil base64 base64-with-header))
+    (let* ((string "another multibyte string あいうえお")
+           (file (kaesar-test--create-file string)))
+      (let ((kaesar-password (copy-seq "d")))
+        (kaesar-encrypt-write-region string nil file nil mode))
+      (let ((kaesar-password (copy-seq "d")))
+        (should (equal string (kaesar-decrypt-file-contents file nil 'utf-8))))
+      (with-temp-buffer
+        (insert string)
+        (let ((kaesar-password (copy-seq "d")))
+          (kaesar-encrypt-write-region (point-min) (point-max) file nil mode)))
+      (let ((kaesar-password (copy-seq "d")))
+        (should (equal string (kaesar-decrypt-file-contents file nil 'utf-8)))))))
 
 (provide 'kaesar-test)
-
