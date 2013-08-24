@@ -799,6 +799,19 @@
 ;;                          (dec (kaesar-test--ecb-mct 'kaesar--inv-cipher hex-key hex-data algo)))
 ;;                     (kaesar-test-should pt dec)))))))
 
+(defun kaesar-test--create-file (contents &optional cs)
+  (let ((file (make-temp-file "kaesar-test-"))
+        (coding-system-for-write cs))
+    (write-region contents nil file nil 'no-msg)
+    file))
+
+(defun kaesar-test--file-contents (file &optional cs)
+  (with-temp-buffer
+    (insert-file-contents file)
+    (if cs
+        (decode-coding-string (buffer-string) cs)
+      (buffer-string))))
+
 (ert-deftest kaesar-test--file-encrypt/decrypt ()
   "Check file encryption/decryption."
   :tags '(kaesar)
