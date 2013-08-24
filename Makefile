@@ -7,4 +7,4 @@ check:
 		-eval "(ert-run-tests-batch-and-exit '(tag kaesar))";
 
 clean:
-	rm -f kaesar.elc
+	rm -f *.elc
