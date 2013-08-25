@@ -123,7 +123,14 @@ todo how to grep
 
 (defun kaesar-mode--decrypt (bytes)
   (let ((kaesar-password (kaesar-mode--password nil)))
-    (kaesar-decrypt-bytes bytes)))
+    (condition-case err
+        (kaesar-decrypt-bytes bytes)
+      (kaesar-decryption-failed
+       ;; clear cached password if need
+       (when (and kaesar-mode-cache-password
+                  kaesar-mode--secure-password)
+         (setq kaesar-mode--secure-password nil))
+       (signal (car err) (cdr err))))))
 
 (defun kaesar-mode--password (confirm)
   (cond
