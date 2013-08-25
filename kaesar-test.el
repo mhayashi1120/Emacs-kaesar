@@ -812,6 +812,7 @@
         (decode-coding-string (buffer-string) cs)
       (buffer-string))))
 
+;;TODO check interoperability with openssl-cipher
 (ert-deftest kaesar-test--file-encrypt/decrypt ()
   "Check file encryption/decryption."
   :tags '(kaesar)
@@ -858,6 +859,8 @@
       (let ((kaesar-password (copy-seq "d")))
         (should (equal string (kaesar-decrypt-file-contents file nil 'utf-8)))))))
 
+;; TODO check decryption fail
+;; TODO check cached password
 (ert-deftest kaesar-test--mode ()
   "Check mode encryption/decryption."
   :tags '(kaesar)
@@ -885,7 +888,5 @@
           (should (equal (kaesar-test--file-contents file) (concat string "append string")))
           (kill-buffer (current-buffer)))
       (delete-file file))))
-
-;;TODO check interoperability with openssl-cipher
 
 (provide 'kaesar-test)
