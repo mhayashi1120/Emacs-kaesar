@@ -858,4 +858,34 @@
       (let ((kaesar-password (copy-seq "d")))
         (should (equal string (kaesar-decrypt-file-contents file nil 'utf-8)))))))
 
+(ert-deftest kaesar-test--mode ()
+  "Check mode encryption/decryption."
+  :tags '(kaesar)
+  (let* ((string "multibyte\ncharacter\nへのへの\n")
+         (file (kaesar-test--create-file string 'utf-8)))
+    (unwind-protect
+        (progn
+          (find-file file)
+          ;; using cache pass
+          (let ((kaesar-mode--test-password (copy-seq "d")))
+            (kaesar-mode 1))
+          (should-not (equal (kaesar-test--file-contents file) string))
+          (kill-buffer (current-buffer))
+          ;; using cache pass
+          (let ((kaesar-mode--test-password (copy-seq "d")))
+            (find-file file))
+          (should (equal string (buffer-string)))
+          (goto-char (point-max))
+          (insert "append string")
+          ;; using cache pass
+          (let ((kaesar-mode--test-password (copy-seq "d")))
+            (save-buffer))
+          ;; decrypt and save raw data to file
+          (kaesar-mode -1)
+          (should (equal (kaesar-test--file-contents file) (concat string "append string")))
+          (kill-buffer (current-buffer)))
+      (delete-file file))))
+
+;;TODO check interoperability with openssl-cipher
+
 (provide 'kaesar-test)

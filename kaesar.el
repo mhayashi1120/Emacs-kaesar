@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/kaesar.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.1.1
+;; Version: 0.1.2
 ;; Package-Requires: ()
 
 ;; This program is free software; you can redistribute it and/or
@@ -147,7 +147,7 @@ from memory."
       ;; do not clear external password.
       (setq source kaesar-password))
      ((and (stringp kaesar-password)
-           (not (multibyte-string-p kaesar-password)))
+           (string-match "\\`[\000-\177]+\\'" kaesar-password))
       (setq source kaesar-password))
      (t
       (setq source (read-passwd prompt confirm))))

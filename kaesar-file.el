@@ -5,7 +5,7 @@
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/cipher/kaesar-file.el
 ;; Emacs: GNU Emacs 22 or later
 ;; Version: 0.1.1
-;; Package-Requires: ((kaesar "0.1.0"))
+;; Package-Requires: ((kaesar "0.1.1"))
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
