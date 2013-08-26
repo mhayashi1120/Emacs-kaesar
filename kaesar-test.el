@@ -849,13 +849,13 @@
     (let* ((string "another multibyte string あいうえお")
            (file (kaesar-test--create-file string)))
       (let ((kaesar-password (copy-seq "d")))
-        (kaesar-encrypt-write-region string nil file nil mode))
+        (kaesar-encrypt-write-region string nil file nil 'utf-8 mode))
       (let ((kaesar-password (copy-seq "d")))
         (should (equal string (kaesar-decrypt-file-contents file nil 'utf-8))))
       (with-temp-buffer
         (insert string)
         (let ((kaesar-password (copy-seq "d")))
-          (kaesar-encrypt-write-region (point-min) (point-max) file nil mode)))
+          (kaesar-encrypt-write-region (point-min) (point-max) file nil 'utf-8 mode)))
       (let ((kaesar-password (copy-seq "d")))
         (should (equal string (kaesar-decrypt-file-contents file nil 'utf-8)))))))
 

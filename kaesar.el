@@ -1,10 +1,10 @@
-;;; kaesar.el --- Another AES encryptin/decryptin. (string with password)
+;;; kaesar.el --- Another AES algorithm encrypt/decrypt string with password.
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/kaesar.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.1.2
+;; Version: 0.1.3
 ;; Package-Requires: ()
 
 ;; This program is free software; you can redistribute it and/or
@@ -153,7 +153,11 @@ from memory."
       (setq source (read-passwd prompt confirm))))
     (prog1
         (vconcat source)
-      (fillarray source 0))))
+      (fillarray source 0)
+      ;; reset the hiden parameter too.
+      ;; if not clear, password may be a NULL filled text
+      ;; unconciously.
+      (setq kaesar-password nil))))
 
 ;; Basic utilities
 

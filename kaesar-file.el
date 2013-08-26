@@ -1,10 +1,10 @@
-;;; kaesar-file.el --- Encrypt/Decrypt file with password.
+;;; kaesar-file.el --- Encrypt/Decrypt file by AES with password.
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data, files
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/cipher/kaesar-file.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.1.1
+;; Version: 0.1.2
 ;; Package-Requires: ((kaesar "0.1.1"))
 
 ;; This program is free software; you can redistribute it and/or
@@ -33,6 +33,7 @@
 
 ;; TODO
 ;; * brush up interface
+;; * physical deletion raw file contents.
 
 ;;; Code:
 
@@ -140,19 +141,21 @@ FILE was encrypted by `kaesar-encrypt-file'."
     (kaesar--write-buffer (or save-file file))))
 
 ;;;###autoload
-(defun kaesar-encrypt-write-region (start end file &optional algorithm mode)
+(defun kaesar-encrypt-write-region (start end file &optional algorithm coding-system mode)
   "Write START END region to FILE with encryption."
   (interactive "r\nF")
   (let* ((str (if (stringp start)
                   start
                 (buffer-substring-no-properties start end)))
-         (cs (or buffer-file-coding-system default-terminal-coding-system))
+         (cs (or coding-system
+                 buffer-file-coding-system
+                 default-terminal-coding-system))
          (s (encode-coding-string str cs)))
     (with-temp-buffer
       (set-buffer-multibyte nil)
       (insert s)
       (kaesar--prepare-encrypt-buffer algorithm mode)
-      (kaesar--write-region (point-min) (point-max) file))))
+      (kaesar--write-buffer file))))
 
 ;;;###autoload
 (defun kaesar-decrypt-file-contents (file &optional algorithm coding-system)

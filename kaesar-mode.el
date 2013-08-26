@@ -1,10 +1,10 @@
-;;; kaesar-mode.el --- Encrypt/Decrypt string with password.
+;;; kaesar-mode.el --- Encrypt/Decrypt buffer by AES with password.
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data, convenience
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/cipher/kaesar-mode.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.1.1
+;; Version: 0.1.2
 ;; Package-Requires: ((kaesar "0.1.1"))
 
 ;; This program is free software; you can redistribute it and/or
@@ -174,8 +174,14 @@ todo how to grep
   (loop for b in (find-backup-file-name file)
         do (when (and (file-exists-p b)
                       (eq (car (file-attributes b)) nil))
-             (let ((delete-by-moving-to-trash nil))
-               (delete-file b)))))
+             (kaesar-file--purge-file b))))
+
+(defun kaesar-file--purge-file (file)
+  (let ((size (nth 7 (file-attributes file))))
+    (let ((coding-system-for-write 'binary))
+      (write-region (make-string size 0) nil file nil 'no-msg))
+    (let ((delete-by-moving-to-trash nil))
+      (delete-file file))))
 
 (defun kaesar-mode--write-encrypt-data (file bytes meta-info)
   (let ((encrypt/bytes (kaesar-mode--encrypt bytes)))
