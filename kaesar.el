@@ -48,6 +48,10 @@
 ;;  K`aes'ar is change the first character of Caesar. There is no
 ;; meaning more than containing `aes' word.
 
+;; How to suppress password prompt?
+;; There is no official way to suppress that prompt. If you learn
+;; more information, please read `kaesar-password' doc string.
+
 ;;; Usage:
 
 ;; * To encrypt a well encoded string (High level API)
@@ -134,8 +138,10 @@ aes-256-ctr, aes-192-ctr, aes-128-ctr
 (defvar kaesar--check-before-decrypt)
 
 (defvar kaesar-password nil
-  "Hold the password temporarily to suppress the minibuffer prompt.
-This is a hiding parameter, so intentionally make hard to use.")
+  "Hold the password temporarily to suppress the minibuffer
+prompt with locally bound. This value will be erased immediately
+from memory after creating AES key. This is a hiding parameter,
+so intentionally make hard to use.")
 
 (defun kaesar--read-passwd (prompt &optional confirm)
   "Read password as a vector which hold byte and clear raw password
@@ -463,7 +469,7 @@ from memory."
                          (aset iv j (aref hash i))
                          (incf i))
                     finally (setq ii j)))))
-    ;; Destructive clear raw password text
+    ;; Destructive clear password area.
     (fillarray data nil)
     (list key iv)))
 
