@@ -4,7 +4,7 @@
 ;; Keywords: data, convenience
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/cipher/kaesar-mode.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.1.2
+;; Version: 0.1.3
 ;; Package-Requires: ((kaesar "0.1.1"))
 
 ;; This program is free software; you can redistribute it and/or
@@ -59,7 +59,7 @@
 ;; how to hide password more safely. consider:
 ;; 1. create internal password automatically. `kaesar-mode--volatile-password'
 ;; 2. above password never hold to variable otherwise clear immediately.
-;; 3. volatile after emacs process will be dead.
+;; 3. volatile after emacs process is killed.
 (defvar kaesar-mode--secure-password nil)
 (make-variable-buffer-local 'kaesar-mode--secure-password)
 
@@ -75,47 +75,6 @@
   '((t (:inherit font-lock-warning-face)))
   "Face used for mode-line"
   :group 'kaesar-mode)
-
-
-;;;###autoload
-(define-minor-mode kaesar-mode
-  "TODO
-Handling buffer with file encryption by password.
-todo about header
-todo how to grep
- "
-  :init-value nil
-  :lighter (" [" (:propertize "KaesarEncrypt" face kaesar-mode-lighter-face) "]")
-  :group 'kaesar-mode
-  (cond
-   ((not buffer-file-name)
-    (message "Buffer has no physical file.")
-    (kaesar-mode -1))
-   ((not kaesar-mode)
-    (remove-hook 'write-contents-functions 'kaesar-mode-save-buffer t)
-    (remove-hook 'after-revert-hook 'kaesar-mode--revert-function t)
-    (when (kaesar-mode--file-guessed-encrypted-p buffer-file-name)
-      ;; trick to execute `basic-save-buffer'
-      (set-buffer-modified-p t)
-      (basic-save-buffer)))
-   (t
-    (if (not (kaesar-mode--file-guessed-encrypted-p buffer-file-name))
-        ;; first time call `kaesar-mode'
-        (kaesar-mode--write-buffer)
-      ;; when open already decrypted file.
-      (kaesar-mode--decrypt-buffer))
-    (add-hook 'write-contents-functions 'kaesar-mode-save-buffer nil t)
-    (add-hook 'after-revert-hook 'kaesar-mode--revert-function nil t))))
-
-(defun kaesar-mode-save-buffer ()
-  (if (buffer-modified-p)
-      (kaesar-mode--write-buffer)
-    (message "(No changes need to be saved)"))
-  ;; explicitly return non-nil
-  t)
-
-(defun kaesar-mode--revert-function ()
-  (kaesar-mode 1))
 
 (defun kaesar-mode--encrypt (bytes)
   (let ((kaesar-password (kaesar-mode--password t)))
@@ -251,6 +210,54 @@ todo how to grep
          (progn
            (forward-line 1)
            (looking-at kaesar-mode--encrypt-body-regexp)))))
+
+(defun kaesar-mode-save-buffer ()
+  (if (buffer-modified-p)
+      (kaesar-mode--write-buffer)
+    (message "(No changes need to be saved)"))
+  ;; explicitly return non-nil
+  t)
+
+(defun kaesar-mode--revert-function ()
+  (kaesar-mode 1))
+
+(defun kaesar-mode-clear-cache-password ()
+  (interactive)
+  (unless (and kaesar-mode-cache-password
+               kaesar-mode--secure-password)
+    (error "No need to explicitly clear the password"))
+  (setq kaesar-mode--secure-password nil)
+  (set-buffer-modified-p t))
+
+;;;###autoload
+(define-minor-mode kaesar-mode
+  "TODO
+Handling buffer with file encryption by password.
+todo about header
+todo how to grep
+ "
+  :init-value nil
+  :lighter (" [" (:propertize "KaesarEncrypt" face kaesar-mode-lighter-face) "]")
+  :group 'kaesar-mode
+  (cond
+   ((not buffer-file-name)
+    (message "Buffer has no physical file.")
+    (kaesar-mode -1))
+   ((not kaesar-mode)
+    (remove-hook 'write-contents-functions 'kaesar-mode-save-buffer t)
+    (remove-hook 'after-revert-hook 'kaesar-mode--revert-function t)
+    (when (kaesar-mode--file-guessed-encrypted-p buffer-file-name)
+      ;; trick to execute `basic-save-buffer'
+      (set-buffer-modified-p t)
+      (basic-save-buffer)))
+   (t
+    (if (not (kaesar-mode--file-guessed-encrypted-p buffer-file-name))
+        ;; first time call `kaesar-mode'
+        (kaesar-mode--write-buffer)
+      ;; when open already decrypted file.
+      (kaesar-mode--decrypt-buffer))
+    (add-hook 'write-contents-functions 'kaesar-mode-save-buffer nil t)
+    (add-hook 'after-revert-hook 'kaesar-mode--revert-function nil t))))
 
 (provide 'kaesar-mode)
 

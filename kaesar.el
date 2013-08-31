@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/kaesar.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.1.3
+;; Version: 0.1.4
 ;; Package-Requires: ()
 
 ;; This program is free software; you can redistribute it and/or
@@ -89,6 +89,8 @@
 
 ;; * validation -> AESAVS.pdf
 
+;; * consider threshold of encrypt size
+
 ;;; Code:
 
 (eval-when-compile
@@ -124,12 +126,14 @@ aes-256-ctr, aes-192-ctr, aes-128-ctr
           (const "aes-256-ctr")))
 
 (defcustom kaesar-encrypt-prompt nil
-  "Password prompt when read password to encrypt."
+  "Password prompt when read password to encrypt. This variable
+intend to use with locally bound."
   :group 'kaesar
   :type 'string)
 
 (defcustom kaesar-decrypt-prompt nil
-  "Password prompt when read password to decrypt."
+  "Password prompt when read password to decrypt.This variable
+intend to use with locally bound."
   :group 'kaesar
   :type 'string)
 
@@ -900,7 +904,6 @@ from memory."
 
 (defun kaesar--cbc-encrypt (unibyte-string key iv)
   (loop with pos = 0
-        ;;TODO when iv is nil
         with state-1 = (kaesar--unibytes-to-state iv 0)
         with state = (kaesar--construct-state)
         ;; state-1 <-> state is swapped in this loop to decrease
@@ -1068,19 +1071,17 @@ from memory."
   (let ((raw-key (kaesar--key-expansion key)))
     (kaesar--key-make-block raw-key)))
 
-(defun kaesar--encrypt-0 (unibyte-string raw-key &optional iv)
+(defun kaesar--encrypt-0 (unibyte-string raw-key iv)
   "Encrypt UNIBYTE-STRING and return encrypted text as unibyte string."
   (let* ((key (kaesar--expand-to-block-key raw-key))
          (encrypted (funcall kaesar--encoder unibyte-string key iv)))
     (apply 'kaesar--unibyte-string encrypted)))
 
-(defun kaesar--decrypt-0 (encbyte-string raw-key &optional iv)
-  "Decrypt ENCBYTE-STRING and return decrypted text as unibyte string"
-  (let ((key (kaesar--expand-to-block-key raw-key)))
-    (let ((decrypted (funcall kaesar--decoder encbyte-string key iv)))
-      (apply 'kaesar--unibyte-string decrypted))))
-
-;;TODO consider threshold of encrypt size
+(defun kaesar--decrypt-0 (encbyte-string raw-key iv)
+  "Decrypt ENCBYTE-STRING and return decrypted text as unibyte string."
+  (let* ((key (kaesar--expand-to-block-key raw-key))
+         (decrypted (funcall kaesar--decoder encbyte-string key iv)))
+    (apply 'kaesar--unibyte-string decrypted)))
 
 (defun kaesar--check-block-bytes (string)
   (when (/= (mod (length string) kaesar--Block) 0)
@@ -1111,12 +1112,9 @@ from memory."
 
 (defun kaesar--validate-input-bytes (bytes require-length)
   (cond
-   ((and (stringp bytes)
-         (= (length bytes) require-length))
-    (kaesar--check-unibyte-vector (vconcat bytes)))
-   ((and (vectorp bytes)
-         (= (length bytes) require-length))
-    (kaesar--check-unibyte-vector bytes))
+   ;; string hex and string unibytes is not exclusive but
+   ;; almost case no problem cause unibyte string should be
+   ;; a binary which hold non hexchar bytes.
    ((and (stringp bytes)
          ;; Check bytes have sufficient hex 
          (string-match "\\`[0-9a-fA-F]+\\'" bytes))
@@ -1128,6 +1126,12 @@ from memory."
       (when (< lack 0)
         (error "Supplied bytes are too long %s" bytes))
       (vconcat (make-vector lack 0) vec)))
+   ((and (stringp bytes)
+         (= (length bytes) require-length))
+    (kaesar--check-unibyte-vector (vconcat bytes)))
+   ((and (vectorp bytes)
+         (= (length bytes) require-length))
+    (kaesar--check-unibyte-vector bytes))
    ((eq nil bytes)
     (make-vector require-length 0))
    (t
@@ -1226,6 +1230,25 @@ This is a low level API to decrypt data that was encrypted by other implementati
     (let ((key (kaesar--validate-key key-input))
           (iv (kaesar--validate-iv iv-input)))
       (kaesar--decrypt-0 encrypted-string key iv))))
+
+;;;###autoload
+(defun kaesar-change-password (encrypted-bytes &optional algorithm callback)
+  "Utility function to change ENCRYPTED-BYTES password to new one.
+ENCRYPTED-BYTES will be cleared immediately after decryption is done.
+CALLBACK argument must accept one arg which indicate decrypted bytes.
+  This bytes will be cleared after creating the new encrypted bytes."
+  (let ((old (let ((kaesar-decrypt-prompt "Old password: "))
+               (kaesar-decrypt-bytes encrypted-bytes algorithm))))
+    (when callback
+      (funcall callback old))
+    ;; Clear after CALLBACK is succeeded.
+    ;; if clear before CALLBACK and CALLBACK was fail,
+    ;; encrypted bytes may eternally lost.
+    (clear-string encrypted-bytes)
+    (let ((new (let ((kaesar-encrypt-prompt "New password: "))
+                 (kaesar-encrypt-bytes old algorithm))))
+      (clear-string old)
+      new)))
 
 (provide 'kaesar)
 
