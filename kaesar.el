@@ -1117,7 +1117,7 @@ from memory."
    ;; a binary which hold non hexchar bytes.
    ((and (stringp bytes)
          ;; Check bytes have sufficient hex 
-         (string-match "\\`[0-9a-fA-F]+\\'" bytes))
+         (string-match "\\`[0-9a-fA-F]*\\'" bytes))
     (let* ((vec (kaesar--hex-to-vector
                  (if (zerop (% (length bytes) 2))
                      bytes

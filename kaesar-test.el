@@ -646,13 +646,17 @@
   (should-error (kaesar--check-unibyte-vector [a]))
   (should-error (kaesar--check-unibyte-vector (decode-coding-string "\343\201\202" 'utf-8)))
   (kaesar--with-algorithm "aes-128-cbc"
+    ;; key as hex
+    (should (equal (make-vector 16 0) (kaesar--validate-key "")))
     (should (equal (vconcat (make-vector 15 0) [1]) (kaesar--validate-key "1")))
     (should (equal (vconcat (make-vector 15 0) [1]) (kaesar--validate-key "01")))
     (should (equal (vconcat (make-vector 15 0) [170]) (kaesar--validate-key "aa")))
-    (should (equal (make-vector 16 170) (kaesar--validate-key "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")))
-    (should (equal (make-vector 16 170) (kaesar--validate-key "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")))
-    (should (equal (make-vector 16 ?a) (kaesar--validate-key "aaaaaaaaaaaaaaaa")))
-    (should (equal (make-vector 16 ?b) (kaesar--validate-key (make-vector 16 ?b))))))
+    (should (equal (make-vector 16 170) (kaesar--validate-key (make-string 32 ?a))))
+    (should (equal (make-vector 16 170) (kaesar--validate-key (make-string 32 ?a))))
+    (should (equal (vconcat (make-vector 8 0) (make-vector 8 170)) (kaesar--validate-key (make-string 16 ?a))))
+    ;; key as binary vector
+    (should (equal (make-vector 16 ?b) (kaesar--validate-key (make-vector 16 ?b))))
+    (should (equal (make-vector 16 0) (kaesar--validate-key (make-string 16 0))))))
 
 (ert-deftest kaesar-test--dec-enc-string ()
   "Increment state vector"
@@ -888,5 +892,19 @@
           (should (equal (kaesar-test--file-contents file) (concat string "append string")))
           (kill-buffer (current-buffer)))
       (delete-file file))))
+
+(ert-deftest kaesar-test--chang-password ()
+  "Check change password."
+  :tags '(kaesar)
+  (let* ((M "あかさたな")
+         (E (let ((kaesar-password "a"))
+              (kaesar-encrypt-string M)))
+         (E2 (let ((kaesar-password "a"))
+               (kaesar-change-password
+                E nil (lambda (old) (setq kaesar-password "b"))))))
+    (should (equal (let ((kaesar-password "b"))
+                     (kaesar-decrypt-string E2)) M))
+    (should-error (let ((kaesar-password "a"))
+                    (kaesar-decrypt-string E2)))))
 
 (provide 'kaesar-test)
