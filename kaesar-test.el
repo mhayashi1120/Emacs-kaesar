@@ -868,14 +868,15 @@
   "Check mode encryption/decryption."
   :tags '(kaesar)
   (let* ((string "multibyte\ncharacter\nへのへの\n")
-         (file (kaesar-test--create-file string 'utf-8)))
+         (file (kaesar-test--create-file string 'utf-8))
+         (coding-system-for-read 'utf-8))
     (unwind-protect
         (progn
           (find-file file)
           ;; using cache pass
           (let ((kaesar-mode--test-password (copy-seq "d")))
             (kaesar-mode 1))
-          (should-not (equal (kaesar-test--file-contents file) string))
+          (should-not (equal (kaesar-test--file-contents file 'utf-8) string))
           (kill-buffer (current-buffer))
           ;; using cache pass
           (let ((kaesar-mode--test-password (copy-seq "d")))
@@ -888,7 +889,8 @@
             (save-buffer))
           ;; decrypt and save raw data to file
           (kaesar-mode -1)
-          (should (equal (kaesar-test--file-contents file) (concat string "append string")))
+          (should (equal (kaesar-test--file-contents file 'utf-8)
+                         (concat string "append string")))
           (kill-buffer (current-buffer)))
       (delete-file file))))
 
