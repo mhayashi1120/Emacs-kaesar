@@ -231,10 +231,10 @@
 
 ;;;###autoload
 (define-minor-mode kaesar-mode
-  "TODO
-Handling buffer with file encryption by password.
-todo about header
-todo how to grep
+  "Automatically encrypt buffer with password.
+todo about header which prepend by `kaesar-mode'
+todo how to grep encrypt file
+todo `kaesar-mode-cache-password'
  "
   :init-value nil
   :lighter (" [" (:propertize "KaesarEncrypt" face kaesar-mode-lighter-face) "]")

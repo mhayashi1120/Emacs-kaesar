@@ -662,7 +662,7 @@
   "Increment state vector"
   :tags '(kaesar)
   (dolist (cs '(euc-jp utf-8 shift_jis))
-    (let* ((text (decode-coding-string "あいうえお" cs))
+    (let* ((text "あいうえお")
            (E (let ((kaesar-password (copy-seq "d")))
                 (kaesar-encrypt-string text cs)))
            (M (let ((kaesar-password (copy-seq "d")))
@@ -811,10 +811,9 @@
 
 (defun kaesar-test--file-contents (file &optional cs)
   (with-temp-buffer
-    (insert-file-contents file)
-    (if cs
-        (decode-coding-string (buffer-string) cs)
-      (buffer-string))))
+    (let ((coding-system-for-read cs))
+      (insert-file-contents file))
+    (buffer-string)))
 
 ;;TODO check interoperability with openssl-cipher
 (ert-deftest kaesar-test--file-encrypt/decrypt ()
