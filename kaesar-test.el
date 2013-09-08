@@ -864,6 +864,7 @@
 
 ;; TODO check decryption fail
 ;; TODO check cached password
+;; TODO check quit when read-passwd
 (ert-deftest kaesar-test--mode ()
   "Check mode encryption/decryption."
   :tags '(kaesar)
