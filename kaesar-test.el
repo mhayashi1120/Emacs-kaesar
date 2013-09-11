@@ -895,6 +895,23 @@
           (kill-buffer (current-buffer)))
       (delete-file file))))
 
+(ert-deftest kaesar-test--mode-file ()
+  "Check mode encryption/decryption to file."
+  :tags '(kaesar)
+  (let* ((string "multibyte\ncharacter\nへのへの\n")
+         (file (kaesar-test--create-file string 'utf-8)))
+    (unwind-protect
+        (progn
+          (let ((kaesar-mode--test-password (copy-seq "d")))
+            (kaesar-mode-ensure-encrypt-file file))
+          (should-not (equal (kaesar-test--file-contents file 'utf-8) string))
+          ;; this encryption will not execute
+          (should (kaesar-mode-ensure-encrypt-file file))
+          (let ((kaesar-mode--test-password (copy-seq "d")))
+            (kaesar-mode-ensure-decrypt-file file))
+          (should (equal (kaesar-test--file-contents file 'utf-8) string)))
+      (delete-file file))))
+
 (ert-deftest kaesar-test--chang-password ()
   "Check change password."
   :tags '(kaesar)

@@ -4,8 +4,10 @@
 ;; Keywords: data, convenience
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/cipher/kaesar-mode.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.1.4
+;; Version: 0.1.5
 ;; Package-Requires: ((kaesar "0.1.4"))
+
+(defconst kaesar-mode-version "0.1.5")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -75,12 +77,12 @@
   "Face used for mode-line"
   :group 'kaesar-mode)
 
-(defun kaesar-mode--encrypt (bytes algorithm)
-  (let ((kaesar-password (kaesar-mode--password t)))
+(defun kaesar-mode--encrypt (file bytes algorithm)
+  (let ((kaesar-password (kaesar-mode--password file t)))
     (kaesar-encrypt-bytes bytes algorithm)))
 
-(defun kaesar-mode--decrypt (bytes algorithm)
-  (let ((kaesar-password (kaesar-mode--password nil)))
+(defun kaesar-mode--decrypt (file bytes algorithm)
+  (let ((kaesar-password (kaesar-mode--password file nil)))
     (condition-case err
         (kaesar-decrypt-bytes bytes algorithm)
       (kaesar-decryption-failed
@@ -90,13 +92,15 @@
          (setq kaesar-mode--secure-password nil))
        (signal (car err) (cdr err))))))
 
-(defun kaesar-mode--password (encrypt-p)
-  (let ((prompt
-         (if encrypt-p
-             "Password to encrypt: "
-           "Password to decrypt: ")))
+(defun kaesar-mode--password (file encrypt-p)
+  (let* ((fn (file-name-nondirectory file))
+         (prompt
+          (if encrypt-p
+              (format "Password to encrypt `%s': " fn)
+            (format "Password to decrypt `%s': " fn))))
     (cond
      (kaesar-mode--test-password
+      ;;TODO when wrong password.
       (vconcat kaesar-mode--test-password))
      ((not kaesar-mode-cache-password)
       (read-passwd prompt encrypt-p))
@@ -108,7 +112,23 @@
         (setq kaesar-mode--secure-password
               (let ((kaesar-password (kaesar-mode--volatile-password)))
                 (kaesar-encrypt-string pass)))
+        ;; delete after encrypt raw data
         pass)))))
+
+(defun kaesar-mode--file-guessed-encrypted-p (file)
+  (with-temp-buffer
+    (set-buffer-multibyte nil)
+    (let ((coding-system-for-read 'binary))
+      ;; encrypted file must have Salted__ prefix and have at least one block.
+      (insert-file-contents file nil 0 1024))
+    (kaesar-mode--buffer-have-header-p)))
+
+(defun kaesar-mode--buffer-have-header-p ()
+  (save-excursion
+    (save-restriction
+      (widen)
+      (goto-char (point-min))
+      (looking-at "\\`##### -\\*-.* mode: *kaesar;"))))
 
 ;;TODO volatile password to suppress core file contains this.
 ;; TODO really volatile this value??
@@ -118,14 +138,6 @@
            (emacs-pid)
            (format-time-string "%s" after-init-time)
            (format-time-string "%s" before-init-time))))
-
-(defun kaesar-mode--write-buffer ()
-  (let* ((file buffer-file-name))
-    (kaesar-mode--write-encrypt-data)
-    (set-buffer-modified-p nil)
-    (set-visited-file-modtime)
-    (kaesar-mode--cleanup-backups file)
-    (message (format "Wrote %s with kaesar encryption" file))))
 
 (defun kaesar-mode--cleanup-backups (file)
   (loop for b in (find-backup-file-name file)
@@ -140,60 +152,79 @@
   (let ((delete-by-moving-to-trash nil))
     (delete-file file)))
 
+(defun kaesar-mode--write-data (file meta data)
+  (with-temp-buffer
+    (set-buffer-multibyte nil)
+    (insert "##### -*- ")
+    (insert "mode: kaesar; ")
+    (insert "kaesar-mode-meta-alist: ")
+    (insert (let ((print-escape-newlines t))
+              (prin1-to-string meta)))
+    (insert "; ")
+    (insert "-*- \n")
+    (insert data)
+    (let ((coding-system-for-write 'binary))
+      (write-region (point-min) (point-max) file nil 'no-msg))))
+
 (defun kaesar-mode--write-encrypt-data ()
   (let* ((file buffer-file-name)
          (text (buffer-string))
          (cs (or buffer-file-coding-system 'binary))
          (bytes (encode-coding-string text cs))
          (algorithm (or kaesar-mode-algorithm kaesar-algorithm))
-         (encrypt/bytes (kaesar-mode--encrypt bytes algorithm))
-         (mmode (let ((name (symbol-name major-mode)))
-                  (and (string-match "-mode\\'" name)
-                       major-mode)))
+         (encrypt/bytes (kaesar-mode--encrypt file bytes algorithm))
+         (mode major-mode)
+         ;; coding-system: (optional)
+         ;; algorithm: (require)
+         ;; mode: (optional)
+         ;; version: (require)
          (meta-info `((coding-system . ,cs)
                       (algorithm . ,algorithm)
-                      (mode . ,mmode))))
-    (with-temp-buffer
-      (set-buffer-multibyte nil)
-      (insert "##### -*- ")
-      (insert "mode: kaesar; ")
-      (insert "kaesar-mode-meta-alist: ")
-      (insert (let ((print-escape-newlines t))
-                (prin1-to-string meta-info)))
-      (insert "; ")
-      (insert "-*- \n")
-      (insert encrypt/bytes)
-      (let ((coding-system-for-write 'binary))
-        (write-region (point-min) (point-max) file nil 'no-msg)))
+                      (mode . ,mode)
+                      (version . ,kaesar-mode-version))))
+    (kaesar-mode--write-data file meta-info encrypt/bytes)
     (setq last-coding-system-used cs)))
 
-(defun kaesar-mode--read-encrypt-data (file)
+(defun kaesar-mode--read-data (file)
   (with-temp-buffer
     (set-buffer-multibyte nil)
     (let ((coding-system-for-write 'binary))
       (insert-file-contents file))
+    (goto-char (point-min))
     (let* ((props (hack-local-variables-prop-line))
-           (meta (assq 'kaesar-mode-meta-alist props)))
-      ;; ignore first prop-line
-      (goto-char (point-min))
-      (forward-line 1)
-      ;; handle `universal-coding-system-argument'
-      (list (or coding-system-for-read
-                (cdr (assq 'coding-system meta)))
-            (cdr (assq 'algorithm meta))
-            (cdr (assq 'mode meta))
-            (buffer-substring-no-properties
-             (point) (point-max))))))
+           (meta (assq 'kaesar-mode-meta-alist props))
+           (bytes (buffer-substring-no-properties
+                   (line-beginning-position 2) (point-max))))
+      (list meta bytes))))
+
+(defun kaesar-mode--read-encrypt-data ()
+  (destructuring-bind (meta bytes)
+      (kaesar-mode--read-data buffer-file-name)
+    ;; handle `universal-coding-system-argument'
+    (list (or coding-system-for-read
+              (cdr (assq 'coding-system meta)))
+          (cdr (assq 'algorithm meta))
+          (cdr (assq 'mode meta))
+          ;; old version have no version
+          (or (cdr (assq 'version meta)) "0.1.4")
+          bytes)))
+
+(defun kaesar-mode--save-buffer ()
+  (kaesar-mode--write-encrypt-data)
+  (set-buffer-modified-p nil)
+  (set-visited-file-modtime)
+  (kaesar-mode--cleanup-backups
+   buffer-file-name))
 
 ;; re-open encrypted file
 (defun kaesar-mode--decrypt-buffer ()
-  (destructuring-bind (cs algorithm mode data)
-      (kaesar-mode--read-encrypt-data buffer-file-name)
-    (let* ((decrypt/bytes (kaesar-mode--decrypt data algorithm))
-           (contents
-            (if cs
-                (decode-coding-string decrypt/bytes cs)
-              decrypt/bytes)))
+  (destructuring-bind (cs algorithm mode version data)
+      ;; buffer may be a multibyte buffer.
+      ;; re read buffer from file.
+      (kaesar-mode--read-encrypt-data)
+    (let* ((file buffer-file-name)
+           (decrypt/bytes (kaesar-mode--decrypt file data algorithm))
+           (contents (decode-coding-string decrypt/bytes cs)))
       (let ((inhibit-read-only t)
             buffer-read-only)
         (erase-buffer)
@@ -212,36 +243,87 @@
         (unless kaesar-mode
           (kaesar-mode 1))))))
 
-(defun kaesar-mode--file-guessed-encrypted-p (file)
+(defun kaesar-mode-ensure-encrypt-file (file)
+  (cond
+   ((not (file-exists-p file)))
+   ((kaesar-mode--file-guessed-encrypted-p file))
+   (t
+    (let* ((algorithm kaesar-algorithm)
+           (meta `((algorithm . ,algorithm)
+                   (version . ,kaesar-mode-version)))
+           encrypt/bytes)
+      (with-temp-buffer
+        (set-buffer-multibyte nil)
+        (let ((coding-system-for-read 'binary))
+          (insert-file-contents file))
+        (let ((bytes (buffer-string)))
+          (setq encrypt/bytes (kaesar-mode--encrypt file bytes algorithm))
+          (clear-string bytes)
+          ;;TODO how to clear buffer contents
+          ))
+      (kaesar-mode--write-data file meta encrypt/bytes)))))
+
+(defun kaesar-mode-ensure-decrypt-file (file)
+  (cond
+   ((not (file-exists-p file)))
+   ((not (kaesar-mode--file-guessed-encrypted-p file)))
+   (t
+    (destructuring-bind (meta encrypt/bytes)
+        (kaesar-mode--read-data file)
+      (let* ((algorithm (cdr (assq 'algorithm meta)))
+             (bytes (kaesar-mode--decrypt file encrypt/bytes algorithm)))
+        (with-temp-buffer
+          (set-buffer-multibyte nil)
+          (insert bytes)
+          (let ((coding-system-for-write 'binary))
+            (write-region (point-min) (point-max) file nil 'no-msg))))))))
+
+;;TODO test
+(defun kaesar-mode-change-file-password (file)
+  (unless (file-exists-p file)
+    (error "File %s is not exists" file))
+  (unless (kaesar-mode--file-guessed-encrypted-p file)
+    (error "File %s is not encrypted" file))
+  ;;TODO 
+  ;; decrypt body -> encrypt raw body -> clear raw body
   (with-temp-buffer
     (set-buffer-multibyte nil)
     (let ((coding-system-for-read 'binary))
-      ;; encrypted file must have Salted__ prefix and have at least one block.
-      (insert-file-contents file nil 0 1024))
-    (kaesar-mode--buffer-have-header-p)))
-
-(defun kaesar-mode--buffer-have-header-p ()
-  (save-excursion
-    (save-restriction
-      (widen)
-      (goto-char (point-min))
-      (looking-at "\\`##### -\\*-.* mode: *kaesar;"))))
+      (insert-file-contents file))
+    (goto-char (point-min))
+    (let* ((props (hack-local-variables-prop-line))
+           (meta (assq 'kaesar-mode-meta-alist props))
+           (algorithm (cdr (assq 'algorithm meta)))
+           (encrypt/bytes
+            (buffer-substring-no-properties
+             (line-beginning-position 2) (point-max)))
+           (bytes (kaesar-mode--decrypt file encrypt/bytes algorithm)))
+      (delete-region (line-beginning-position 2) (point-max))
+      (setq encrypt/bytes (kaesar-mode--encrypt file bytes algorithm))
+      (clear-string bytes)
+      (goto-char (point-max))
+      (insert encrypt/bytes)
+      (write-region (point-min) (point-max) file nil 'no-msg))))
 
 (defun kaesar-mode-save-buffer ()
-  (if (buffer-modified-p)
-      (kaesar-mode--write-buffer)
-    (message "(No changes need to be saved)"))
+  (cond
+   ((buffer-modified-p)
+    (kaesar-mode--save-buffer)
+    (message "Wrote %s with kaesar encryption"
+             buffer-file-name))
+   (t
+    (message "(No changes need to be saved)")))
   ;; explicitly return non-nil
   t)
 
-(defun kaesar-mode--revert-function ()
+(defun kaesar-mode--after-revert ()
   (kaesar-mode 1))
 
 (defun kaesar-mode-clear-cache-password ()
   (interactive)
   (unless (and kaesar-mode-cache-password
                kaesar-mode--secure-password)
-    (error "No need to explicitly clear the password"))
+    (error "No need to clear the password"))
   (setq kaesar-mode--secure-password nil)
   (set-buffer-modified-p t))
 
@@ -270,7 +352,7 @@ todo `kaesar-mode-cache-password'
     (kaesar-mode -1))
    ((not kaesar-mode)
     (remove-hook 'write-contents-functions 'kaesar-mode-save-buffer t)
-    (remove-hook 'after-revert-hook 'kaesar-mode--revert-function t)
+    (remove-hook 'after-revert-hook 'kaesar-mode--after-revert t)
     (kill-local-variable 'kaesar-mode-algorithm)
     (when (and (kaesar-mode--file-guessed-encrypted-p buffer-file-name)
                (not (kaesar-mode--buffer-have-header-p)))
@@ -281,7 +363,7 @@ todo `kaesar-mode-cache-password'
     (make-local-variable 'kaesar-mode-algorithm)
     (unless (kaesar-mode--file-guessed-encrypted-p buffer-file-name)
       ;; first time call `kaesar-mode'
-      (kaesar-mode--write-buffer))
+      (kaesar-mode--save-buffer))
     (when (kaesar-mode--buffer-have-header-p)
       (let ((done nil))
         (condition-case quit
@@ -300,7 +382,7 @@ todo `kaesar-mode-cache-password'
            (kaesar-mode -1)))))
     (when kaesar-mode
       (add-hook 'write-contents-functions 'kaesar-mode-save-buffer nil t)
-      (add-hook 'after-revert-hook 'kaesar-mode--revert-function nil t)))))
+      (add-hook 'after-revert-hook 'kaesar-mode--after-revert nil t)))))
 
 (provide 'kaesar-mode)
 
