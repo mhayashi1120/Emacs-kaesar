@@ -4,7 +4,7 @@
 ;; Keywords: data, files
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/cipher/kaesar-file.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.1.2
+;; Version: 0.1.3
 ;; Package-Requires: ((kaesar "0.1.1"))
 
 ;; This program is free software; you can redistribute it and/or
@@ -76,10 +76,10 @@
       (base64-decode-region (point-min) (point-max))))
     algorithm))
 
-(defun kaesar--write-buffer (file)
-  (kaesar--write-region (point-min) (point-max) file))
+(defun kaesar-file--write-buffer (file)
+  (kaesar-file--write-region (point-min) (point-max) file))
 
-(defun kaesar--write-region (start end file)
+(defun kaesar-file--write-region (start end file)
   ;; to suppress two time encryption
   (let ((inhibit-file-name-handlers '(epa-file-handler))
         (inhibit-file-name-operation 'write-region)
@@ -87,18 +87,18 @@
         (jka-compr-compression-info-list nil))
     (write-region start end file nil 'no-msg)))
 
-(defun kaesar--insert-file-contents (file)
+(defun kaesar-file--insert-file-contents (file)
   ;; to suppress two time decryption
   (let ((format-alist nil)
         (after-insert-file-functions nil)
         (jka-compr-compression-info-list nil)
-        (inhibit-file-name-handlers '(epa-file-handler))
-        (inhibit-file-name-operation 'insert-file-contents)
+        ;; inhibit file name operations
+        (file-name-handler-alist nil)
         (coding-system-for-read 'binary))
     (insert-file-contents file)
     (set-buffer-multibyte nil)))
 
-(defun kaesar--prepare-encrypt-buffer (algorithm mode)
+(defun kaesar-file--prepare-encrypt-buffer (algorithm mode)
   (let ((encrypted (kaesar-encrypt-bytes (buffer-string) algorithm)))
     (erase-buffer)
     (insert encrypted)
@@ -111,7 +111,7 @@
      (t
       (error "Not a supported mode %s" mode)))))
 
-(defun kaesar--detect-encrypt-buffer (algorithm)
+(defun kaesar-file--detect-encrypt-buffer (algorithm)
   (let* ((detect-algo (kaesar-file--decode-if-base64))
          (contents (buffer-string))
          (algo (or algorithm detect-algo kaesar-algorithm))
@@ -127,22 +127,23 @@ which contents can be decrypted by `kaesar-decrypt-file-contents'.
 MODE: `binary', `base64-with-header', `base64' default is `binary'
 "
   (with-temp-buffer
-    (kaesar--insert-file-contents file)
-    (kaesar--prepare-encrypt-buffer algorithm mode)
-    (kaesar--write-buffer (or save-file file))))
+    (kaesar-file--insert-file-contents file)
+    (kaesar-file--prepare-encrypt-buffer algorithm mode)
+    (kaesar-file--write-buffer (or save-file file))))
 
 ;;;###autoload
 (defun kaesar-decrypt-file (file &optional algorithm save-file)
   "Decrypt a FILE contents with getting string.
 FILE was encrypted by `kaesar-encrypt-file'."
   (with-temp-buffer
-    (kaesar--insert-file-contents file)
-    (kaesar--detect-encrypt-buffer algorithm)
-    (kaesar--write-buffer (or save-file file))))
+    (kaesar-file--insert-file-contents file)
+    (kaesar-file--detect-encrypt-buffer algorithm)
+    (kaesar-file--write-buffer (or save-file file))))
 
 ;;;###autoload
 (defun kaesar-encrypt-write-region (start end file &optional algorithm coding-system mode)
-  "Write START END region to FILE with encryption."
+  "Write START END region to FILE with encryption.
+Warning: this function may be changed in future release."
   (interactive "r\nF")
   (let* ((str (if (stringp start)
                   start
@@ -154,16 +155,17 @@ FILE was encrypted by `kaesar-encrypt-file'."
     (with-temp-buffer
       (set-buffer-multibyte nil)
       (insert s)
-      (kaesar--prepare-encrypt-buffer algorithm mode)
-      (kaesar--write-buffer file))))
+      (kaesar-file--prepare-encrypt-buffer algorithm mode)
+      (kaesar-file--write-buffer file))))
 
 ;;;###autoload
 (defun kaesar-decrypt-file-contents (file &optional algorithm coding-system)
   "Get decrypted FILE contents.
-FILE was encrypted by `kaesar-encrypt-file'."
+FILE was encrypted by `kaesar-encrypt-file'.
+Warning: this function may be changed in future release."
   (with-temp-buffer
-    (kaesar--insert-file-contents file)
-    (kaesar--detect-encrypt-buffer algorithm)
+    (kaesar-file--insert-file-contents file)
+    (kaesar-file--detect-encrypt-buffer algorithm)
     (if coding-system
         (decode-coding-string (buffer-string) coding-system)
       (buffer-string))))
