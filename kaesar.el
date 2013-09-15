@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/kaesar.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.1.4
+;; Version: 0.1.5
 ;; Package-Requires: ()
 
 ;; This program is free software; you can redistribute it and/or
@@ -49,8 +49,8 @@
 ;; meaning more than containing `aes' word.
 
 ;; How to suppress password prompt?
-;; There is no official way to suppress that prompt. If you learn
-;; more information, please read `kaesar-password' doc string.
+;; There is no official way to suppress that prompt. If you want to
+;; learn more information, please read `kaesar-password' doc string.
 
 ;;; Usage:
 
@@ -90,6 +90,8 @@
 ;; * validation -> AESAVS.pdf
 
 ;; * consider threshold of encrypt size
+
+;; * cleanup raw key and expanded key
 
 ;;; Code:
 
@@ -157,6 +159,7 @@ from memory."
       ;; do not clear external password.
       (setq source kaesar-password))
      ((and (stringp kaesar-password)
+           ;; only accept ascii
            (string-match "\\`[\000-\177]+\\'" kaesar-password))
       (setq source kaesar-password))
      (t
@@ -240,7 +243,7 @@ from memory."
       (ctr
        kaesar--ctr-encrypt kaesar--ctr-encrypt
        nil ,kaesar--Block)
-      
+
       ;; Cipher FeedBack
       (cfb
        kaesar--cfb-encrypt kaesar--cfb-decrypt
@@ -902,6 +905,8 @@ from memory."
   (let ((trash-len (- (length reverse-output-list) (length input-bytes))))
     (nreverse (nthcdr trash-len reverse-output-list))))
 
+;; Encrypt: C0 = IV, Ci = Ek(Mi + Ci-1)
+;; Decrypt: C0 = IV, Mi = Ci-1 + Ek^(-1)(Ci)
 (defun kaesar--cbc-encrypt (unibyte-string key iv)
   (loop with pos = 0
         with state-1 = (kaesar--unibytes-to-state iv 0)
@@ -940,6 +945,8 @@ from memory."
         while pos
         finally return (kaesar--check-decrypted res)))
 
+;; Encrypt: Ci = Ek(Mi)
+;; Decrypt: Mi = Ek^(-1)(Ci)
 (defun kaesar--ecb-encrypt (unibyte-string key _dummy)
   (loop with pos = 0
         with state = (kaesar--construct-state)
@@ -1116,7 +1123,7 @@ from memory."
    ;; almost case no problem cause unibyte string should be
    ;; a binary which hold non hexchar bytes.
    ((and (stringp bytes)
-         ;; Check bytes have sufficient hex 
+         ;; Check bytes have sufficient hex
          (string-match "\\`[0-9a-fA-F]*\\'" bytes))
     (let* ((vec (kaesar--hex-to-vector
                  (if (zerop (% (length bytes) 2))
@@ -1235,7 +1242,7 @@ This is a low level API to decrypt data that was encrypted by other implementati
 (defun kaesar-change-password (encrypted-bytes &optional algorithm callback)
   "Utility function to change ENCRYPTED-BYTES password to new one.
 ENCRYPTED-BYTES will be cleared immediately after decryption is done.
-CALLBACK argument must accept one arg which indicate decrypted bytes.
+CALLBACK is a function accept one arg which indicate decrypted bytes.
   This bytes will be cleared after creating the new encrypted bytes."
   (let ((old (let ((kaesar-decrypt-prompt "Old password: "))
                (kaesar-decrypt-bytes encrypted-bytes algorithm))))
