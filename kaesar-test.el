@@ -222,9 +222,9 @@
    ?\xa8 ?\x8d ?\xa2 ?\x34
    ])
 
-(defconst kaesar-test---appendix-b-key
-  [?\x2b ?\x7e ?\x15 ?\x16 ?\x28 ?\xae ?\xd2 ?\xa6 
-         ?\xab ?\xf7 ?\x15 ?\x88 ?\x09 ?\xcf ?\x4f ?\x3c])
+(defun kaesar-test---appendix-b-key ()
+  (vector ?\x2b ?\x7e ?\x15 ?\x16 ?\x28 ?\xae ?\xd2 ?\xa6 
+          ?\xab ?\xf7 ?\x15 ?\x88 ?\x09 ?\xcf ?\x4f ?\x3c))
 
 (defun kaesar-test---unibytes-to-state (string)
   (kaesar--cipher-algorithm 'aes-256
@@ -441,7 +441,7 @@
   ;; Appendix B 
   (kaesar--cipher-algorithm 'aes-128
     (kaesar-test-should [[?\x2b ?\x7e ?\x15 ?\x16] [?\x28 ?\xae ?\xd2 ?\xa6] [?\xab ?\xf7 ?\x15 ?\x88] [?\x09 ?\xcf ?\x4f ?\x3c]]
-      (kaesar--round-key (kaesar--expand-to-block-key kaesar-test---appendix-b-key) 0))
+      (kaesar--round-key (kaesar--expand-to-block-key (kaesar-test---appendix-b-key)) 0))
 
     (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-1-1)
       (kaesar--add-round-key! (kaesar-test---view-to-state kaesar-test---appendix-b-input-state) 
@@ -457,11 +457,11 @@
                                      [[0 0 0 0][0 0 0 0][0 0 0 0][0 0 0 0]]))
   
     (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-1-round-key)
-      (kaesar--round-key (kaesar--expand-to-block-key kaesar-test---appendix-b-key) 1))
+      (kaesar--round-key (kaesar--expand-to-block-key (kaesar-test---appendix-b-key)) 1))
     
     (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-last-output)
       (kaesar--cipher! (kaesar-test---view-to-state kaesar-test---appendix-b-input-state)
-                      (kaesar--expand-to-block-key kaesar-test---appendix-b-key)))
+                      (kaesar--expand-to-block-key (kaesar-test---appendix-b-key))))
     ))
 
 (ert-deftest kaesar-test--enc/dec ()

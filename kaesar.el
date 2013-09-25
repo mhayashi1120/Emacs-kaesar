@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/kaesar.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.1.5
+;; Version: 0.1.6
 ;; Package-Requires: ()
 
 ;; This program is free software; you can redistribute it and/or
@@ -1076,19 +1076,28 @@ from memory."
 
 (defun kaesar--expand-to-block-key (key)
   (let ((raw-key (kaesar--key-expansion key)))
+    (fillarray key nil)
     (kaesar--key-make-block raw-key)))
+
+(defun kaesar--destroy-block-key (key)
+  (loop for v across key
+        do (fillarray v nil)))
 
 (defun kaesar--encrypt-0 (unibyte-string raw-key iv)
   "Encrypt UNIBYTE-STRING and return encrypted text as unibyte string."
   (let* ((key (kaesar--expand-to-block-key raw-key))
          (encrypted (funcall kaesar--encoder unibyte-string key iv)))
-    (apply 'kaesar--unibyte-string encrypted)))
+    (prog1
+        (apply 'kaesar--unibyte-string encrypted)
+      (kaesar--destroy-block-key key))))
 
 (defun kaesar--decrypt-0 (encbyte-string raw-key iv)
   "Decrypt ENCBYTE-STRING and return decrypted text as unibyte string."
   (let* ((key (kaesar--expand-to-block-key raw-key))
          (decrypted (funcall kaesar--decoder encbyte-string key iv)))
-    (apply 'kaesar--unibyte-string decrypted)))
+    (prog1
+        (apply 'kaesar--unibyte-string decrypted)
+      (kaesar--destroy-block-key key))))
 
 (defun kaesar--check-block-bytes (string)
   (when (/= (mod (length string) kaesar--Block) 0)
@@ -1138,7 +1147,7 @@ from memory."
     (kaesar--check-unibyte-vector (vconcat bytes)))
    ((and (vectorp bytes)
          (= (length bytes) require-length))
-    (kaesar--check-unibyte-vector bytes))
+    (kaesar--check-unibyte-vector (vconcat bytes)))
    ((eq nil bytes)
     (make-vector require-length 0))
    (t
