@@ -37,6 +37,11 @@
 ;; If you change this variable to `nil' then you must execute M-x kaesar-mode
 ;; explicitly.
 
+;;; TODO:
+;; * buffer-undo-list may contain secret data. 
+;;   To make matters worse, many other major-mode may contain
+;;   secret data in local/global variable
+
 ;;; Code:
 
 (eval-when-compile
@@ -76,6 +81,8 @@
   '((t (:inherit font-lock-warning-face)))
   "Face used for mode-line"
   :group 'kaesar-mode)
+
+(defvar kaesar-mode)                    ; to suppress bytecomp warning
 
 (defun kaesar-mode--encrypt (file bytes algorithm)
   (let ((kaesar-password (kaesar-mode--password file t)))
@@ -152,7 +159,13 @@
   (let ((delete-by-moving-to-trash nil))
     (delete-file file)))
 
+;; * META is a alist of following:
+;; - algorithm: (require)
+;; - coding-system: (optional)
+;; - mode: (optional)
+;; And automatically added `version'
 (defun kaesar-mode--write-data (file meta data)
+  (setq meta (cons `(version . ,kaesar-mode-version) meta))
   (with-temp-buffer
     (set-buffer-multibyte nil)
     (insert "##### -*- ")
@@ -174,14 +187,9 @@
          (algorithm (or kaesar-mode-algorithm kaesar-algorithm))
          (encrypt/bytes (kaesar-mode--encrypt file bytes algorithm))
          (mode major-mode)
-         ;; coding-system: (optional)
-         ;; algorithm: (require)
-         ;; mode: (optional)
-         ;; version: (require)
          (meta-info `((coding-system . ,cs)
                       (algorithm . ,algorithm)
-                      (mode . ,mode)
-                      (version . ,kaesar-mode-version))))
+                      (mode . ,mode))))
     (kaesar-mode--write-data file meta-info encrypt/bytes)
     (setq last-coding-system-used cs)))
 
@@ -249,8 +257,7 @@
    ((kaesar-mode--file-guessed-encrypted-p file))
    (t
     (let* ((algorithm kaesar-algorithm)
-           (meta `((algorithm . ,algorithm)
-                   (version . ,kaesar-mode-version)))
+           (meta `((algorithm . ,algorithm)))
            encrypt/bytes)
       (with-temp-buffer
         (set-buffer-multibyte nil)

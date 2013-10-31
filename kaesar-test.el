@@ -392,22 +392,22 @@
 
   (kaesar-test-should (kaesar-test---openssl-key&iv "aes-128-cbc" "d")
     (kaesar--with-algorithm "aes-128-cbc"
-      (destructuring-bind (key iv) (kaesar--openssl-evp-bytes-to-key (vconcat "d"))
+      (destructuring-bind (key iv) (kaesar--password-to-key (vconcat "d"))
         (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
 
   (kaesar-test-should (kaesar-test---openssl-key&iv "aes-128-ecb" "d")
     (kaesar--with-algorithm "aes-128-ecb"
-      (destructuring-bind (key iv) (kaesar--openssl-evp-bytes-to-key (vconcat "d"))
+      (destructuring-bind (key iv) (kaesar--password-to-key (vconcat "d"))
         (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
 
   (kaesar-test-should (kaesar-test---openssl-key&iv "aes-256-ecb" "pass")
     (kaesar--with-algorithm "aes-256-ecb"
-      (destructuring-bind (key iv) (kaesar--openssl-evp-bytes-to-key (vconcat "pass"))
+      (destructuring-bind (key iv) (kaesar--password-to-key (vconcat "pass"))
         (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
 
   (kaesar-test-should (kaesar-test---openssl-key&iv "aes-256-cbc" "pass")
     (kaesar--with-algorithm "aes-256-cbc"
-      (destructuring-bind (key iv) (kaesar--openssl-evp-bytes-to-key (vconcat "pass"))
+      (destructuring-bind (key iv) (kaesar--password-to-key (vconcat "pass"))
         (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
 
   ;; check interoperability openssl command

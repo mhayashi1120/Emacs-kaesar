@@ -14,6 +14,7 @@ See following function doc-string:
 - kaesar-decrypt-bytes
 - kaesar-encrypt
 - kaesar-decrypt
+- kaesar-change-password
 
 To encrypt file or buffer:
 

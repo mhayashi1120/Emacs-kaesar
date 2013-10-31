@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/kaesar.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.1.6
+;; Version: 0.1.7
 ;; Package-Requires: ()
 
 ;; This program is free software; you can redistribute it and/or
@@ -257,7 +257,10 @@ from memory."
   (eval-when-compile
     (concat
      "\\`"
-     "\\(aes-\\(?:128\\|192\\|256\\)\\)"
+     "\\("
+     "aes-"
+     (regexp-opt '("128" "192" "256"))
+     "\\)"
      "-"
      (regexp-opt
       (mapcar
@@ -315,34 +318,32 @@ from memory."
 ;; bit/byte/number operation for Emacs
 ;;
 
-(eval-when-compile
-  (defsubst kaesar--construct-state ()
-    (loop for r from 0 below kaesar--Row
-          with state = (make-vector kaesar--Row nil)
-          do (loop repeat kaesar--Row
-                   with word = (make-vector kaesar--Nb nil)
-                   do (aset state r word))
-          finally return state)))
+(defun kaesar--construct-state ()
+  (loop for r from 0 below kaesar--Row
+        with state = (make-vector kaesar--Row nil)
+        do (loop repeat kaesar--Row
+                 with word = (make-vector kaesar--Nb nil)
+                 do (aset state r word))
+        finally return state))
 
-(eval-when-compile
-  (defsubst kaesar--unibytes-to-state (unibytes start)
-    (loop for r from 0 below kaesar--Row
-          with state = (make-vector kaesar--Row nil)
-          with i = start
-          with len = (length unibytes)
-          do (loop for c from 0 below kaesar--Nb
-                   with word = (make-vector kaesar--Nb nil)
-                   initially (aset state r word)
-                   ;; word in unibytes
-                   ;; if unibytes are before encrypted, state suffixed by length
-                   ;; of rest of State
-                   do (cond
-                       ((= i len)
-                        (aset word c (- kaesar--Block (- i start))))
-                       (t
-                        (aset word c (aref unibytes i))
-                        (setq i (1+ i)))))
-          finally return state)))
+(defun kaesar--unibytes-to-state (unibytes start)
+  (loop for r from 0 below kaesar--Row
+        with state = (make-vector kaesar--Row nil)
+        with i = start
+        with len = (length unibytes)
+        do (loop for c from 0 below kaesar--Nb
+                 with word = (make-vector kaesar--Nb nil)
+                 initially (aset state r word)
+                 ;; word in unibytes
+                 ;; if unibytes are before encrypted, state suffixed by length
+                 ;; of rest of State
+                 do (cond
+                     ((= i len)
+                      (aset word c (- kaesar--Block (- i start))))
+                     (t
+                      (aset word c (aref unibytes i))
+                      (setq i (1+ i)))))
+        finally return state))
 
 (eval-when-compile
   (defsubst kaesar--load-state! (state unibytes start)
@@ -418,6 +419,10 @@ from memory."
   (defun kaesar--unibyte-string (&rest bytes)
     (concat bytes)))
 
+(defun kaesar--destroy-word-vector (key)
+  (loop for v across key
+        do (fillarray v nil)))
+
 ;;
 ;; Interoperability with openssl
 ;;
@@ -445,37 +450,37 @@ from memory."
    encrypt-string))
 
 ;; Emulate openssl EVP_BytesToKey function
-(defun kaesar--openssl-evp-bytes-to-key (data &optional salt)
-  (let ((iv (make-vector kaesar--IV nil))
-        (key (make-vector (* kaesar--Nk kaesar--Nb) nil))
+(defun kaesar--openssl-evp-bytes-to-key (iv-length key-length data salt)
+  (let ((key (make-vector key-length nil))
+        (iv (make-vector iv-length nil))
         ;;md5 hash size
         (hash (make-vector 16 nil))
         (ii 0)
         (ki 0))
-    (loop while (or (< ki (length key))
-                    (< ii (length iv)))
+    (loop while (or (< ki key-length)
+                    (< ii iv-length))
           do
           (let (context)
             ;; After first loop
-            (when (aref hash 0)
-              (setq context (append context hash nil)))
+            (when (or (> ii 0) (> ki 0))
+              (setq context (append hash nil)))
             (setq context (append context data nil))
             (when salt
               (setq context (append context salt nil)))
-            (kaesar--key-md5-digest hash context)
-            (let ((i 0))
-              (loop for j from ki below (length key)
-                    while (< i (length hash))
-                    do (progn
-                         (aset key j (aref hash i))
-                         (incf i))
-                    finally (setq ki j))
-              (loop for j from ii below (length iv)
-                    while (< i (length hash))
-                    do (progn
-                         (aset iv j (aref hash i))
-                         (incf i))
-                    finally (setq ii j)))))
+            (kaesar--key-md5-digest hash context))
+          (let ((i 0))
+            (loop for j from ki below (length key)
+                  while (< i (length hash))
+                  do (progn
+                       (aset key j (aref hash i))
+                       (incf i))
+                  finally (setq ki j))
+            (loop for j from ii below (length iv)
+                  while (< i (length hash))
+                  do (progn
+                       (aset iv j (aref hash i))
+                       (incf i))
+                  finally (setq ii j))))
     ;; Destructive clear password area.
     (fillarray data nil)
     (list key iv)))
@@ -1076,28 +1081,25 @@ from memory."
 
 (defun kaesar--expand-to-block-key (key)
   (let ((raw-key (kaesar--key-expansion key)))
-    (fillarray key nil)
     (kaesar--key-make-block raw-key)))
-
-(defun kaesar--destroy-block-key (key)
-  (loop for v across key
-        do (fillarray v nil)))
 
 (defun kaesar--encrypt-0 (unibyte-string raw-key iv)
   "Encrypt UNIBYTE-STRING and return encrypted text as unibyte string."
   (let* ((key (kaesar--expand-to-block-key raw-key))
+         (_ (fillarray raw-key nil))
          (encrypted (funcall kaesar--encoder unibyte-string key iv)))
     (prog1
         (apply 'kaesar--unibyte-string encrypted)
-      (kaesar--destroy-block-key key))))
+      (kaesar--destroy-word-vector key))))
 
 (defun kaesar--decrypt-0 (encbyte-string raw-key iv)
   "Decrypt ENCBYTE-STRING and return decrypted text as unibyte string."
   (let* ((key (kaesar--expand-to-block-key raw-key))
+         (_ (fillarray raw-key nil))
          (decrypted (funcall kaesar--decoder encbyte-string key iv)))
     (prog1
         (apply 'kaesar--unibyte-string decrypted)
-      (kaesar--destroy-block-key key))))
+      (kaesar--destroy-word-vector key))))
 
 (defun kaesar--check-block-bytes (string)
   (when (/= (mod (length string) kaesar--Block) 0)
@@ -1162,15 +1164,50 @@ from memory."
   (let ((veciv (kaesar--validate-input-bytes iv kaesar--IV)))
     veciv))
 
+(defun kaesar--password-to-key (data &optional salt)
+  (kaesar--openssl-evp-bytes-to-key
+   kaesar--IV (* kaesar--Nk kaesar--Nb) data salt))
+
 ;;;
 ;;; User level API
 ;;;
+
+;;
+;; Low level API (To encrypt/decrypt special way)
+;;
+
+(defmacro kaesar-special-algorithm (Nk Nr &rest form)
+  (declare (indent 2) (debug t))
+  `(let* ((kaesar--Nk ,Nk)
+          (kaesar--Nr ,Nr))
+     ,@form))
+
+(defun kaesar-cipher! (state key)
+  (kaesar--cipher! state key))
+
+(defun kaesar-inv-cipher! (state key)
+  (kaesar--inv-cipher! state key))
+
+(defun kaesar-expand-to-block-key (key)
+  (kaesar--expand-to-block-key key))
+
+(defun kaesar-unibytes-to-state (unibytes start)
+  (kaesar--unibytes-to-state unibytes start))
+
+(defun kaesar-state-to-bytes (state)
+  (kaesar--state-to-bytes state))
+
+;;
+;; High level API
+;;
 
 ;;;###autoload
 (defun kaesar-encrypt-bytes (unibyte-string &optional algorithm)
   "Encrypt a UNIBYTE-STRING with ALGORITHM.
 If no ALGORITHM is supplied, default value is `kaesar-algorithm'.
 See `kaesar-algorithm' list of the supported ALGORITHM .
+
+Do not forget do `clear-string' to UNIBYTE-STRING to keep privacy.
 
 To suppress the password prompt, set password to `kaesar-password' as a vector."
   (kaesar--with-algorithm algorithm
@@ -1180,7 +1217,7 @@ To suppress the password prompt, set password to `kaesar-password' as a vector."
                   (or kaesar-encrypt-prompt
                       "Password to encrypt: ") t)))
       (destructuring-bind (raw-key iv)
-          (kaesar--openssl-evp-bytes-to-key pass salt)
+          (kaesar--password-to-key pass salt)
         (let ((body (kaesar--encrypt-0 unibyte-string raw-key iv)))
           (kaesar--openssl-prepend-salt salt body))))))
 
@@ -1195,13 +1232,15 @@ To suppress the password prompt, set password to `kaesar-password' as a vector."
                    (or kaesar-decrypt-prompt
                        "Password to decrypt: "))))
         (destructuring-bind (raw-key iv)
-            (kaesar--openssl-evp-bytes-to-key pass salt)
+            (kaesar--password-to-key pass salt)
           (kaesar--decrypt-0 encbytes raw-key iv))))))
 
 ;;;###autoload
 (defun kaesar-encrypt-string (string &optional coding-system algorithm)
   "Encrypt a well encoded STRING to encrypted string
 which can be decrypted by `kaesar-decrypt-string'.
+
+Do not forget do `clear-string' to STRING to keep privacy.
 
 This function is a wrapper function of `kaesar-encrypt-bytes'
 to encrypt string."
@@ -1227,6 +1266,9 @@ KEY-INPUT arg expects valid length of hex string or vector (0 - 255).
 See `kaesar-algorithm' list the supported ALGORITHM .
 IV-INPUT may be required if ALGORITHM need this.
 
+Do not forget do `clear-string' or `fillarray' to UNIBYTE-STRING and
+  KEY-INPUT to keep privacy.
+
 This is a low level API to create the data which can be decrypted
  by other implementation."
   (kaesar--with-algorithm algorithm
@@ -1239,6 +1281,8 @@ This is a low level API to create the data which can be decrypted
 (defun kaesar-decrypt (encrypted-string key-input &optional iv-input algorithm)
   "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt' with KEY-INPUT.
 IV-INPUT may be required if ALGORITHM need this.
+
+Do not forget do `clear-string' or `fillarray' to KEY-INPUT to keep privacy.
 
 This is a low level API to decrypt data that was encrypted by other implementation."
   (kaesar--with-algorithm algorithm
