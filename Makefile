@@ -1,12 +1,12 @@
 EMACS = emacs
 
-check:
-	$(EMACS) -q -batch -eval "(byte-compile-file \"kaesar.el\")"; \
-	$(EMACS) -q -batch -l kaesar.el -eval "(byte-compile-file \"kaesar-file.el\")"; \
-	$(EMACS) -q -batch -l kaesar.el -eval "(byte-compile-file \"kaesar-mode.el\")"; \
+check: compile
 	$(EMACS) -q -batch -l kaesar.el -l kaesar.elc -l kaesar-file.el -l kaesar-mode.el \
 		-l Emacs-openssl-cipher/openssl-cipher.el -l kaesar-test.el \
-		-eval "(ert-run-tests-batch-and-exit '(tag kaesar))";
+		-f ert-run-tests-batch-and-exit
+
+compile:
+	$(EMACS) -q -batch -L . -f batch-byte-compile kaesar.el kaesar-file.el kaesar-mode.el
 
 clean:
 	rm -f *.elc
