@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/kaesar.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.1.7
+;; Version: 0.1.8
 ;; Package-Requires: ()
 
 ;; This program is free software; you can redistribute it and/or
@@ -22,61 +22,64 @@
 ;; Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
 ;; Boston, MA 02110-1301, USA.
 
-;;; Install:
-
-;; Put this file into load-path'ed directory, and
-;; !!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!
-;; And put the following expression into your .emacs.
-;;
-;; (require 'kaesar)
-;;
-
 ;;; Commentary:
+
+;; AES (Rijndael) implementations for Emacs
 
 ;; This package provides AES algorithm to encrypt/decrypt Emacs
 ;; string. Supported algorithm desired to get interoperability with
 ;; openssl command. You can get decrypted text by that command if
 ;; you won't forget password.
 
+;; ## Install:
+
+;; Put this file into load-path'ed directory, and
+;; !!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!
+;; And put the following expression into your .emacs.
+
+;;     (require 'kaesar)
+
+;; ## Usage:
+
+;; * To encrypt a well encoded string (High level API)
+;; `kaesar-encrypt-string` <-> `kaesar-decrypt-string`
+
+;; * To encrypt a unibyte string with algorithm (Middle level API)
+;; `kaesar-encrypt-bytes` <-> `kaesar-decrypt-bytes`
+
+;; * To encrypt a unibyte with algorithm (Low level API)
+;; `kaesar-encrypt` <-> `kaesar-decrypt`
+
+;; ## Sample:
+
+;; * To encrypt my secret
+;;   Please ensure that do not forget `clear-string` you want to hide.
+
+;;       (defvar my-secret nil)
+
+;;       (let ((raw-string "My Secret"))
+;;         (setq my-secret (kaesar-encrypt-string raw-string))
+;;         (clear-string raw-string))
+
+;; * To decrypt `my-secret`
+
+;;       (kaesar-decrypt-string my-secret)
+
+;; ## NOTE:
+
 ;; Why kaesar?
-;; This package previously named 'cipher/aes' but ELPA cannot handle
-;; such package name.  So, I had to change the name but `aes' package
+;; This package previously named `cipher/aes` but ELPA cannot handle
+;; such package name.  So, I had to change the name but `aes` package
 ;; already exists. (That is faster than this package!)  I continue to
 ;; consider the new name which contains "aes" string. There is the
 ;; ancient cipher algorithm caesar
 ;; http://en.wikipedia.org/wiki/Caesar_cipher
-;;  K`aes'ar is change the first character of Caesar. There is no
-;; meaning more than containing `aes' word.
+;;  K`aes`ar is change the first character of Caesar. There is no
+;; meaning more than containing `aes` word.
 
 ;; How to suppress password prompt?
 ;; There is no official way to suppress that prompt. If you want to
-;; learn more information, please read `kaesar-password' doc string.
-
-;;; Usage:
-
-;; * To encrypt a well encoded string (High level API)
-;; `kaesar-encrypt-string' <-> `kaesar-decrypt-string'
-;;
-;; * To encrypt a unibyte string with algorithm (Middle level API)
-;; `kaesar-encrypt-bytes' <-> `kaesar-decrypt-bytes'
-;;
-;; * To encrypt a unibyte with algorithm (Low level API)
-;; `kaesar-encrypt' <-> `kaesar-decrypt'
-;;
-;;; Sample:
-
-;; * To encrypt my secret
-;;   Please ensure that do not forget `clear-string' you want to hide.
-
-;; (defvar my-secret nil)
-
-;; (let ((raw-string "My Secret"))
-;;   (setq my-secret (kaesar-encrypt-string raw-string))
-;;   (clear-string raw-string))
-
-;; * To decrypt `my-secret'
-
-;; (kaesar-decrypt-string my-secret)
+;; know more information, please read `kaesar-password` doc string.
 
 ;;; TODO:
 ;; * about algorithm

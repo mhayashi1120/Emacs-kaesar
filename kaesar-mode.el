@@ -4,10 +4,10 @@
 ;; Keywords: data, convenience
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/cipher/kaesar-mode.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.1.5
+;; Version: 0.1.6
 ;; Package-Requires: ((kaesar "0.1.4"))
 
-(defconst kaesar-mode-version "0.1.5")
+(defconst kaesar-mode-version "0.1.6")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -24,17 +24,19 @@
 ;; Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
 ;; Boston, MA 02110-1301, USA.
 
-;;; Install:
+;;; Commentary:
+
+;; ## Install:
 
 ;; Put this file into load-path'ed directory, and byte compile it if
 ;; desired. And put the following expression into your ~/.emacs.
 ;;
 ;;     (require 'kaesar-mode)
 
-;;; Usage:
+;; ## Usage:
 
-;; This package intention to `enable-local-variables' as default value `t'
-;; If you change this variable to `nil' then you must execute M-x kaesar-mode
+;; This package intention to `enable-local-variables` as default value `t`
+;; If you change this variable to `nil` then you must execute M-x kaesar-mode
 ;; explicitly.
 
 ;;; TODO:

@@ -4,7 +4,7 @@
 ;; Keywords: data, files
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/cipher/kaesar-file.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.1.3
+;; Version: 0.1.4
 ;; Package-Requires: ((kaesar "0.1.1"))
 
 ;; This program is free software; you can redistribute it and/or
@@ -22,16 +22,21 @@
 ;; Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
 ;; Boston, MA 02110-1301, USA.
 
-;;; Install:
+;;; Commentary:
+
+;; ## Install:
 
 ;; Put this file into load-path'ed directory, and byte compile it if
 ;; desired. And put the following expression into your ~/.emacs.
 ;;
 ;;     (require 'kaesar-file)
 
-;;; Usage:
+;; ## Usage:
 
-;; TODO
+;; * Simply encrypt/decrypt file.
+;; `kaesar-encrypt-file` <-> `kaesar-decrypt-file`
+
+;;; TODO:
 ;; * brush up interface
 ;; * physical deletion raw file contents.
 
