@@ -4,8 +4,8 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/kaesar.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.1.8
-;; Package-Requires: ()
+;; Version: 0.9.0
+;; Package-Requires: ((cl-lib "0.3"))
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -98,8 +98,7 @@
 
 ;;; Code:
 
-(eval-when-compile
-  (require 'cl))
+(require 'cl-lib)
 
 (defgroup kaesar nil
   "Encrypt/Decrypt string with password"
@@ -311,7 +310,7 @@ from memory."
         (block-mode (make-symbol "block-mode"))
         (algo-var (make-symbol "algo-var")))
     `(let ((,algo-var (or ,algorithm kaesar-algorithm)))
-       (destructuring-bind (,cipher ,block-mode)
+       (cl-destructuring-bind (,cipher ,block-mode)
            (kaesar--parse-algorithm ,algo-var)
          (kaesar--cipher-algorithm ,cipher
            (kaesar--block-algorithm ,block-mode
@@ -322,46 +321,46 @@ from memory."
 ;;
 
 (defun kaesar--construct-state ()
-  (loop for r from 0 below kaesar--Row
-        with state = (make-vector kaesar--Row nil)
-        do (loop repeat kaesar--Row
-                 with word = (make-vector kaesar--Nb nil)
-                 do (aset state r word))
-        finally return state))
+  (cl-loop for r from 0 below kaesar--Row
+           with state = (make-vector kaesar--Row nil)
+           do (cl-loop repeat kaesar--Row
+                       with word = (make-vector kaesar--Nb nil)
+                       do (aset state r word))
+           finally return state))
 
 (defun kaesar--unibytes-to-state (unibytes start)
-  (loop for r from 0 below kaesar--Row
-        with state = (make-vector kaesar--Row nil)
-        with i = start
-        with len = (length unibytes)
-        do (loop for c from 0 below kaesar--Nb
-                 with word = (make-vector kaesar--Nb nil)
-                 initially (aset state r word)
-                 ;; word in unibytes
-                 ;; if unibytes are before encrypted, state suffixed by length
-                 ;; of rest of State
-                 do (cond
-                     ((= i len)
-                      (aset word c (- kaesar--Block (- i start))))
-                     (t
-                      (aset word c (aref unibytes i))
-                      (setq i (1+ i)))))
-        finally return state))
+  (cl-loop for r from 0 below kaesar--Row
+           with state = (make-vector kaesar--Row nil)
+           with i = start
+           with len = (length unibytes)
+           do (cl-loop for c from 0 below kaesar--Nb
+                       with word = (make-vector kaesar--Nb nil)
+                       initially (aset state r word)
+                       ;; word in unibytes
+                       ;; if unibytes are before encrypted, state suffixed by length
+                       ;; of rest of State
+                       do (cond
+                           ((= i len)
+                            (aset word c (- kaesar--Block (- i start))))
+                           (t
+                            (aset word c (aref unibytes i))
+                            (setq i (1+ i)))))
+           finally return state))
 
 (eval-when-compile
   (defsubst kaesar--load-state! (state unibytes start)
-    (loop for word across state
-          with i = start
-          with len = (length unibytes)
-          do (loop for b from 0 below (length word)
-                   do (progn
-                        (cond
-                         ((= i len)
-                          (aset word b (- kaesar--Block (- i start))))
-                         (t
-                          (aset word b (aref unibytes i))
-                          (setq i (1+ i))))))
-          finally return state)))
+    (cl-loop for word across state
+             with i = start
+             with len = (length unibytes)
+             do (cl-loop for b from 0 below (length word)
+                         do (progn
+                              (cond
+                               ((= i len)
+                                (aset word b (- kaesar--Block (- i start))))
+                               (t
+                                (aset word b (aref unibytes i))
+                                (setq i (1+ i))))))
+             finally return state)))
 
 (eval-when-compile
   (defsubst kaesar--load-unibytes! (state unibyte-string pos)
@@ -392,30 +391,30 @@ from memory."
 
 (eval-when-compile
   (defsubst kaesar--state-copy! (dst src)
-    (loop for sr across src
-          for dr across dst
-          do (loop for s across sr
-                   for i from 0
-                   do (aset dr i s)))))
+    (cl-loop for sr across src
+             for dr across dst
+             do (cl-loop for s across sr
+                         for i from 0
+                         do (aset dr i s)))))
 
 (defun kaesar--create-salt ()
-  (loop for i from 0 below kaesar--pkcs5-salt-length
-        with salt = (make-vector kaesar--pkcs5-salt-length nil)
-        do (aset salt i (random ?\x100))
-        finally return salt))
+  (cl-loop for i from 0 below kaesar--pkcs5-salt-length
+           with salt = (make-vector kaesar--pkcs5-salt-length nil)
+           do (aset salt i (random ?\x100))
+           finally return salt))
 
 (defun kaesar--key-md5-digest (hash data)
-  (loop with unibytes = (apply 'kaesar--unibyte-string data)
-        with md5-hash = (md5 unibytes)
-        for v across (kaesar--hex-to-vector md5-hash)
-        for i from 0
-        do (aset hash i v)))
+  (cl-loop with unibytes = (apply 'kaesar--unibyte-string data)
+           with md5-hash = (md5 unibytes)
+           for v across (kaesar--hex-to-vector md5-hash)
+           for i from 0
+           do (aset hash i v)))
 
 (defun kaesar--hex-to-vector (hex-string)
-  (loop for i from 0 below (length hex-string) by 2
-        collect (string-to-number (substring hex-string i (+ i 2)) 16)
-        into res
-        finally return (vconcat res)))
+  (cl-loop for i from 0 below (length hex-string) by 2
+           collect (string-to-number (substring hex-string i (+ i 2)) 16)
+           into res
+           finally return (vconcat res)))
 
 (if (fboundp 'unibyte-string)
     (defalias 'kaesar--unibyte-string 'unibyte-string)
@@ -423,8 +422,8 @@ from memory."
     (concat bytes)))
 
 (defun kaesar--destroy-word-vector (key)
-  (loop for v across key
-        do (fillarray v nil)))
+  (cl-loop for v across key
+           do (fillarray v nil)))
 
 ;;
 ;; Interoperability with openssl
@@ -460,30 +459,30 @@ from memory."
         (hash (make-vector 16 nil))
         (ii 0)
         (ki 0))
-    (loop while (or (< ki key-length)
-                    (< ii iv-length))
-          do
-          (let (context)
-            ;; After first loop
-            (when (or (> ii 0) (> ki 0))
-              (setq context (append hash nil)))
-            (setq context (append context data nil))
-            (when salt
-              (setq context (append context salt nil)))
-            (kaesar--key-md5-digest hash context))
-          (let ((i 0))
-            (loop for j from ki below (length key)
-                  while (< i (length hash))
-                  do (progn
-                       (aset key j (aref hash i))
-                       (incf i))
-                  finally (setq ki j))
-            (loop for j from ii below (length iv)
-                  while (< i (length hash))
-                  do (progn
-                       (aset iv j (aref hash i))
-                       (incf i))
-                  finally (setq ii j))))
+    (cl-loop while (or (< ki key-length)
+                       (< ii iv-length))
+             do
+             (let (context)
+               ;; After first loop
+               (when (or (> ii 0) (> ki 0))
+                 (setq context (append hash nil)))
+               (setq context (append context data nil))
+               (when salt
+                 (setq context (append context salt nil)))
+               (kaesar--key-md5-digest hash context))
+             (let ((i 0))
+               (cl-loop for j from ki below (length key)
+                        while (< i (length hash))
+                        do (progn
+                             (aset key j (aref hash i))
+                             (cl-incf i))
+                        finally (setq ki j))
+               (cl-loop for j from ii below (length iv)
+                        while (< i (length hash))
+                        do (progn
+                             (aset iv j (aref hash i))
+                             (cl-incf i))
+                        finally (setq ii j))))
     ;; Destructive clear password area.
     (fillarray data nil)
     (list key iv)))
@@ -501,13 +500,13 @@ from memory."
 ;; 4.2.1 xtime
 (eval-and-compile
   (defconst kaesar--xtime-cache
-    (loop for byte from 0 below ?\x100
-          with table = (make-vector ?\x100 nil)
-          do (aset table byte
-                   (if (< byte ?\x80)
-                       (lsh byte 1)
-                     (logand (logxor (lsh byte 1) ?\x11b) ?\xff)))
-          finally return table)))
+    (cl-loop for byte from 0 below ?\x100
+             with table = (make-vector ?\x100 nil)
+             do (aset table byte
+                      (if (< byte ?\x80)
+                          (lsh byte 1)
+                        (logand (logxor (lsh byte 1) ?\x11b) ?\xff)))
+             finally return table)))
 
 (eval-and-compile
   (defun kaesar--xtime (byte)
@@ -515,38 +514,38 @@ from memory."
 
 (eval-and-compile
   (defconst kaesar--multiply-log
-    (loop for i from 0 to ?\xff
-          with table = (make-vector ?\x100 nil)
-          do
-          (loop for j from 1 to 7
-                with l = (make-vector 8 nil)
-                with v = i
-                initially (progn
-                            (aset table i l)
-                            (aset l 0 i))
-                do (let ((n (kaesar--xtime v)))
-                     (aset l j n)
-                     (setq v n)))
-          finally return table)))
+    (cl-loop for i from 0 to ?\xff
+             with table = (make-vector ?\x100 nil)
+             do
+             (cl-loop for j from 1 to 7
+                      with l = (make-vector 8 nil)
+                      with v = i
+                      initially (progn
+                                  (aset table i l)
+                                  (aset l 0 i))
+                      do (let ((n (kaesar--xtime v)))
+                           (aset l j n)
+                           (setq v n)))
+             finally return table)))
 
 (eval-when-compile
   (defun kaesar--multiply-0 (byte1 byte2)
     (let ((table (aref kaesar--multiply-log byte1)))
       (apply 'kaesar--add
-             (loop for i from 0 to 7
-                   unless (zerop (logand byte2 (lsh 1 i)))
-                   collect (aref table i))))))
+             (cl-loop for i from 0 to 7
+                      unless (zerop (logand byte2 (lsh 1 i)))
+                      collect (aref table i))))))
 
 (eval-and-compile
   (defconst kaesar--multiply-cache
     (eval-when-compile
-      (loop for b1 from 0 to ?\xff
-            collect
-            (loop for b2 from 0 to ?\xff
-                  collect (kaesar--multiply-0 b1 b2) into res
-                  finally return (vconcat res))
-            into res
-            finally return (vconcat res)))))
+      (cl-loop for b1 from 0 to ?\xff
+               collect
+               (cl-loop for b2 from 0 to ?\xff
+                        collect (kaesar--multiply-0 b1 b2) into res
+                        finally return (vconcat res))
+               into res
+               finally return (vconcat res)))))
 
 (eval-when-compile
   (defun kaesar--multiply (byte1 byte2)
@@ -555,29 +554,29 @@ from memory."
 (eval-and-compile
   (defconst kaesar--S-box
     (eval-when-compile
-      (loop with inv-cache =
-            (loop with v = (make-vector 256 nil)
-                  for byte from 0 to 255
-                  do (aset v byte
-                           (loop for b across (aref kaesar--multiply-cache byte)
-                                 for i from 0
-                                 if (= b 1)
-                                 return i
-                                 finally return 0))
-                  finally return v)
-            with boxing = (lambda (byte)
-                            (let* ((inv (aref inv-cache byte))
-                                   (s inv)
-                                   (x inv))
-                              (loop repeat 4
-                                    do (progn
-                                         (setq s (kaesar--byte-rot s 1))
-                                         (setq x (logxor s x))))
-                              (logxor x ?\x63)))
-            for b from 0 to ?\xff
-            with box = (make-vector ?\x100 nil)
-            do (aset box b (funcall boxing b))
-            finally return box))))
+      (cl-loop with inv-cache =
+               (cl-loop with v = (make-vector 256 nil)
+                        for byte from 0 to 255
+                        do (aset v byte
+                                 (cl-loop for b across (aref kaesar--multiply-cache byte)
+                                          for i from 0
+                                          if (= b 1)
+                                          return i
+                                          finally return 0))
+                        finally return v)
+               with boxing = (lambda (byte)
+                               (let* ((inv (aref inv-cache byte))
+                                      (s inv)
+                                      (x inv))
+                                 (cl-loop repeat 4
+                                          do (progn
+                                               (setq s (kaesar--byte-rot s 1))
+                                               (setq x (logxor s x))))
+                                 (logxor x ?\x63)))
+               for b from 0 to ?\xff
+               with box = (make-vector ?\x100 nil)
+               do (aset box b (funcall boxing b))
+               finally return box))))
 
 (eval-when-compile
   (defsubst kaesar--sub-word! (word)
@@ -598,38 +597,38 @@ from memory."
 
 (defconst kaesar--Rcon
   (eval-when-compile
-    (loop repeat 10
-          for v = 1 then (kaesar--xtime v)
-          collect (vector v 0 0 0) into res
-          finally return (vconcat res))))
+    (cl-loop repeat 10
+             for v = 1 then (kaesar--xtime v)
+             collect (vector v 0 0 0) into res
+             finally return (vconcat res))))
 
 (defun kaesar--key-expansion (key)
   (let (res)
-    (loop for i from 0 below kaesar--Nk
-          do
-          (setq res (cons
-                     (loop for j from 0 below kaesar--Nb
-                           with w = (make-vector kaesar--Nb nil)
-                           do (aset w j (aref key (+ j (* kaesar--Nb i))))
-                           finally return w)
-                     res)))
-    (loop for i from kaesar--Nk below (* kaesar--Nb (1+ kaesar--Nr))
-          do (let ((word (vconcat (car res))))
-               (cond
-                ((= (mod i kaesar--Nk) 0)
-                 (kaesar--rot-word! word)
-                 (kaesar--sub-word! word)
-                 (kaesar--word-xor!
-                  word
-                  ;; `i' is start from 1
-                  (aref kaesar--Rcon (1- (/ i kaesar--Nk)))))
-                ((and (> kaesar--Nk 6)
-                      (= (mod i kaesar--Nk) 4))
-                 (kaesar--sub-word! word)))
-               (kaesar--word-xor!
-                word
-                (nth (1- kaesar--Nk) res))
-               (setq res (cons word res))))
+    (cl-loop for i from 0 below kaesar--Nk
+             do
+             (setq res (cons
+                        (cl-loop for j from 0 below kaesar--Nb
+                                 with w = (make-vector kaesar--Nb nil)
+                                 do (aset w j (aref key (+ j (* kaesar--Nb i))))
+                                 finally return w)
+                        res)))
+    (cl-loop for i from kaesar--Nk below (* kaesar--Nb (1+ kaesar--Nr))
+             do (let ((word (vconcat (car res))))
+                  (cond
+                   ((= (mod i kaesar--Nk) 0)
+                    (kaesar--rot-word! word)
+                    (kaesar--sub-word! word)
+                    (kaesar--word-xor!
+                     word
+                     ;; `i' is start from 1
+                     (aref kaesar--Rcon (1- (/ i kaesar--Nk)))))
+                   ((and (> kaesar--Nk 6)
+                         (= (mod i kaesar--Nk) 4))
+                    (kaesar--sub-word! word)))
+                  (kaesar--word-xor!
+                   word
+                   (nth (1- kaesar--Nk) res))
+                  (setq res (cons word res))))
     (nreverse res)))
 
 (eval-when-compile
@@ -646,21 +645,21 @@ from memory."
 
 (defconst kaesar--2time-table
   (eval-when-compile
-    (loop for i from 0 to ?\xff
-          collect (kaesar--multiply i 2) into res
-          finally return (vconcat res))))
+    (cl-loop for i from 0 to ?\xff
+             collect (kaesar--multiply i 2) into res
+             finally return (vconcat res))))
 
 (defconst kaesar--4time-table
   (eval-when-compile
-    (loop for i from 0 to ?\xff
-          collect (kaesar--multiply i 4) into res
-          finally return (vconcat res))))
+    (cl-loop for i from 0 to ?\xff
+             collect (kaesar--multiply i 4) into res
+             finally return (vconcat res))))
 
 (defconst kaesar--8time-table
   (eval-when-compile
-    (loop for i from 0 to ?\xff
-          collect (kaesar--multiply i 8) into res
-          finally return (vconcat res))))
+    (cl-loop for i from 0 to ?\xff
+             collect (kaesar--multiply i 8) into res
+             finally return (vconcat res))))
 
 ;; MixColumn and AddRoundKey
 (eval-when-compile
@@ -795,11 +794,11 @@ from memory."
 (eval-and-compile
   (defconst kaesar--inv-S-box
     (eval-when-compile
-      (loop for s across kaesar--S-box
-            for b from 0
-            with ibox = (make-vector ?\x100 nil)
-            do (aset ibox s b)
-            finally return ibox))))
+      (cl-loop for s across kaesar--S-box
+               for b from 0
+               with ibox = (make-vector ?\x100 nil)
+               do (aset ibox s b)
+               finally return ibox))))
 
 (eval-when-compile
   (defsubst kaesar--inv-sub/shift-row! (state)
@@ -841,17 +840,17 @@ from memory."
 ;;   (let ((new-rows (mapcar
 ;;                    (lambda (col)
 ;;                      (aref (aref state col) row)) columns)))
-;;     (loop for col from 0
+;;     (cl-loop for col from 0
 ;;           for new-val in new-rows
 ;;           do (aset (aref state col) row new-val))))
 
 
 (eval-when-compile
   (defsubst kaesar--sub-shift-mix! (key state)
-    (loop for round from 1 to (1- kaesar--Nr)
-          do (let ((part-key (kaesar--round-key key round)))
-               (kaesar--sub/shift-row! state)
-               (kaesar--mix-columns-with-key! state part-key)))
+    (cl-loop for round from 1 to (1- kaesar--Nr)
+             do (let ((part-key (kaesar--round-key key round)))
+                  (kaesar--sub/shift-row! state)
+                  (kaesar--mix-columns-with-key! state part-key)))
     state))
 
 (eval-when-compile
@@ -864,10 +863,10 @@ from memory."
 
 (eval-when-compile
   (defsubst kaesar--inv-shift-sub-mix! (state key)
-    (loop for round downfrom (1- kaesar--Nr) to 1
-          do (let ((part-key (kaesar--round-key key round)))
-               (kaesar--inv-sub/shift-row! state)
-               (kaesar--inv-key-with-mix-columns! part-key state)))
+    (cl-loop for round downfrom (1- kaesar--Nr) to 1
+             do (let ((part-key (kaesar--round-key key round)))
+                  (kaesar--inv-sub/shift-row! state)
+                  (kaesar--inv-key-with-mix-columns! part-key state)))
     state))
 
 (eval-when-compile
@@ -889,10 +888,10 @@ from memory."
 
 (eval-when-compile
   (defsubst kaesar--state-xor! (state0 state-1)
-    (loop for w0 across state0
-          for w-1 across state-1
-          do (kaesar--word-xor! w0 w-1)
-          finally return state0)))
+    (cl-loop for w0 across state0
+             for w-1 across state-1
+             do (kaesar--word-xor! w0 w-1)
+             finally return state0)))
 
 ;; check End-Of-Block bytes
 (defun kaesar--check-decrypted (rbytes)
@@ -903,10 +902,10 @@ from memory."
     ;; check non padding byte exists
     ;; o aaa => '(97 97 97 13 13 .... 13)
     ;; x aaa => '(97 97 97 13 10 .... 13)
-    (loop repeat pad
-          for c in rbytes
-          unless (eq c pad)
-          do (signal 'kaesar-decryption-failed nil))
+    (cl-loop repeat pad
+             for c in rbytes
+             unless (eq c pad)
+             do (signal 'kaesar-decryption-failed nil))
     (nreverse (nthcdr pad rbytes))))
 
 (defun kaesar--finish-truncate-bytes (input-bytes reverse-output-list)
@@ -916,171 +915,171 @@ from memory."
 ;; Encrypt: C0 = IV, Ci = Ek(Mi + Ci-1)
 ;; Decrypt: C0 = IV, Mi = Ci-1 + Ek^(-1)(Ci)
 (defun kaesar--cbc-encrypt (unibyte-string key iv)
-  (loop with pos = 0
-        with state-1 = (kaesar--unibytes-to-state iv 0)
-        with state = (kaesar--construct-state)
-        ;; state-1 <-> state is swapped in this loop to decrease
-        ;; allocating the new vector.
-        append (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
-                      (_ (kaesar--state-xor! state state-1))
-                      (_ (kaesar--cipher! state key))
-                      (bytes (kaesar--state-to-bytes state))
-                      (swap state-1))
-                 (setq pos rest)
-                 (setq state-1 state)
-                 (setq state swap)
-                 bytes)
-        while pos))
+  (cl-loop with pos = 0
+           with state-1 = (kaesar--unibytes-to-state iv 0)
+           with state = (kaesar--construct-state)
+           ;; state-1 <-> state is swapped in this loop to decrease
+           ;; allocating the new vector.
+           append (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
+                         (_ (kaesar--state-xor! state state-1))
+                         (_ (kaesar--cipher! state key))
+                         (bytes (kaesar--state-to-bytes state))
+                         (swap state-1))
+                    (setq pos rest)
+                    (setq state-1 state)
+                    (setq state swap)
+                    bytes)
+           while pos))
 
 (defun kaesar--cbc-decrypt (encbyte-string key iv)
-  (loop with pos = 0
-        with state-1 = (kaesar--unibytes-to-state iv 0)
-        ;; create state as empty table
-        with state = (kaesar--construct-state)
-        with state0 = (kaesar--construct-state)
-        with res = '()
-        do (let* ((rest (kaesar--load-encbytes! state encbyte-string pos))
-                  (_ (kaesar--state-copy! state0 state))
-                  ;; Clone state cause of `kaesar--inv-cipher!' have side-effect
-                  (_ (kaesar--inv-cipher! state key))
-                  (_ (kaesar--state-xor! state state-1))
-                  (bytes (kaesar--state-to-bytes state))
-                  (swap state-1))
-             (setq pos rest)
-             (setq state-1 state0)
-             (setq state0 swap)
-             (setq res (nconc (nreverse bytes) res)))
-        while pos
-        finally return (kaesar--check-decrypted res)))
+  (cl-loop with pos = 0
+           with state-1 = (kaesar--unibytes-to-state iv 0)
+           ;; create state as empty table
+           with state = (kaesar--construct-state)
+           with state0 = (kaesar--construct-state)
+           with res = '()
+           do (let* ((rest (kaesar--load-encbytes! state encbyte-string pos))
+                     (_ (kaesar--state-copy! state0 state))
+                     ;; Clone state cause of `kaesar--inv-cipher!' have side-effect
+                     (_ (kaesar--inv-cipher! state key))
+                     (_ (kaesar--state-xor! state state-1))
+                     (bytes (kaesar--state-to-bytes state))
+                     (swap state-1))
+                (setq pos rest)
+                (setq state-1 state0)
+                (setq state0 swap)
+                (setq res (nconc (nreverse bytes) res)))
+           while pos
+           finally return (kaesar--check-decrypted res)))
 
 ;; Encrypt: Ci = Ek(Mi)
 ;; Decrypt: Mi = Ek^(-1)(Ci)
 (defun kaesar--ecb-encrypt (unibyte-string key _dummy)
-  (loop with pos = 0
-        with state = (kaesar--construct-state)
-        append (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
-                      (_ (kaesar--cipher! state key))
-                      (bytes (kaesar--state-to-bytes state)))
-                 (setq pos rest)
-                 bytes)
-        while pos))
+  (cl-loop with pos = 0
+           with state = (kaesar--construct-state)
+           append (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
+                         (_ (kaesar--cipher! state key))
+                         (bytes (kaesar--state-to-bytes state)))
+                    (setq pos rest)
+                    bytes)
+           while pos))
 
 (defun kaesar--ecb-decrypt (encbyte-string key _dummy)
-  (loop with pos = 0
-        with res = '()
-        with state = (kaesar--construct-state)
-        do (let* ((rest (kaesar--load-encbytes! state encbyte-string pos))
-                  (_ (kaesar--inv-cipher! state key))
-                  (bytes (kaesar--state-to-bytes state)))
-             (setq pos rest)
-             (setq res (nconc (nreverse bytes) res)))
-        while pos
-        finally return (kaesar--check-decrypted res)))
+  (cl-loop with pos = 0
+           with res = '()
+           with state = (kaesar--construct-state)
+           do (let* ((rest (kaesar--load-encbytes! state encbyte-string pos))
+                     (_ (kaesar--inv-cipher! state key))
+                     (bytes (kaesar--state-to-bytes state)))
+                (setq pos rest)
+                (setq res (nconc (nreverse bytes) res)))
+           while pos
+           finally return (kaesar--check-decrypted res)))
 
 ;; Encrypt: H0 = IV, Hi = Ek(Hi-1), Ci = Mi + Hi
 ;; Decrypt: H0 = IV, Hi = Ek(Hi-1), Mi = Ci + Hi
 (defun kaesar--ofb-encrypt (unibyte-string key iv)
-  (loop with pos = 0
-        with h = (kaesar--unibytes-to-state iv 0)
-        with res = '()
-        with state = (kaesar--construct-state)
-        do (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
-                  (_ (kaesar--cipher! h key))
-                  (_ (kaesar--state-xor! state h)))
-             (setq pos rest)
-             (setq res (nconc (nreverse (kaesar--state-to-bytes state)) res)))
-        while pos
-        finally return
-        (kaesar--finish-truncate-bytes unibyte-string res)))
+  (cl-loop with pos = 0
+           with h = (kaesar--unibytes-to-state iv 0)
+           with res = '()
+           with state = (kaesar--construct-state)
+           do (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
+                     (_ (kaesar--cipher! h key))
+                     (_ (kaesar--state-xor! state h)))
+                (setq pos rest)
+                (setq res (nconc (nreverse (kaesar--state-to-bytes state)) res)))
+           while pos
+           finally return
+           (kaesar--finish-truncate-bytes unibyte-string res)))
 
 (defconst kaesar--ctr-increment-byte-table
   (eval-when-compile
-    (loop with vec = (make-vector ?\x100 nil)
-          for i from 0 to ?\xff
-          do (aset vec i (% (1+ i) ?\x100))
-          finally return vec)))
+    (cl-loop with vec = (make-vector ?\x100 nil)
+             for i from 0 to ?\xff
+             do (aset vec i (% (1+ i) ?\x100))
+             finally return vec)))
 
 (defun kaesar--ctr-increment! (state)
   (catch 'done
-    (loop with table = kaesar--ctr-increment-byte-table
-          for wordidx downfrom (1- (length state)) downto 0
-          do
-          (loop with word = (aref state wordidx)
-                for idx downfrom (1- (length word)) downto 0
-                do
-                (let ((inc (aref table (aref word idx))))
-                  (aset word idx inc)
-                  (when (/= inc 0)
-                    (throw 'done t)))))))
+    (cl-loop with table = kaesar--ctr-increment-byte-table
+             for wordidx downfrom (1- (length state)) downto 0
+             do
+             (cl-loop with word = (aref state wordidx)
+                      for idx downfrom (1- (length word)) downto 0
+                      do
+                      (let ((inc (aref table (aref word idx))))
+                        (aset word idx inc)
+                        (when (/= inc 0)
+                          (throw 'done t)))))))
 
 ;; Encrypt: Ci = Mi + Ek(Ri), Ri+1 = Ri + 1
 ;; Decrypt: Mi = Ci + Ek(Ri), Ri+1 = Ri + 1
 (defun kaesar--ctr-encrypt (unibyte-string key iv)
-  (loop with pos = 0
-        with r = (kaesar--unibytes-to-state iv 0)
-        with res = '()
-        with state = (kaesar--construct-state)
-        with save-r = (kaesar--construct-state)
-        do (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
-                  (_ (kaesar--state-copy! save-r r))
-                  (_ (kaesar--cipher! r key))
-                  (_ (kaesar--state-xor! state r))
-                  (bytes (kaesar--state-to-bytes state))
-                  (swap save-r))
-             (kaesar--ctr-increment! save-r)
-             (setq save-r r)
-             (setq r swap)
-             (setq pos rest)
-             (setq res (nconc (nreverse bytes) res)))
-        while pos
-        finally return
-        (kaesar--finish-truncate-bytes unibyte-string res)))
+  (cl-loop with pos = 0
+           with r = (kaesar--unibytes-to-state iv 0)
+           with res = '()
+           with state = (kaesar--construct-state)
+           with save-r = (kaesar--construct-state)
+           do (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
+                     (_ (kaesar--state-copy! save-r r))
+                     (_ (kaesar--cipher! r key))
+                     (_ (kaesar--state-xor! state r))
+                     (bytes (kaesar--state-to-bytes state))
+                     (swap save-r))
+                (kaesar--ctr-increment! save-r)
+                (setq save-r r)
+                (setq r swap)
+                (setq pos rest)
+                (setq res (nconc (nreverse bytes) res)))
+           while pos
+           finally return
+           (kaesar--finish-truncate-bytes unibyte-string res)))
 
 ;; Encrypt: C0 = IV, Ci = Mi + Ek(Ci-1)
 ;; Decrypt: C0 = IV, Mi = Ci + Ek(Ci-1)
 (defun kaesar--cfb-encrypt (unibyte-string key iv)
-  (loop with pos = 0
-        with res = '()
-        with state-1 = (kaesar--unibytes-to-state iv 0)
-        with state = (kaesar--construct-state)
-        do (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
-                  (_ (kaesar--cipher! state-1 key))
-                  (_ (kaesar--state-xor! state state-1))
-                  (swap state))
-             (setq res (nconc (nreverse (kaesar--state-to-bytes state)) res))
-             (setq state state-1)
-             (setq state-1 swap)
-             (setq pos rest))
-        while pos
-        finally return
-        (kaesar--finish-truncate-bytes unibyte-string res)))
+  (cl-loop with pos = 0
+           with res = '()
+           with state-1 = (kaesar--unibytes-to-state iv 0)
+           with state = (kaesar--construct-state)
+           do (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
+                     (_ (kaesar--cipher! state-1 key))
+                     (_ (kaesar--state-xor! state state-1))
+                     (swap state))
+                (setq res (nconc (nreverse (kaesar--state-to-bytes state)) res))
+                (setq state state-1)
+                (setq state-1 swap)
+                (setq pos rest))
+           while pos
+           finally return
+           (kaesar--finish-truncate-bytes unibyte-string res)))
 
 (defun kaesar--cfb-decrypt (unibyte-string key iv)
-  (loop with pos = 0
-        with res = '()
-        with state-1 = (kaesar--unibytes-to-state iv 0)
-        with state = (kaesar--construct-state)
-        do (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
-                  (_ (kaesar--cipher! state-1 key))
-                  (_ (kaesar--state-xor! state-1 state))
-                  (swap state))
-             (setq state state-1)
-             (setq res (nconc (nreverse (kaesar--state-to-bytes state)) res))
-             (setq state-1 swap)
-             (setq pos rest))
-        while pos
-        finally return
-        (kaesar--finish-truncate-bytes unibyte-string res)))
+  (cl-loop with pos = 0
+           with res = '()
+           with state-1 = (kaesar--unibytes-to-state iv 0)
+           with state = (kaesar--construct-state)
+           do (let* ((rest (kaesar--load-unibytes! state unibyte-string pos))
+                     (_ (kaesar--cipher! state-1 key))
+                     (_ (kaesar--state-xor! state-1 state))
+                     (swap state))
+                (setq state state-1)
+                (setq res (nconc (nreverse (kaesar--state-to-bytes state)) res))
+                (setq state-1 swap)
+                (setq pos rest))
+           while pos
+           finally return
+           (kaesar--finish-truncate-bytes unibyte-string res)))
 
 ;;
 ;; inner functions
 ;;
 
 (defun kaesar--key-make-block (expanded-key)
-  (loop for xs on expanded-key by (lambda (x) (nthcdr 4 xs))
-        collect (vector (nth 0 xs) (nth 1 xs) (nth 2 xs) (nth 3 xs))
-        into res
-        finally return (vconcat res)))
+  (cl-loop for xs on expanded-key by (lambda (x) (nthcdr 4 xs))
+           collect (vector (nth 0 xs) (nth 1 xs) (nth 2 xs) (nth 3 xs))
+           into res
+           finally return (vconcat res)))
 
 (defun kaesar--expand-to-block-key (key)
   (let ((raw-key (kaesar--key-expansion key)))
@@ -1219,7 +1218,7 @@ To suppress the password prompt, set password to `kaesar-password' as a vector."
            (pass (kaesar--read-passwd
                   (or kaesar-encrypt-prompt
                       "Password to encrypt: ") t)))
-      (destructuring-bind (raw-key iv)
+      (cl-destructuring-bind (raw-key iv)
           (kaesar--password-to-key pass salt)
         (let ((body (kaesar--encrypt-0 unibyte-string raw-key iv)))
           (kaesar--openssl-prepend-salt salt body))))))
@@ -1229,12 +1228,12 @@ To suppress the password prompt, set password to `kaesar-password' as a vector."
   "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt-bytes'"
   (kaesar--with-algorithm algorithm
     (kaesar--check-encrypted encrypted-string)
-    (destructuring-bind (salt encbytes)
+    (cl-destructuring-bind (salt encbytes)
         (kaesar--openssl-parse-salt encrypted-string)
       (let ((pass (kaesar--read-passwd
                    (or kaesar-decrypt-prompt
                        "Password to decrypt: "))))
-        (destructuring-bind (raw-key iv)
+        (cl-destructuring-bind (raw-key iv)
             (kaesar--password-to-key pass salt)
           (kaesar--decrypt-0 encbytes raw-key iv))))))
 

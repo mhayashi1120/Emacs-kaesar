@@ -4,10 +4,10 @@
 ;; Keywords: data, convenience
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/cipher/kaesar-mode.el
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.1.6
-;; Package-Requires: ((kaesar "0.1.4"))
+;; Version: 0.9.0
+;; Package-Requires: ((kaesar "0.1.4") (cl-lib "0.3"))
 
-(defconst kaesar-mode-version "0.1.6")
+(defconst kaesar-mode-version "0.9.0")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -46,9 +46,7 @@
 
 ;;; Code:
 
-(eval-when-compile
-  (require 'cl))
-
+(require 'cl-lib)
 (require 'kaesar)
 
 (defgroup kaesar-mode nil
@@ -149,10 +147,10 @@
            (format-time-string "%s" before-init-time))))
 
 (defun kaesar-mode--cleanup-backups (file)
-  (loop for b in (find-backup-file-name file)
-        do (when (and (file-exists-p b)
-                      (eq (car (file-attributes b)) nil))
-             (kaesar-mode--purge-file b))))
+  (cl-loop for b in (find-backup-file-name file)
+           do (when (and (file-exists-p b)
+                         (eq (car (file-attributes b)) nil))
+                (kaesar-mode--purge-file b))))
 
 (defun kaesar-mode--purge-file (file)
   (let* ((size (nth 7 (file-attributes file)))
@@ -208,7 +206,7 @@
       (list meta bytes))))
 
 (defun kaesar-mode--read-encrypt-data ()
-  (destructuring-bind (meta bytes)
+  (cl-destructuring-bind (meta bytes)
       (kaesar-mode--read-data buffer-file-name)
     ;; handle `universal-coding-system-argument'
     (list (or coding-system-for-read
@@ -228,7 +226,7 @@
 
 ;; re-open encrypted file
 (defun kaesar-mode--decrypt-buffer ()
-  (destructuring-bind (cs algorithm mode version data)
+  (cl-destructuring-bind (cs algorithm mode version data)
       ;; buffer may be a multibyte buffer.
       ;; re read buffer from file.
       (kaesar-mode--read-encrypt-data)
@@ -277,7 +275,7 @@
    ((not (file-exists-p file)))
    ((not (kaesar-mode--file-guessed-encrypted-p file)))
    (t
-    (destructuring-bind (meta encrypt/bytes)
+    (cl-destructuring-bind (meta encrypt/bytes)
         (kaesar-mode--read-data file)
       (let* ((algorithm (cdr (assq 'algorithm meta)))
              (bytes (kaesar-mode--decrypt file encrypt/bytes algorithm)))
