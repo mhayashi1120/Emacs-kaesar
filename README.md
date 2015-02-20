@@ -1,5 +1,5 @@
-Summary
-========
+kaesar.el
+=========
 
 AES (Rijndael) implementations for Emacs
 
@@ -14,7 +14,9 @@ Put this file into load-path'ed directory, and
 !!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!
 And put the following expression into your .emacs.
 
-    (require 'kaesar)
+```
+(require 'kaesar)
+```
 
 ## Usage:
 
@@ -32,15 +34,21 @@ And put the following expression into your .emacs.
 * To encrypt my secret
   Please ensure that do not forget `clear-string` you want to hide.
 
-      (defvar my-secret nil)
+```
+(defvar my-secret nil)
+```
 
-      (let ((raw-string "My Secret"))
-        (setq my-secret (kaesar-encrypt-string raw-string))
-        (clear-string raw-string))
+```
+(let ((raw-string "My Secret"))
+  (setq my-secret (kaesar-encrypt-string raw-string))
+  (clear-string raw-string))
+```
 
 * To decrypt `my-secret`
 
-      (kaesar-decrypt-string my-secret)
+```
+(kaesar-decrypt-string my-secret)
+```
 
 ## NOTE:
 
@@ -58,35 +66,20 @@ How to suppress password prompt?
 There is no official way to suppress that prompt. If you want to
 know more information, please read `kaesar-password` doc string.
 
-Functions
-=========
+kaesar-file.el
+==============
 
-See following function doc-string:
+## Install:
 
-- kaesar-encrypt-string
-- kaesar-decrypt-string
-- kaesar-encrypt-bytes
-- kaesar-decrypt-bytes
-- kaesar-encrypt
-- kaesar-decrypt
-- kaesar-change-password
+Put this file into load-path'ed directory, and byte compile it if
+desired. And put the following expression into your ~/.emacs.
 
-To encrypt file or buffer:
+```
+(require 'kaesar-file)
+```
 
-- kaesar-encrypt-file
-- kaesar-decrypt-file
-- kaesar-encrypt-write-region
-- kaesar-decrypt-file-contents
+## Usage:
 
-TODO: kaesar-mode is not enough implemented..
-
-Test
-====
-
-    M-x ert (tag kaesar)
-
-Or
-
-    make check
-
+* Simply encrypt/decrypt file.
+`kaesar-encrypt-file` <-> `kaesar-decrypt-file`
 

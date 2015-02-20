@@ -912,7 +912,7 @@
           (should (equal (kaesar-test--file-contents file 'utf-8) string)))
       (delete-file file))))
 
-(ert-deftest kaesar-test--chang-password ()
+(ert-deftest kaesar-test--change-password ()
   "Check change password."
   :tags '(kaesar)
   (let* ((M "あかさたな")

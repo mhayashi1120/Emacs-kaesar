@@ -40,7 +40,7 @@
 ;; explicitly.
 
 ;;; TODO:
-;; * buffer-undo-list may contain secret data. 
+;; * buffer-undo-list may contain secret data.
 ;;   To make matters worse, many other major-mode may contain
 ;;   secret data in local/global variable
 
@@ -244,7 +244,7 @@
       (set-buffer-modified-p nil)
       (setq buffer-undo-list nil)
       (goto-char (point-min))
-      ;;TODO should call interface function? 
+      ;;TODO should call interface function?
       (when mode
         (with-demoted-errors
           (funcall mode))
@@ -291,7 +291,7 @@
     (error "File %s is not exists" file))
   (unless (kaesar-mode--file-guessed-encrypted-p file)
     (error "File %s is not encrypted" file))
-  ;;TODO 
+  ;;TODO
   ;; decrypt body -> encrypt raw body -> clear raw body
   (with-temp-buffer
     (set-buffer-multibyte nil)
