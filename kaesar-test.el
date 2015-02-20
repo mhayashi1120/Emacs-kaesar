@@ -20,7 +20,7 @@
   (kaesar--hex-to-vector hex-string))
 
 (defun kaesar-test---openssl-key&iv (algorithm pass)
-  (let ((key&iv (shell-command-to-string 
+  (let ((key&iv (shell-command-to-string
                  (format "openssl %s -e  -pass pass:%s -P -nosalt" algorithm pass))))
     (when (string-match "^key *=\\(.*\\)\\(?:\niv *=\\(.*\\)\\)?" key&iv)
       (list (match-string 1 key&iv) (or (match-string 2 key&iv) "")))))
@@ -223,7 +223,7 @@
          ])
 
 (defun kaesar-test---appendix-b-key ()
-  (vector ?\x2b ?\x7e ?\x15 ?\x16 ?\x28 ?\xae ?\xd2 ?\xa6 
+  (vector ?\x2b ?\x7e ?\x15 ?\x16 ?\x28 ?\xae ?\xd2 ?\xa6
           ?\xab ?\xf7 ?\x15 ?\x88 ?\x09 ?\xcf ?\x4f ?\x3c))
 
 (defun kaesar-test---unibytes-to-state (string)
@@ -234,7 +234,7 @@
 
 (defun kaesar-test---view-to-state (array)
   (let ((ret (make-vector (* kaesar--Row kaesar--Nb) nil)))
-    (cl-loop for i from 0 
+    (cl-loop for i from 0
              for v across array
              do (aset ret (+ (/ i kaesar--Nb)
                              (* (mod i kaesar--Row) kaesar--Row)) v))
@@ -323,7 +323,7 @@
 (defun kaesar-test-enc/dec (raw-bytes &optional algorithm)
   (kaesar-test-should raw-bytes
                       (let ((kaesar-password (copy-sequence "d")))
-                        (kaesar-decrypt-bytes 
+                        (kaesar-decrypt-bytes
                          (let ((kaesar-password (copy-sequence "d")))
                            (kaesar-encrypt-bytes raw-bytes algorithm)) algorithm))))
 
@@ -372,7 +372,7 @@
 
 (ert-deftest kaesar-test--parser-functions ()
   :tags '(kaesar)
-  
+
   (kaesar--cipher-algorithm 'aes-256
     (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
                         (kaesar-test--pseudo-old-reader "abcdefghijklmnopq" 0))
@@ -382,7 +382,7 @@
 
     (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 1]] nil)
                         (kaesar-test--pseudo-old-reader "abcdefghijklmno" 0))
-    
+
     (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 5] [5 5 5 5]] nil)
                         (kaesar-test--pseudo-old-reader "abcdefghijk" 0))
     ))
@@ -425,12 +425,12 @@
   :tags '(kaesar)
   ;; Appendix A.1
   (kaesar-test-should kaesar-test---aes128-results
-                      (kaesar--cipher-algorithm 'aes-128 
+                      (kaesar--cipher-algorithm 'aes-128
                         (kaesar--key-expansion kaesar-test---aes128-key)))
 
   ;; Appendix A.2
   (kaesar-test-should kaesar-test---aes192-results
-                      (kaesar--cipher-algorithm 'aes-192 
+                      (kaesar--cipher-algorithm 'aes-192
                         (kaesar--key-expansion kaesar-test---aes192-key)))
 
   ;; Appendix A.3
@@ -438,13 +438,13 @@
                       (kaesar--cipher-algorithm 'aes-256
                         (kaesar--key-expansion kaesar-test---aes256-key)))
 
-  ;; Appendix B 
+  ;; Appendix B
   (kaesar--cipher-algorithm 'aes-128
     (kaesar-test-should [[?\x2b ?\x7e ?\x15 ?\x16] [?\x28 ?\xae ?\xd2 ?\xa6] [?\xab ?\xf7 ?\x15 ?\x88] [?\x09 ?\xcf ?\x4f ?\x3c]]
                         (kaesar--round-key (kaesar--expand-to-block-key (kaesar-test---appendix-b-key)) 0))
 
     (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-1-1)
-                        (kaesar--add-round-key! (kaesar-test---view-to-state kaesar-test---appendix-b-input-state) 
+                        (kaesar--add-round-key! (kaesar-test---view-to-state kaesar-test---appendix-b-input-state)
                                                 (kaesar-test---view-to-state kaesar-test---appendix-b-first-round-key)))
 
     (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-1-3)
@@ -455,10 +455,10 @@
     (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-1-4)
                         (kaesar--mix-columns-with-key! (kaesar-test---view-to-state kaesar-test---appendix-b-1-3)
                                                        [[0 0 0 0][0 0 0 0][0 0 0 0][0 0 0 0]]))
-    
+
     (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-1-round-key)
                         (kaesar--round-key (kaesar--expand-to-block-key (kaesar-test---appendix-b-key)) 1))
-    
+
     (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-last-output)
                         (kaesar--cipher! (kaesar-test---view-to-state kaesar-test---appendix-b-input-state)
                                          (kaesar--expand-to-block-key (kaesar-test---appendix-b-key))))
@@ -502,11 +502,11 @@
   :tags '(kaesar)
 
   (cl-loop repeat 256
-           do 
+           do
            (kaesar-test-enc/dec (kaesar-test---random-bytes) "aes-256-cbc"))
 
   (cl-loop repeat 256
-           do 
+           do
            (kaesar-test-enc/dec (kaesar-test---random-bytes) "aes-256-ecb")))
 
 (defun kaesar-test--parse-test-values (file)
@@ -554,7 +554,7 @@
            finally return vec))
 
 (defun kaesar-test--locate-test-data (name)
-  (let ((hist (car (cl-member-if 
+  (let ((hist (car (cl-member-if
                     (lambda (x) (string-match "kaesar-test.el" (car x)))
                     load-history))))
     (when hist
@@ -622,7 +622,7 @@
 (ert-deftest kaesar-test--ctr-mode ()
   "Increment state vector"
   :tags '(kaesar)
-  (let ((s 
+  (let ((s
          (vector
           (vector 255 255 255 255)
           (vector 255 255 255 255)
