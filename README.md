@@ -11,7 +11,7 @@ you won't forget password.
 ## Install:
 
 Put this file into load-path'ed directory, and
-!!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!
+___!!!!!!!!!!!!!!! BYTE COMPILE IT !!!!!!!!!!!!!!!___
 And put the following expression into your .emacs.
 
 ```
