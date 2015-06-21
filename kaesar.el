@@ -2,7 +2,7 @@
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
-;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/kaesar.el
+;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 23 or later
 ;; Version: 0.9.2
 ;; Package-Requires: ((cl-lib "0.3"))

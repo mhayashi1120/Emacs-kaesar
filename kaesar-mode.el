@@ -2,7 +2,7 @@
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data, convenience
-;; URL: https://github.com/mhayashi1120/Emacs-kaesar/raw/master/cipher/kaesar-mode.el
+;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 22 or later
 ;; Version: 0.9.0
 ;; Package-Requires: ((kaesar "0.1.4") (cl-lib "0.3"))
