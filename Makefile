@@ -6,6 +6,7 @@ check: compile
 		-f ert-run-tests-batch-and-exit
 
 compile:
+	$(EMACS) --version
 	$(EMACS) -q -batch -L . -f batch-byte-compile kaesar.el kaesar-file.el kaesar-mode.el
 
 clean:
