@@ -1,11 +1,11 @@
-;;; kaesar-mode.el --- Encrypt/Decrypt buffer by AES with password.
+;;; kaesar-mode.el --- AES encrypt/decrypt buffer
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data, convenience
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 22 or later
-;; Version: 0.9.1
-;; Package-Requires: ((kaesar "0.1.4") (cl-lib "0.3"))
+;; Version: 0.9.3
+;; Package-Requires: ((emacs "24.3") (kaesar "0.1.4") (cl-lib "0.3"))
 
 (defconst kaesar-mode-version "0.9.0")
 

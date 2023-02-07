@@ -1,11 +1,11 @@
-;;; kaesar.el --- Another AES algorithm encrypt/decrypt string with password.
+;;; kaesar.el --- AES algorithm encrypt/decrypt.
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 23 or later
-;; Version: 0.9.3
-;; Package-Requires: ((cl-lib "0.3"))
+;; Version: 0.9.4
+;; Package-Requires: ((cl-lib "0.3") (emacs "24.3"))
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
