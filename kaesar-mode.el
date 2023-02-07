@@ -140,11 +140,12 @@
 ;;TODO volatile password to suppress core file contains this.
 ;; TODO really volatile this value??
 (defun kaesar-mode--volatile-password ()
-  (string-as-unibyte
+  (encode-coding-string
    (format "%s:%s:%s"
            (emacs-pid)
            (format-time-string "%s" after-init-time)
-           (format-time-string "%s" before-init-time))))
+           (format-time-string "%s" before-init-time))
+   'ascii))
 
 (defun kaesar-mode--cleanup-backups (file)
   (cl-loop for b in (find-backup-file-name file)
