@@ -21,7 +21,7 @@
 
 (defun kaesar-test---openssl-key&iv (algorithm pass)
   (let ((key&iv (shell-command-to-string
-                 (format "openssl %s -e  -pass pass:%s -P -nosalt" algorithm pass))))
+                 (format "openssl %s -e -md md5 -pass pass:%s -P -nosalt" algorithm pass))))
     (when (string-match "^key *=\\(.*\\)\\(?:\niv *=\\(.*\\)\\)?" key&iv)
       (list (match-string 1 key&iv) (or (match-string 2 key&iv) "")))))
 
