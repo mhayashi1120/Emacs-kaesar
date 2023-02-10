@@ -403,10 +403,10 @@ from memory."
            do (aset salt i (random ?\x100))
            finally return salt))
 
-(defun kaesar--key-md5-digest (hash data)
+(defun kaesar--key-digest-update (digest hash data)
   (cl-loop with unibytes = (apply 'kaesar--unibyte-string data)
-           with md5-hash = (md5 unibytes)
-           for v across (kaesar--hex-to-vector md5-hash)
+           with hash = (funcall digest unibytes)
+           for v across (kaesar--hex-to-vector hash)
            for i from 0
            do (aset hash i v)))
 
@@ -469,7 +469,7 @@ from memory."
                (setq context (append context data nil))
                (when salt
                  (setq context (append context salt nil)))
-               (kaesar--key-md5-digest hash context))
+               (kaesar--key-digest-update 'md5 hash context))
              (let ((i 0))
                (cl-loop for j from ki below (length key)
                         while (< i (length hash))
