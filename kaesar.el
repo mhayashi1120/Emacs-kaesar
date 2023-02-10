@@ -469,7 +469,7 @@ from memory."
                (setq context (append context data nil))
                (when salt
                  (setq context (append context salt nil)))
-               (kaesar--key-digest-update 'md5 hash context))
+               (kaesar--key-digest-update #'md5 hash context))
              (let ((i 0))
                (cl-loop for j from ki below (length key)
                         while (< i (length hash))
@@ -494,7 +494,7 @@ from memory."
 ;; 4.1 Addition
 (eval-when-compile
   (defun kaesar--add (&rest numbers)
-    (apply 'logxor numbers)))
+    (apply #'logxor numbers)))
 
 ;; 4.2 Multiplication
 ;; 4.2.1 xtime
@@ -531,7 +531,7 @@ from memory."
 (eval-when-compile
   (defun kaesar--multiply-0 (byte1 byte2)
     (let ((table (aref kaesar--multiply-log byte1)))
-      (apply 'kaesar--add
+      (apply #'kaesar--add
              (cl-loop for i from 0 to 7
                       unless (zerop (logand byte2 (lsh 1 i)))
                       collect (aref table i))))))
