@@ -12,13 +12,15 @@ EL += kaesar-file.el
 
 TEST_EL := kaesar-test.el
 
+BATCH_OPTS ?= -L ./Emacs-openssl-cipher
+
 ##
 ## Emacs
 ##
 
 EMACS ?= emacs
 
-BATCH := $(EMACS) -Q -batch -L .
+BATCH := $(EMACS) -Q -batch -L . $(BATCH_OPTS)
 
 ##
 ## package.el
