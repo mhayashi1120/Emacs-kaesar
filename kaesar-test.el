@@ -35,7 +35,7 @@
 (defconst kaesar-test---aes128-key
   [
    ?\x2b ?\x7e ?\x15 ?\x16 ?\x28 ?\xae ?\xd2 ?\xa6 ?\xab ?\xf7 ?\x15 ?\x88 ?\x09 ?\xcf ?\x4f ?\x3c
-         ])
+   ])
 
 (defconst kaesar-test---aes128-results
   (kaesar-test---appendix-a-result
@@ -217,10 +217,10 @@
 (defconst kaesar-test---appendix-b-input-state
   [
    ?\x32 ?\x88 ?\x31 ?\xe0
-         ?\x43 ?\x5a ?\x31 ?\x37
-         ?\xf6 ?\x30 ?\x98 ?\x07
-         ?\xa8 ?\x8d ?\xa2 ?\x34
-         ])
+   ?\x43 ?\x5a ?\x31 ?\x37
+   ?\xf6 ?\x30 ?\x98 ?\x07
+   ?\xa8 ?\x8d ?\xa2 ?\x34
+   ])
 
 (defun kaesar-test---appendix-b-key ()
   (vector ?\x2b ?\x7e ?\x15 ?\x16 ?\x28 ?\xae ?\xd2 ?\xa6
@@ -245,64 +245,64 @@
 (defconst kaesar-test---appendix-b-first-round-key
   [
    ?\x2b ?\x28 ?\xab ?\x09
-         ?\x7e ?\xae ?\xf7 ?\xcf
-         ?\x15 ?\xd2 ?\x15 ?\x4f
-         ?\x16 ?\xa6 ?\x88 ?\x3c
-         ])
+   ?\x7e ?\xae ?\xf7 ?\xcf
+   ?\x15 ?\xd2 ?\x15 ?\x4f
+   ?\x16 ?\xa6 ?\x88 ?\x3c
+   ])
 
 ;; 1 Start of Round
 (defconst kaesar-test---appendix-b-1-1
   [
    ?\x19 ?\xa0 ?\x9a ?\xe9
-         ?\x3d ?\xf4 ?\xc6 ?\xf8
-         ?\xe3 ?\xe2 ?\x8d ?\x48
-         ?\xbe ?\x2b ?\x2a ?\x08
-         ])
+   ?\x3d ?\xf4 ?\xc6 ?\xf8
+   ?\xe3 ?\xe2 ?\x8d ?\x48
+   ?\xbe ?\x2b ?\x2a ?\x08
+   ])
 
 ;; 1 After SubBytes
 (defconst kaesar-test---appendix-b-1-2
   [
    ?\xd4 ?\xe0 ?\xb8 ?\x1e
-         ?\x27 ?\xbf ?\xb4 ?\x41
-         ?\x11 ?\x98 ?\x5d ?\x52
-         ?\xae ?\xf1 ?\xe5 ?\x30
-         ])
+   ?\x27 ?\xbf ?\xb4 ?\x41
+   ?\x11 ?\x98 ?\x5d ?\x52
+   ?\xae ?\xf1 ?\xe5 ?\x30
+   ])
 
 ;; 1 After ShiftRows
 (defconst kaesar-test---appendix-b-1-3
   [
    ?\xd4 ?\xe0 ?\xb8 ?\x1e
-         ?\xbf ?\xb4 ?\x41 ?\x27
-         ?\x5d ?\x52 ?\x11 ?\x98
-         ?\x30 ?\xae ?\xf1 ?\xe5
-         ])
+   ?\xbf ?\xb4 ?\x41 ?\x27
+   ?\x5d ?\x52 ?\x11 ?\x98
+   ?\x30 ?\xae ?\xf1 ?\xe5
+   ])
 
 ;; 1 After MixColumns
 (defconst kaesar-test---appendix-b-1-4
   [
    ?\x04 ?\xe0 ?\x48 ?\x28
-         ?\x66 ?\xcb ?\xf8 ?\x06
-         ?\x81 ?\x19 ?\xd3 ?\x26
-         ?\xe5 ?\x9a ?\x7a ?\x4c
-         ])
+   ?\x66 ?\xcb ?\xf8 ?\x06
+   ?\x81 ?\x19 ?\xd3 ?\x26
+   ?\xe5 ?\x9a ?\x7a ?\x4c
+   ])
 
 ;; 1 Round Key Value
 (defconst kaesar-test---appendix-b-1-round-key
   [
    ?\xa0 ?\x88 ?\x23 ?\x2a
-         ?\xfa ?\x54 ?\xa3 ?\x6c
-         ?\xfe ?\x2c ?\x39 ?\x76
-         ?\x17 ?\xb1 ?\x39 ?\x05
-         ])
+   ?\xfa ?\x54 ?\xa3 ?\x6c
+   ?\xfe ?\x2c ?\x39 ?\x76
+   ?\x17 ?\xb1 ?\x39 ?\x05
+   ])
 
 ;; last output
 (defconst kaesar-test---appendix-b-last-output
   [
    ?\x39 ?\x02 ?\xdc ?\x19
-         ?\x25 ?\xdc ?\x11 ?\x6a
-         ?\x84 ?\x09 ?\x85 ?\x0b
-         ?\x1d ?\xfb ?\x97 ?\x32
-         ])
+   ?\x25 ?\xdc ?\x11 ?\x6a
+   ?\x84 ?\x09 ?\x85 ?\x0b
+   ?\x1d ?\xfb ?\x97 ?\x32
+   ])
 
 (defmacro kaesar-test-should (expected-form test-form)
   (declare (indent 1))
@@ -323,11 +323,11 @@
 
 (defun kaesar-test-enc/dec (raw-bytes &optional algorithm)
   (kaesar-test-should raw-bytes
-                      (let ((kaesar-password (copy-sequence "d")))
-                        (kaesar-decrypt-bytes
-                         (let ((kaesar-password (copy-sequence "d")))
-                           (kaesar-encrypt-bytes raw-bytes algorithm))
-                         algorithm))))
+    (let ((kaesar-password (copy-sequence "d")))
+      (kaesar-decrypt-bytes
+       (let ((kaesar-password (copy-sequence "d")))
+         (kaesar-encrypt-bytes raw-bytes algorithm))
+       algorithm))))
 
 (defun kaesar-test--pseudo-old-reader (string pos)
   (let* ((s (kaesar--construct-state))
@@ -359,58 +359,58 @@
 
     ;; Sub Bytes and Shift Row with inverse
     (kaesar-test-should (kaesar-test---unibytes-to-state "ABCDEFGHIJKLMNOP")
-                        (kaesar--inv-sub/shift-row! (kaesar--sub/shift-row! (kaesar-test---unibytes-to-state "ABCDEFGHIJKLMNOP"))))
+      (kaesar--inv-sub/shift-row! (kaesar--sub/shift-row! (kaesar-test---unibytes-to-state "ABCDEFGHIJKLMNOP"))))
 
     (kaesar-test-should (kaesar-test---unibytes-to-state "ABCDEFGHIJKLMNOP")
-                        (let ((dummy-key [[0 0 0 0][0 0 0 0][0 0 0 0][0 0 0 0]]))
-                          (kaesar--inv-key-with-mix-columns! dummy-key (kaesar--mix-columns-with-key! (kaesar-test---unibytes-to-state "ABCDEFGHIJKLMNOP") dummy-key))))
+      (let ((dummy-key [[0 0 0 0][0 0 0 0][0 0 0 0][0 0 0 0]]))
+        (kaesar--inv-key-with-mix-columns! dummy-key (kaesar--mix-columns-with-key! (kaesar-test---unibytes-to-state "ABCDEFGHIJKLMNOP") dummy-key))))
 
     (kaesar-test-should (string-to-list "ABCDEFGHIJKLMNOP")
-                        (let ((key (kaesar--expand-to-block-key kaesar-test---aes256-key)))
-                          (kaesar--state-to-bytes
-                           (kaesar--inv-cipher!
-                            (kaesar--cipher! (kaesar-test---unibytes-to-state "ABCDEFGHIJKLMNOP") key)
-                            key))))))
+      (let ((key (kaesar--expand-to-block-key kaesar-test---aes256-key)))
+        (kaesar--state-to-bytes
+         (kaesar--inv-cipher!
+          (kaesar--cipher! (kaesar-test---unibytes-to-state "ABCDEFGHIJKLMNOP") key)
+          key))))))
 
 (ert-deftest kaesar-test--parser-functions ()
   :tags '(kaesar)
 
   (kaesar--cipher-algorithm 'aes-256
     (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
-                        (kaesar-test--pseudo-old-reader "abcdefghijklmnopq" 0))
+      (kaesar-test--pseudo-old-reader "abcdefghijklmnopq" 0))
 
     (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 112]] 16)
-                        (kaesar-test--pseudo-old-reader "abcdefghijklmnop" 0))
+      (kaesar-test--pseudo-old-reader "abcdefghijklmnop" 0))
 
     (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 108] [109 110 111 1]] nil)
-                        (kaesar-test--pseudo-old-reader "abcdefghijklmno" 0))
+      (kaesar-test--pseudo-old-reader "abcdefghijklmno" 0))
 
     (kaesar-test-should '([[97 98 99 100] [101 102 103 104] [105 106 107 5] [5 5 5 5]] nil)
-                        (kaesar-test--pseudo-old-reader "abcdefghijk" 0))
+      (kaesar-test--pseudo-old-reader "abcdefghijk" 0))
     ))
 
 (ert-deftest kaesar-test--openssl-compatibility ()
   :tags '(kaesar)
 
   (kaesar-test-should (kaesar-test---openssl-key&iv "aes-128-cbc" "d")
-                      (kaesar--with-algorithm "aes-128-cbc"
-                        (cl-destructuring-bind (key iv) (kaesar--password-to-key (vconcat "d"))
-                          (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
+    (kaesar--with-algorithm "aes-128-cbc"
+      (cl-destructuring-bind (key iv) (kaesar--password-to-key (vconcat "d"))
+        (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
 
   (kaesar-test-should (kaesar-test---openssl-key&iv "aes-128-ecb" "d")
-                      (kaesar--with-algorithm "aes-128-ecb"
-                        (cl-destructuring-bind (key iv) (kaesar--password-to-key (vconcat "d"))
-                          (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
+    (kaesar--with-algorithm "aes-128-ecb"
+      (cl-destructuring-bind (key iv) (kaesar--password-to-key (vconcat "d"))
+        (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
 
   (kaesar-test-should (kaesar-test---openssl-key&iv "aes-256-ecb" "pass")
-                      (kaesar--with-algorithm "aes-256-ecb"
-                        (cl-destructuring-bind (key iv) (kaesar--password-to-key (vconcat "pass"))
-                          (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
+    (kaesar--with-algorithm "aes-256-ecb"
+      (cl-destructuring-bind (key iv) (kaesar--password-to-key (vconcat "pass"))
+        (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
 
   (kaesar-test-should (kaesar-test---openssl-key&iv "aes-256-cbc" "pass")
-                      (kaesar--with-algorithm "aes-256-cbc"
-                        (cl-destructuring-bind (key iv) (kaesar--password-to-key (vconcat "pass"))
-                          (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
+    (kaesar--with-algorithm "aes-256-cbc"
+      (cl-destructuring-bind (key iv) (kaesar--password-to-key (vconcat "pass"))
+        (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
 
   ;; check interoperability openssl command
   (dolist (algorithm '("aes-128-ecb" "aes-192-ecb" "aes-256-ecb"
@@ -427,43 +427,43 @@
   :tags '(kaesar)
   ;; Appendix A.1
   (kaesar-test-should kaesar-test---aes128-results
-                      (kaesar--cipher-algorithm 'aes-128
-                        (kaesar--key-expansion kaesar-test---aes128-key)))
+    (kaesar--cipher-algorithm 'aes-128
+      (kaesar--key-expansion kaesar-test---aes128-key)))
 
   ;; Appendix A.2
   (kaesar-test-should kaesar-test---aes192-results
-                      (kaesar--cipher-algorithm 'aes-192
-                        (kaesar--key-expansion kaesar-test---aes192-key)))
+    (kaesar--cipher-algorithm 'aes-192
+      (kaesar--key-expansion kaesar-test---aes192-key)))
 
   ;; Appendix A.3
   (kaesar-test-should kaesar-test---aes256-results
-                      (kaesar--cipher-algorithm 'aes-256
-                        (kaesar--key-expansion kaesar-test---aes256-key)))
+    (kaesar--cipher-algorithm 'aes-256
+      (kaesar--key-expansion kaesar-test---aes256-key)))
 
   ;; Appendix B
   (kaesar--cipher-algorithm 'aes-128
     (kaesar-test-should [[?\x2b ?\x7e ?\x15 ?\x16] [?\x28 ?\xae ?\xd2 ?\xa6] [?\xab ?\xf7 ?\x15 ?\x88] [?\x09 ?\xcf ?\x4f ?\x3c]]
-                        (kaesar--round-key (kaesar--expand-to-block-key (kaesar-test---appendix-b-key)) 0))
+      (kaesar--round-key (kaesar--expand-to-block-key (kaesar-test---appendix-b-key)) 0))
 
     (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-1-1)
-                        (kaesar--add-round-key! (kaesar-test---view-to-state kaesar-test---appendix-b-input-state)
-                                                (kaesar-test---view-to-state kaesar-test---appendix-b-first-round-key)))
+      (kaesar--add-round-key! (kaesar-test---view-to-state kaesar-test---appendix-b-input-state)
+                              (kaesar-test---view-to-state kaesar-test---appendix-b-first-round-key)))
 
     (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-1-3)
-                        (kaesar--sub/shift-row! (kaesar-test---view-to-state kaesar-test---appendix-b-1-1)))
+      (kaesar--sub/shift-row! (kaesar-test---view-to-state kaesar-test---appendix-b-1-1)))
 
     ;; This case originally just test MixColumns but now is merged with AddRoundKey.
     ;; xor with key which is filled by zero get same result of original case.
     (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-1-4)
-                        (kaesar--mix-columns-with-key! (kaesar-test---view-to-state kaesar-test---appendix-b-1-3)
-                                                       [[0 0 0 0][0 0 0 0][0 0 0 0][0 0 0 0]]))
+      (kaesar--mix-columns-with-key! (kaesar-test---view-to-state kaesar-test---appendix-b-1-3)
+                                     [[0 0 0 0][0 0 0 0][0 0 0 0][0 0 0 0]]))
 
     (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-1-round-key)
-                        (kaesar--round-key (kaesar--expand-to-block-key (kaesar-test---appendix-b-key)) 1))
+      (kaesar--round-key (kaesar--expand-to-block-key (kaesar-test---appendix-b-key)) 1))
 
     (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-last-output)
-                        (kaesar--cipher! (kaesar-test---view-to-state kaesar-test---appendix-b-input-state)
-                                         (kaesar--expand-to-block-key (kaesar-test---appendix-b-key))))
+      (kaesar--cipher! (kaesar-test---view-to-state kaesar-test---appendix-b-input-state)
+                       (kaesar--expand-to-block-key (kaesar-test---appendix-b-key))))
     ))
 
 (ert-deftest kaesar-test--enc/dec ()
@@ -471,10 +471,10 @@
 
   ;; check accept vector
   (kaesar-test-should "abcdefg"
-                      (let ((kaesar-password (copy-sequence "d")))
-                        (kaesar-decrypt-bytes
-                         (let ((kaesar-password (copy-sequence "d")))
-                           (kaesar-encrypt-bytes (vconcat "abcdefg"))))))
+    (let ((kaesar-password (copy-sequence "d")))
+      (kaesar-decrypt-bytes
+       (let ((kaesar-password (copy-sequence "d")))
+         (kaesar-encrypt-bytes (vconcat "abcdefg"))))))
 
   ;; less than block size
   (kaesar-test-enc/dec "abcdefghijklmno" "aes-128-ecb")
