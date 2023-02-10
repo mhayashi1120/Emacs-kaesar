@@ -237,7 +237,8 @@
     (cl-loop for i from 0
              for v across array
              do (aset ret (+ (/ i kaesar--Nb)
-                             (* (mod i kaesar--Row) kaesar--Row)) v))
+                             (* (mod i kaesar--Row) kaesar--Row))
+                      v))
     (kaesar-test---unibytes-to-state (concat ret))))
 
 
@@ -325,7 +326,8 @@
                       (let ((kaesar-password (copy-sequence "d")))
                         (kaesar-decrypt-bytes
                          (let ((kaesar-password (copy-sequence "d")))
-                           (kaesar-encrypt-bytes raw-bytes algorithm)) algorithm))))
+                           (kaesar-encrypt-bytes raw-bytes algorithm))
+                         algorithm))))
 
 (defun kaesar-test--pseudo-old-reader (string pos)
   (let* ((s (kaesar--construct-state))
@@ -922,7 +924,8 @@
                (kaesar-change-password
                 E nil (lambda (old) (setq kaesar-password "b"))))))
     (should (equal (let ((kaesar-password "b"))
-                     (kaesar-decrypt-string E2)) M))
+                     (kaesar-decrypt-string E2))
+                   M))
     (should-error (let ((kaesar-password "a"))
                     (kaesar-decrypt-string E2)))))
 
