@@ -405,8 +405,8 @@ from memory."
 
 (defun kaesar--key-digest-update (digest hash data)
   (cl-loop with unibytes = (apply 'kaesar--unibyte-string data)
-           with hash = (funcall digest unibytes)
-           for v across (kaesar--hex-to-vector hash)
+           with digest-result = (funcall digest unibytes)
+           for v across (kaesar--hex-to-vector digest-result)
            for i from 0
            do (aset hash i v)))
 
