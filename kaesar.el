@@ -1,11 +1,11 @@
-;;; kaesar.el --- AES algorithm encrypt/decrypt. -*- lexical-binding: t -*-
+;;; kaesar.el --- AES algorithm encrypt/decrypt -*- lexical-binding: t -*-
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 23 or later
 ;; Version: 0.9.4
-;; Package-Requires: ((cl-lib "0.3") (emacs "24.3"))
+;; Package-Requires: ((emacs "24.3"))
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -199,8 +199,7 @@ from memory."
   '(
     (aes-128 4 4 10)
     (aes-192 6 4 12)
-    (aes-256 8 4 14)
-    ))
+    (aes-256 8 4 14)))
 
 ;; Block size
 (eval-and-compile
@@ -249,8 +248,7 @@ from memory."
       ;; Cipher FeedBack
       (cfb
        kaesar--cfb-encrypt kaesar--cfb-decrypt
-       nil ,kaesar--Block)
-      )))
+       nil ,kaesar--Block))))
 
 (eval-and-compile
   (defconst kaesar--pkcs5-salt-length 8))
