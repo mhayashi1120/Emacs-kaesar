@@ -1,4 +1,4 @@
-;;; kaesar-file.el --- AES encrypt/decrypt file
+;;; kaesar-file.el --- AES encrypt/decrypt file -*- lexical-binding: t -*-
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data, files

@@ -1,4 +1,4 @@
-;;; kaesar.el --- AES algorithm encrypt/decrypt.
+;;; kaesar.el --- AES algorithm encrypt/decrypt. -*- lexical-binding: t -*-
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
@@ -366,7 +366,7 @@ from memory."
   (defsubst kaesar--load-unibytes! (state unibyte-string pos)
     (let* ((len (length unibyte-string))
            (end-pos (min len (+ pos kaesar--Block)))
-           (state (kaesar--load-state! state unibyte-string pos))
+           (_ (kaesar--load-state! state unibyte-string pos))
            (rest (if (and (= len end-pos)
                           (< (- end-pos pos) kaesar--Block))
                      nil end-pos)))
@@ -376,7 +376,7 @@ from memory."
   (defsubst kaesar--load-encbytes! (state unibyte-string pos)
     (let* ((len (length unibyte-string))
            (end-pos (min len (+ pos kaesar--Block)))
-           (state (kaesar--load-state! state unibyte-string pos))
+           (_ (kaesar--load-state! state unibyte-string pos))
            (rest (if (= len end-pos) nil end-pos)))
       rest)))
 
@@ -1088,7 +1088,7 @@ from memory."
 ;;
 
 (defun kaesar--key-make-block (expanded-key)
-  (cl-loop for xs on expanded-key by (lambda (x) (nthcdr 4 xs))
+  (cl-loop for xs on expanded-key by (lambda (_x) (nthcdr 4 xs))
            collect (vector (nth 0 xs) (nth 1 xs) (nth 2 xs) (nth 3 xs))
            into res
            finally return (vconcat res)))

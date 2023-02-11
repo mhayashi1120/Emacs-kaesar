@@ -1,4 +1,4 @@
-;;; kaesar-mode.el --- AES encrypt/decrypt buffer
+;;; kaesar-mode.el --- AES encrypt/decrypt buffer -*- lexical-binding: t -*-
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data, convenience
@@ -227,7 +227,7 @@
 
 ;; re-open encrypted file
 (defun kaesar-mode--decrypt-buffer ()
-  (cl-destructuring-bind (cs algorithm mode version data)
+  (cl-destructuring-bind (cs algorithm mode _version data)
       ;; buffer may be a multibyte buffer.
       ;; re read buffer from file.
       (kaesar-mode--read-encrypt-data)
@@ -374,7 +374,7 @@ todo `kaesar-mode-cache-password'
       (kaesar-mode--save-buffer))
     (when (kaesar-mode--buffer-have-header-p)
       (let ((done nil))
-        (condition-case quit
+        (condition-case _quit
             (while (not done)
               (condition-case err
                   (progn
