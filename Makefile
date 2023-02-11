@@ -11,8 +11,7 @@ EL += kaesar-mode.el
 EL += kaesar-file.el
 
 TEST_EL := kaesar-test.el
-
-SUBST_EL := kaesar.el
+SUBTEST_EL := kaesar-subtest.el
 
 BATCH_OPTS ?= -L ./Emacs-openssl-cipher
 
@@ -74,7 +73,7 @@ LOAD_ELC := $(ELC:%=-l %)
 
 LOAD_TEST_EL := $(TEST_EL:%=-l %)
 
-LOAD_SUBST_EL := $(SUBST_EL:%=-l %)
+LOAD_SUBTEST_EL := $(SUBTEST_EL:%=-l %)
 
 ###
 ### General rule
@@ -85,8 +84,8 @@ LOAD_SUBST_EL := $(SUBST_EL:%=-l %)
 all: check
 
 check: compile
-	$(BUILD_BATCH) $(LOAD_EL) $(LOAD_TEST_EL) -f ert-run-tests-batch-and-exit
-	$(BUILD_BATCH) $(LOAD_SUBST_EL) $(LOAD_ELC) $(LOAD_TEST_EL) -f ert-run-tests-batch-and-exit
+	$(BUILD_BATCH) $(LOAD_EL) $(LOAD_SUBTEST_EL) $(LOAD_TEST_EL) -f ert-run-tests-batch-and-exit
+	$(BUILD_BATCH) $(LOAD_ELC) $(LOAD_TEST_EL) -f ert-run-tests-batch-and-exit
 
 compile:
 	$(BUILD_BATCH) -f batch-byte-compile $(EL)
