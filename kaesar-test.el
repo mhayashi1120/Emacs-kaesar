@@ -28,15 +28,16 @@
 (defun kaesar-test---block-random-test ()
   (let* ((bytes (kaesar-test---random-bytes))
          results)
+
     (let ((openssl-cipher-password (copy-sequence "d"))
           (kaesar-password (copy-sequence "d")))
       (setq results (openssl-cipher-decrypt-unibytes (kaesar-encrypt-bytes bytes)))
-      (kaesar-test-should results bytes))
+      (should (equal results bytes)))
 
     (let ((openssl-cipher-password (copy-sequence "d"))
           (kaesar-password (copy-sequence "d")))
       (setq results (kaesar-decrypt-bytes (openssl-cipher-encrypt-unibytes bytes)))
-      (kaesar-test-should results bytes))))
+      (should (equal results bytes)))))
 
 (ert-deftest kaesar-test--openssl-compatibility ()
   :tags '(kaesar)
@@ -251,5 +252,33 @@
                    M))
     (should-error (let ((kaesar-password "a"))
                     (kaesar-decrypt-string E2)))))
+
+(defconst kaesar--test-secret0001 "It's My privacy.")
+(defconst kaesar--test-password0001 "c53426115d1742ae5e72")
+
+;; (let ((kaesar-password (copy-sequence kaesar--test-password0001)))
+;;   (base64-encode-string (kaesar-encrypt-string kaesar--test-secret0001))
+;;   )
+
+(ert-deftest kaesar-test--change-password ()
+  "Check constants of encrypted."
+  :tags '(kaesar)
+  ;; This is encrypted by Emacs 28
+  (dolist (encrypted '(
+                       "U2FsdGVkX188Nz3PoDcWIOK/RGVQ0OEY5QAAv1Zl8Qbu7tEr7u/d0dq959kMoCWk"
+                       "U2FsdGVkX19q+OmAU0ThAG6mZeI2xdCtLMlzIiiJaS84dnC9cQMYUapC1zHmhkia"
+                       "U2FsdGVkX18iEOBNGao4IOtMl6tTtbfVglnB2sXBKwhPHOjrvMJ8L1y8U0ZyQbdE"
+                       "U2FsdGVkX1/xS7nfItdRHUCYUT0FCS7NvOSV8yV5Z3t7AYOdvgLS1lfi0XtXI4Sa"
+                       "U2FsdGVkX1/zWpHK7mOvjydnHZLrM+PCoJqviXZPnx8RwpTpcFyWCfCrsuWpM+Kt"
+                       "U2FsdGVkX1+TRrAsFxO4udUb3vnujKpv/vSEiPcmU35rXCK3PjXSB/Ejk8cYyvAY"
+                       "U2FsdGVkX18dZ0JHPbURm4C2S8j2umduhbfxyGa/zgGDyo1t6i0FCHZIgMrY5jdP"
+                       "U2FsdGVkX19wsIFF+hI+9az17MJhRcqD1JQ0I/8TNWN+r/SZ0eCukfj28HYSIgUg"
+                       "U2FsdGVkX1/2EHEKCvUkPAb4KvPDm/1N49XYtu8vgm8D4x6NgA/gHFxJPlXfVyJ7"
+                       "U2FsdGVkX18qqpUft+WfhZl9pKv4VdYLj6iTGa+f0m25wSPeyqq6TUMy5nwLfyW2"
+                       "U2FsdGVkX1+wMLZQ5L+h8K7A6GZ/e4N5vDmds9u4HhJhlNKH3oz4zzpG4DdmdNiM"
+                       "U2FsdGVkX183BWC5a2ospYH/+u12Tsa21lIUqyvcBHBTw9+qKANI8g89DX+EhqnH"
+                       ))
+    (let ((kaesar-password (copy-sequence kaesar--test-password0001)))
+      (should (equal kaesar--test-secret0001 (kaesar-decrypt-string (base64-decode-string encrypted)))))))
 
 (provide 'kaesar-test)
