@@ -3,7 +3,7 @@
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
-;; Emacs: GNU Emacs 23 or later
+;; Emacs: GNU Emacs 24.3 or later
 ;; Version: 0.9.4
 ;; Package-Requires: ((emacs "24.3"))
 
@@ -401,9 +401,9 @@ from memory."
            do (aset salt i (random ?\x100))
            finally return salt))
 
-(defun kaesar--key-digest-update (digest hash data)
+(defun kaesar--key-digest-update (hasher hash data)
   (cl-loop with unibytes = (apply 'kaesar--unibyte-string data)
-           with digest-result = (funcall digest unibytes)
+           with digest-result = (funcall hasher unibytes)
            for v across (kaesar--hex-to-vector digest-result)
            for i from 0
            do (aset hash i v)))
