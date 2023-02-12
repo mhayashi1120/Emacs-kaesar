@@ -31,8 +31,6 @@ jobs:
           - 28.1
           - 28.2
           - snapshot
-        exclude:
-        include:
     env:
       EMACS_LINT_IGNORE: ${{ matrix.lint_ignore }}
     steps:
