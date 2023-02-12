@@ -248,7 +248,7 @@
       ;;TODO should call interface function?
       (when mode
         (with-demoted-errors
-          (funcall mode))
+            (funcall mode))
         (unless kaesar-mode
           (kaesar-mode 1))))))
 
