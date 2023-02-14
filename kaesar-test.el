@@ -1,6 +1,7 @@
 (require 'kaesar)
 (require 'kaesar-file)
 (require 'kaesar-mode)
+(require 'kaesar-pbkdf2)
 (require 'kaesar-testutil)
 (require 'openssl-cipher)
 (require 'ert)
@@ -280,5 +281,77 @@
                        ))
     (let ((kaesar-password (copy-sequence kaesar--test-password0001)))
       (should (equal kaesar--test-secret0001 (kaesar-decrypt-string (base64-decode-string encrypted)))))))
+
+(defun delimiterize->hex (l)
+  (mapconcat
+   (lambda (n) (format "%02x" n))
+   l " "))
+
+(defun hex->unibytes (h)
+  (cl-loop for i from 0 below (length h) by 2
+           collect (string-to-number (substring h i (+ i 2)) 16)
+           into bytes
+           finally return (apply 'unibyte-string bytes)))
+
+(defun kaesar-test-sha1-pbkdf2 (pass iter size salt)
+  (delimiterize->hex (kaesar-pbkdf2-hmac pass iter size salt 'sha1)))
+
+(ert-deftest kaesar-test--pbkdf2-rfc3962 ()
+  "RFC 3962 (B.  Sample Test Vectors)"
+  :tags '(kaesar kaesar-pbkdf2)
+  (should (equal
+           "cd ed b5 28 1b b2 f8 01 56 5a 11 22 b2 56 35 15"
+           (kaesar-test-sha1-pbkdf2 "password" 1 16  "ATHENA.MIT.EDUraeburn")))
+  (should (equal
+           "cd ed b5 28 1b b2 f8 01 56 5a 11 22 b2 56 35 15 0a d1 f7 a0 4b b9 f3 a3 33 ec c0 e2 e1 f7 08 37"
+           (kaesar-test-sha1-pbkdf2 "password" 1 32  "ATHENA.MIT.EDUraeburn")))
+
+  (should (equal
+           "01 db ee 7f 4a 9e 24 3e 98 8b 62 c7 3c da 93 5d"
+           (kaesar-test-sha1-pbkdf2 "password" 2 16  "ATHENA.MIT.EDUraeburn")))
+  (should (equal
+           "01 db ee 7f 4a 9e 24 3e 98 8b 62 c7 3c da 93 5d a0 53 78 b9 32 44 ec 8f 48 a9 9e 61 ad 79 9d 86"
+           (kaesar-test-sha1-pbkdf2 "password" 2 32  "ATHENA.MIT.EDUraeburn")))
+
+  (should (equal
+           "5c 08 eb 61 fd f7 1e 4e 4e c3 cf 6b a1 f5 51 2b"
+           (kaesar-test-sha1-pbkdf2 "password" 1200 16  "ATHENA.MIT.EDUraeburn")))
+  (should (equal
+           "5c 08 eb 61 fd f7 1e 4e 4e c3 cf 6b a1 f5 51 2b a7 e5 2d db c5 e5 14 2f 70 8a 31 e2 e6 2b 1e 13"
+           (kaesar-test-sha1-pbkdf2 "password" 1200 32  "ATHENA.MIT.EDUraeburn")))
+
+  (should (equal
+           "d1 da a7 86 15 f2 87 e6 a1 c8 b1 20 d7 06 2a 49"
+           (kaesar-test-sha1-pbkdf2 "password" 5 16  (hex->unibytes "1234567878563412"))))
+  (should (equal
+           "d1 da a7 86 15 f2 87 e6 a1 c8 b1 20 d7 06 2a 49 3f 98 d2 03 e6 be 49 a6 ad f4 fa 57 4b 6e 64 ee"
+           (kaesar-test-sha1-pbkdf2 "password" 5 32  (hex->unibytes "1234567878563412"))))
+
+  (should (equal
+           "13 9c 30 c0 96 6b c3 2b a5 5f db f2 12 53 0a c9"
+           (kaesar-test-sha1-pbkdf2 "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                                    1200 16  "pass phrase equals block size")))
+  (should (equal
+           "13 9c 30 c0 96 6b c3 2b a5 5f db f2 12 53 0a c9 c5 ec 59 f1 a4 52 f5 cc 9a d9 40 fe a0 59 8e d1"
+           (kaesar-test-sha1-pbkdf2 "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                                    1200 32  "pass phrase equals block size")))
+
+  (should (equal
+           "9c ca d6 d4 68 77 0c d5 1b 10 e6 a6 87 21 be 61"
+           (kaesar-test-sha1-pbkdf2 "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                                    1200 16 "pass phrase exceeds block size")))
+  (should (equal
+           "9c ca d6 d4 68 77 0c d5 1b 10 e6 a6 87 21 be 61 1a 8b 4d 28 26 01 db 3b 36 be 92 46 91 5e c8 2a"
+           (kaesar-test-sha1-pbkdf2 "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                                    1200 32 "pass phrase exceeds block size")))
+
+  (should (equal
+           "6b 9c f2 6d 45 45 5a 43 a5 b8 bb 27 6a 40 3b 39"
+           (kaesar-test-sha1-pbkdf2 (hex->unibytes "f09d849e") 50 16 "EXAMPLE.COMpianist")))
+  (should (equal
+           "6b 9c f2 6d 45 45 5a 43 a5 b8 bb 27 6a 40 3b 39 e7 fe 37 a0 c4 1e 02 c2 81 ff 30 69 e1 e9 4f 52"
+           (kaesar-test-sha1-pbkdf2 (hex->unibytes "f09d849e") 50 32 "EXAMPLE.COMpianist")))
+
+  )
 
 (provide 'kaesar-test)

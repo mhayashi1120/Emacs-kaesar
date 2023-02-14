@@ -5,7 +5,7 @@
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 24.3 or later
 ;; Version: 0.9.0
-;; Package-Requires: ((emacs "24.3") (kaesar "0.9.5") (hmac "1.0"))
+;; Package-Requires: ((emacs "24.3") (kaesar "0.9.5"))
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -38,25 +38,72 @@
            finally return (nreverse r)))
 
 (defun kaesar-pbkdf2--logxor (u1 u2)
+  (unless (= (length u1) (length u2))
+    (error "Not a same length of vector"))
   (cl-mapcar
    (lambda (b1 b2) (logxor b1 b2))
    u1 u2))
 
+(defconst kaesar-hmac-algorithms
+  ;; (ALGORITHM BLOCK-SIZE)
+  '(
+    (md5 64)
+    (sha1 64)
+    (sha224 64)
+    (sha256 64)
+    (sha384 128)
+    (sha512 128)
+    ))
+
+(defun kaesar-hmac-tiny (algorithm password message)
+  (when (< 4096 (length message))
+    (error "Large size message not supported"))
+  (when (multibyte-string-p password)
+    (error "Multibyte string not supported as password"))
+  (when (multibyte-string-p message)
+    (error "Multibyte string not supported as message"))
+  (pcase-exhaustive (assoc algorithm kaesar-hmac-algorithms)
+    (`(,_ ,block-size)
+     (when (< block-size (length password))
+       (setq password (secure-hash algorithm password nil nil t)))
+     (when (< (length password) block-size)
+       (setq password (apply 'unibyte-string
+                             (append (string-to-list password)
+                                     (make-list (- block-size (length password)) 0)))))
+     (let* ((opad (cl-loop for p across password
+                           for b in (make-list block-size #x5c)
+                           collect (logxor p b)))
+            (ipad (cl-loop for p across password
+                           for b in (make-list block-size #x36)
+                           collect (logxor p b)))
+            (ipad* (apply 'unibyte-string (append ipad (string-to-list message))))
+            (digest (secure-hash algorithm ipad* nil nil t))
+            (opad* (apply 'unibyte-string (append opad (string-to-list digest)))))
+       (secure-hash algorithm opad* nil nil t)))))
+
 ;; TODO
-(defun check-natural (x &rest _))
+(defun check-natural (x &rest _)
+  (unless (and (integerp x) (plusp x))
+    (error "Not a natural number %s" x)))
 
 (defun kaesar-pbkdf2-hmac (password iter size &optional salt algorithm)
+  "PASSWORD as string ITER as integer SIZE as integer.
+Optional SALT as list (also allow string) of byte.
+Optional ALGORITHM should be listed in `hmac-algorithm-blocksizes` ."
   (check-natural iter 1)
   (check-natural size 1)
   (setq algorithm (or algorithm 'sha256))
   (setq salt (or salt ()))
   (let* ((PRF (lambda (U)
-                (let ((digest (hmac algorithm password (apply 'unibyte-string U) t)))
+                (let ((digest (kaesar-hmac-tiny algorithm password (apply 'unibyte-string U))))
                   (string-to-list digest))))
          (F (lambda (i)
-              (cl-loop with Ux = (funcall PRF (append salt (kaesar-pbkdf2--pack 4 i)))
+              (cl-loop with U0 = (funcall PRF (append salt (kaesar-pbkdf2--pack 4 i)))
+                       with Ux = U0
                        repeat (1- iter)
-                       do (setq Ux (kaesar-pbkdf2--logxor Ux (funcall PRF Ux)))
+                       do (let ((U (funcall PRF U0)))
+                            (setq Ux (kaesar-pbkdf2--logxor Ux U))
+                            (setq U0 U))
                        finally return Ux)))
          (DK (lambda ()
                (cl-loop while (< (length result) size)
@@ -66,7 +113,8 @@
 
     (cl-loop for x in (funcall DK)
              repeat size
-             collect x)))
+             collect x into key
+             finally return (vconcat key))))
 
 (provide 'kaesar-pbkdf2)
 
