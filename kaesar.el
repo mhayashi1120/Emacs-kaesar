@@ -266,7 +266,8 @@ from memory."
       (mapcar
        (lambda (p)
          (symbol-name (car p)))
-       kaesar--block-algorithm-alist) t)
+       kaesar--block-algorithm-alist)
+      t)
      "\\'")))
 
 (defun kaesar--parse-algorithm (name)
@@ -1228,7 +1229,8 @@ To suppress the password prompt, set password to `kaesar-password' as
     (let* ((salt (kaesar--create-salt))
            (pass (kaesar--read-passwd
                   (or kaesar-encrypt-prompt
-                      "Password to encrypt: ") t)))
+                      "Password to encrypt: ")
+                  t)))
       (cl-destructuring-bind (raw-key iv)
           (kaesar--password-to-key pass salt)
         (let ((body (kaesar--encrypt-0 unibyte-string raw-key iv)))
