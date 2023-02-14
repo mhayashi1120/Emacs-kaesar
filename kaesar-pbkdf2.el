@@ -1,4 +1,4 @@
-;;; kaesar-pbkdf2.el --- kaesar.el extension -*- lexical-binding: t -*-
+;;; kaesar-pbkdf2.el --- kaesar.el PBKDF2 extension -*- lexical-binding: t -*-
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
@@ -25,6 +25,7 @@
 ;;; Commentary:
 
 ;; TODO
+;; PBKDF2 is `Password-Based Key Derivation Function 2`
 
 ;;; Code:
 
@@ -56,19 +57,16 @@
               (cl-loop with Ux = (funcall PRF (append salt (kaesar-pbkdf2--pack 4 i)))
                        repeat (1- iter)
                        do (setq Ux (kaesar-pbkdf2--logxor Ux (funcall PRF Ux)))
-                       finally return Ux))))
+                       finally return Ux)))
+         (DK (lambda ()
+               (cl-loop while (< (length result) size)
+                        for i from 1
+                        append (funcall F i) into result
+                        finally return result))))
 
-    (let ((i 1)
-          (result ()))
-
-      (while (< (length result) size)
-        (let ((Tx (funcall F i)))
-          (setq result (append result Tx))
-          (setq i (1+ i))))
-
-      (cl-loop for x in result
-               repeat size
-               collect x))))
+    (cl-loop for x in (funcall DK)
+             repeat size
+             collect x)))
 
 (provide 'kaesar-pbkdf2)
 
