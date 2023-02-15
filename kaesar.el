@@ -141,6 +141,18 @@ intend to use with locally bound."
   :group 'kaesar
   :type 'string)
 
+(defcustom kaesar-encryption-version 2
+  "The following table shows the correspondence between each
+ version and the corresponding `openssl' command-line summary.
+
+1 = openssl enc -*AES-ALGORITHM* -md md5
+2 = openssl enc -*AES-ALGORITHM* -pbkdf2
+
+More detailed about `openssl', you need read `man openssl` or  `man openssl-enc` .
+"
+  :group 'kaesar
+  :type '(choice (const 1) (const 2)))
+
 (defvar kaesar--encoder)
 (defvar kaesar--decoder)
 (defvar kaesar--check-before-decrypt)
@@ -450,7 +462,7 @@ from memory."
    (apply 'kaesar--unibyte-string (append salt nil))
    encrypt-string))
 
-;; Emulate openssl EVP_BytesToKey function
+;; Emulate openssl EVP_BytesToKey function (kaesar version 1)
 (defun kaesar--openssl-evp-bytes-to-key (iv-length key-length data salt)
   (let ((key (make-vector key-length nil))
         (iv (make-vector iv-length nil))
@@ -485,6 +497,16 @@ from memory."
     ;; Destructive clear password area.
     (fillarray data nil)
     (list key iv)))
+
+;; PBKDF2 implementation (kaesar version 2)
+(defun kaesar--openssl-pbkdf2-hmac (iv-length key-length data salt)
+  (let ((pbkdf2 (kaesar-pbkdf2-hmac
+                 data 10000 (+ iv-length key-length)
+                 salt 'sha256)))
+    (cl-loop for bs on pbkdf2
+             repeat key-length
+             collect (car bs) into key
+             finally return (list (vconcat key) (vconcat bs)))))
 
 ;;
 ;; AES Algorithm defined functions
@@ -1177,9 +1199,14 @@ from memory."
   (let ((veciv (kaesar--validate-input-bytes iv kaesar--IV)))
     veciv))
 
-(defun kaesar--password-to-key (data &optional salt)
-  (kaesar--openssl-evp-bytes-to-key
-   kaesar--IV (* kaesar--Nk kaesar--Nb) data salt))
+(defun kaesar--password-to-key (data &optional salt version)
+  (cl-ecase version
+    ((1)
+     (kaesar--openssl-evp-bytes-to-key
+      kaesar--IV (* kaesar--Nk kaesar--Nb) data salt))
+    ((nil 2) ;; current the newest version
+     (kaesar--openssl-pbkdf2-hmac
+      kaesar--IV (* kaesar--Nk kaesar--Nb) data salt))))
 
 ;;;
 ;;; User level API
@@ -1215,7 +1242,9 @@ from memory."
 ;;
 
 ;;;###autoload
-(defun kaesar-encrypt-bytes (unibyte-string &optional algorithm)
+(defun kaesar-encrypt-bytes (unibyte-string
+                             &optional algorithm
+                             &rest _keywords)
   "Encrypt a UNIBYTE-STRING with ALGORITHM.
 If no ALGORITHM is supplied, default value is `kaesar-algorithm'.
 See `kaesar-algorithm' list of the supported ALGORITHM .
@@ -1232,26 +1261,42 @@ To suppress the password prompt, set password to `kaesar-password' as
                       "Password to encrypt: ")
                   t)))
       (cl-destructuring-bind (raw-key iv)
-          (kaesar--password-to-key pass salt)
+          (kaesar--password-to-key pass salt kaesar-encryption-version)
         (let ((body (kaesar--encrypt-0 unibyte-string raw-key iv)))
           (kaesar--openssl-prepend-salt salt body))))))
 
 ;;;###autoload
-(defun kaesar-decrypt-bytes (encrypted-string &optional algorithm)
-  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt-bytes'"
-  (kaesar--with-algorithm algorithm
-    (kaesar--check-encrypted encrypted-string)
-    (cl-destructuring-bind (salt encbytes)
-        (kaesar--openssl-parse-salt encrypted-string)
-      (let ((pass (kaesar--read-passwd
-                   (or kaesar-decrypt-prompt
-                       "Password to decrypt: "))))
-        (cl-destructuring-bind (raw-key iv)
-            (kaesar--password-to-key pass salt)
-          (kaesar--decrypt-0 encbytes raw-key iv))))))
+(defun kaesar-decrypt-bytes (encrypted-string
+                             &optional algorithm
+                             &rest keywords)
+  "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt-bytes'
+
+KEYWORDS : :version TODO
+"
+  (let ((version))
+    (while keywords
+      (pcase keywords
+        (`(:version ,v . ,keywords*)
+         (setq version v)
+         (setq keywords keywords*))
+        (_
+         (error "Not a supported keywords form %s" keywords))))
+
+    (kaesar--with-algorithm algorithm
+      (kaesar--check-encrypted encrypted-string)
+      (cl-destructuring-bind (salt encbytes)
+          (kaesar--openssl-parse-salt encrypted-string)
+        (let ((pass (kaesar--read-passwd
+                     (or kaesar-decrypt-prompt
+                         "Password to decrypt: "))))
+          (cl-destructuring-bind (raw-key iv)
+              (kaesar--password-to-key pass salt version)
+            (kaesar--decrypt-0 encbytes raw-key iv)))))))
 
 ;;;###autoload
-(defun kaesar-encrypt-string (string &optional coding-system algorithm)
+(defun kaesar-encrypt-string (string
+                              &optional coding-system algorithm
+                              &rest _keywords)
   "Encrypt a well encoded STRING to encrypted string
 which can be decrypted by `kaesar-decrypt-string'.
 
@@ -1265,12 +1310,14 @@ to encrypt string."
     (kaesar-encrypt-bytes unibytes algorithm)))
 
 ;;;###autoload
-(defun kaesar-decrypt-string (encrypted-string &optional coding-system algorithm)
+(defun kaesar-decrypt-string (encrypted-string
+                              &optional coding-system algorithm
+                              &rest keywords)
   "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt-string'.
 
 This function is a wrapper function of `kaesar-decrypt-bytes'
 to decrypt string"
-  (let ((unibytes (kaesar-decrypt-bytes encrypted-string algorithm)))
+  (let ((unibytes (apply #'kaesar-decrypt-bytes encrypted-string algorithm keywords)))
     (decode-coding-string
      unibytes (or coding-system default-terminal-coding-system))))
 
@@ -1295,7 +1342,7 @@ This is a low level API to create the data which can be decrypted
 ;;;###autoload
 (defun kaesar-decrypt (encrypted-string key-input &optional iv-input algorithm)
   "Decrypt a ENCRYPTED-STRING was encrypted by `kaesar-encrypt' with KEY-INPUT.
-IV-INPUT may be required if ALGORITHM need this.
+IV-INPUT might be required according of ALGORITHM.
 
 Do not forget do `clear-string' or `fillarray' to KEY-INPUT to keep privacy.
 
@@ -1308,7 +1355,8 @@ This is a low level API to decrypt data that was encrypted
       (kaesar--decrypt-0 encrypted-string key iv))))
 
 ;;;###autoload
-(defun kaesar-change-password (encrypted-bytes &optional algorithm callback)
+(defun kaesar-change-password (encrypted-bytes
+                               &optional algorithm callback)
   "Utility function to change ENCRYPTED-BYTES password to new one.
 ENCRYPTED-BYTES will be cleared immediately after decryption is done.
 CALLBACK is a function accept one arg which indicate decrypted bytes.
