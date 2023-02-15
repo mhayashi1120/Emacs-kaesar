@@ -45,17 +45,19 @@
    u1 u2))
 
 (defconst kaesar-hmac-algorithms
-  ;; (ALGORITHM BLOCK-SIZE)
+  ;; (ALGORITHM BLOCK-SIZE SIZE)
   '(
-    (md5 64)
-    (sha1 64)
-    (sha224 64)
-    (sha256 64)
-    (sha384 128)
-    (sha512 128)
+    (md5 64 16)
+    (sha1 64 20)
+    (sha224 64 28)
+    (sha256 64 32)
+    (sha384 128 48)
+    (sha512 128 64)
     ))
 
-(defun kaesar-hmac-tiny (algorithm password message)
+;; Restricted support HMAC (RFC2104)
+;; ref: https://tools.ietf.org/rfc/rfc2104.txt
+(defun kaesar-pbkdf2-tiny-hmac (algorithm password message)
   (when (< 4096 (length message))
     (error "Large size message not supported"))
   (when (multibyte-string-p password)
@@ -63,7 +65,7 @@
   (when (multibyte-string-p message)
     (error "Multibyte string not supported as message"))
   (pcase-exhaustive (assoc algorithm kaesar-hmac-algorithms)
-    (`(,_ ,block-size)
+    (`(,_ ,block-size . ,_)
      (when (< block-size (length password))
        (setq password (secure-hash algorithm password nil nil t)))
      (when (< (length password) block-size)
@@ -81,8 +83,7 @@
             (opad* (apply 'unibyte-string (append opad (string-to-list digest)))))
        (secure-hash algorithm opad* nil nil t)))))
 
-;; TODO
-(defun check-natural (x &rest _)
+(defun kaesar-pbkdf--check-natural (x)
   (unless (and (integerp x) (plusp x))
     (error "Not a natural number %s" x)))
 
@@ -90,12 +91,18 @@
   "PASSWORD as string ITER as integer SIZE as integer.
 Optional SALT as list (also allow string) of byte.
 Optional ALGORITHM should be listed in `hmac-algorithm-blocksizes` ."
-  (check-natural iter 1)
-  (check-natural size 1)
+  (kaesar-pbkdf--check-natural iter)
+  (kaesar-pbkdf--check-natural size)
   (setq algorithm (or algorithm 'sha256))
   (setq salt (or salt ()))
+
+  (pcase-exhaustive (assoc algorithm kaesar-hmac-algorithms)
+    (`(,_ ,_ ,hash-size)
+     (when (< (* #xffffffff hash-size) size)
+       (error "Invalid length of request %s" size))))
+
   (let* ((PRF (lambda (U)
-                (let ((digest (kaesar-hmac-tiny algorithm password (apply 'unibyte-string U))))
+                (let ((digest (kaesar-pbkdf2-tiny-hmac algorithm password (apply 'unibyte-string U))))
                   (string-to-list digest))))
          (F (lambda (i)
               (cl-loop with U0 = (funcall PRF (append salt (kaesar-pbkdf2--pack 4 i)))
