@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 24.3 or later
-;; Version: 0.9.4
+;; Version: 0.9.5
 ;; Package-Requires: ((emacs "24.3"))
 
 ;; This program is free software; you can redistribute it and/or
@@ -1271,7 +1271,10 @@ To suppress the password prompt, set password to `kaesar-password' as
                              &rest keywords)
   "Decrypt a ENCRYPTED-STRING which was encrypted by `kaesar-encrypt-bytes'
 
-KEYWORDS : :version TODO
+KEYWORDS :
+  - :version Overwrite `kaesar-encryption-version` . Useful when decrypt
+        older version.
+
 "
   (let ((version))
     (while keywords
@@ -1322,7 +1325,10 @@ to decrypt string"
      unibytes (or coding-system default-terminal-coding-system))))
 
 ;;;###autoload
-(defun kaesar-encrypt (unibyte-string key-input &optional iv-input algorithm)
+(defun kaesar-encrypt (unibyte-string
+                       key-input
+                       &optional iv-input algorithm
+                       &rest _keywords)
   "Encrypt a UNIBYTE-STRING with KEY-INPUT (Before expansion).
 KEY-INPUT arg expects valid length of hex string or vector (0 - 255).
 See `kaesar-algorithm' list the supported ALGORITHM .
@@ -1340,7 +1346,10 @@ This is a low level API to create the data which can be decrypted
       (kaesar--encrypt-0 unibyte-string key iv))))
 
 ;;;###autoload
-(defun kaesar-decrypt (encrypted-string key-input &optional iv-input algorithm)
+(defun kaesar-decrypt (encrypted-string
+                       key-input
+                       &optional iv-input algorithm
+                       &rest _keywords)
   "Decrypt a ENCRYPTED-STRING was encrypted by `kaesar-encrypt' with KEY-INPUT.
 IV-INPUT might be required according of ALGORITHM.
 
@@ -1356,7 +1365,8 @@ This is a low level API to decrypt data that was encrypted
 
 ;;;###autoload
 (defun kaesar-change-password (encrypted-bytes
-                               &optional algorithm callback)
+                               &optional algorithm callback
+                               &rest _keywords)
   "Utility function to change ENCRYPTED-BYTES password to new one.
 ENCRYPTED-BYTES will be cleared immediately after decryption is done.
 CALLBACK is a function accept one arg which indicate decrypted bytes.
