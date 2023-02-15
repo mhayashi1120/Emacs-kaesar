@@ -88,7 +88,7 @@
     (error "Not a natural number %s" x)))
 
 (defun kaesar-pbkdf2-hmac (password iter size &optional salt algorithm)
-  "PASSWORD as string ITER as integer SIZE as integer.
+  "PASSWORD as string ITER as integer SIZE as integer. Return list of byte.
 Optional SALT as list (also allow string) of byte.
 Optional ALGORITHM should be listed in `hmac-algorithm-blocksizes` ."
   (kaesar-pbkdf--check-natural iter)
@@ -121,7 +121,7 @@ Optional ALGORITHM should be listed in `hmac-algorithm-blocksizes` ."
     (cl-loop for x in (funcall DK)
              repeat size
              collect x into key
-             finally return (vconcat key))))
+             finally return key)))
 
 (provide 'kaesar-pbkdf2)
 
