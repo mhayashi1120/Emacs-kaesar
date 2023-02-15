@@ -40,9 +40,12 @@
 ;; explicitly.
 
 ;;; TODO:
-;; * buffer-undo-list may contain secret data.
+;; * buffer-undo-list might contain secret data.
 ;;   To make matters worse, many other major-mode may contain
 ;;   secret data in local/global variable
+;; * Describe about header which prepend by `kaesar-mode'
+;; * Consider how to grep encrypt file
+;; * Describe `kaesar-mode-cache-password'
 
 ;;; Code:
 
@@ -340,9 +343,6 @@
 ;;;###autoload
 (define-minor-mode kaesar-mode
   "Automatically encrypt buffer with password.
-todo about header which prepend by `kaesar-mode'
-todo how to grep encrypt file
-todo `kaesar-mode-cache-password'
  "
   :init-value nil
   :lighter (" [" (:propertize "KaesarEncrypt" face kaesar-mode-lighter-face) "]")
