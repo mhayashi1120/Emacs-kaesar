@@ -1,11 +1,11 @@
-;;; kaesar-pbkdf2.el --- kaesar.el PBKDF2 extension -*- lexical-binding: t -*-
+;;; kaesar-pbkdf2.el --- PBKDF2 extension for kaesar.el -*- lexical-binding: t -*-
 
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 24.3 or later
 ;; Version: 0.9.0
-;; Package-Requires: ((emacs "24.3") (kaesar "0.9.5"))
+;; Package-Requires: ((emacs "25.1") (kaesar "0.9.5"))
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -44,7 +44,7 @@
    (lambda (b1 b2) (logxor b1 b2))
    u1 u2))
 
-(defconst kaesar-hmac-algorithms
+(defconst kaesar-pbkdf2-hmac-algorithms
   ;; (ALGORITHM BLOCK-SIZE SIZE)
   '(
     (md5 64 16)
@@ -52,8 +52,7 @@
     (sha224 64 28)
     (sha256 64 32)
     (sha384 128 48)
-    (sha512 128 64)
-    ))
+    (sha512 128 64)))
 
 ;; Restricted support HMAC (RFC2104)
 ;; ref: https://tools.ietf.org/rfc/rfc2104.txt
@@ -64,7 +63,7 @@
     (error "Multibyte string not supported as password"))
   (when (multibyte-string-p message)
     (error "Multibyte string not supported as message"))
-  (pcase-exhaustive (assoc algorithm kaesar-hmac-algorithms)
+  (pcase-exhaustive (assoc algorithm kaesar-pbkdf2-hmac-algorithms)
     (`(,_ ,block-size . ,_)
      (when (< block-size (length password))
        (setq password (secure-hash algorithm password nil nil t)))
@@ -83,7 +82,7 @@
             (opad* (apply 'unibyte-string (append opad (string-to-list digest)))))
        (secure-hash algorithm opad* nil nil t)))))
 
-(defun kaesar-pbkdf--check-natural (x)
+(defun kaesar-pbkdf2--check-natural (x)
   (unless (and (integerp x) (plusp x))
     (error "Not a natural number %s" x)))
 
@@ -91,18 +90,19 @@
   "PASSWORD as string ITER as integer SIZE as integer. Return list of byte.
 Optional SALT as list (also allow string) of byte.
 Optional ALGORITHM should be listed in `hmac-algorithm-blocksizes` ."
-  (kaesar-pbkdf--check-natural iter)
-  (kaesar-pbkdf--check-natural size)
+  (kaesar-pbkdf2--check-natural iter)
+  (kaesar-pbkdf2--check-natural size)
   (setq algorithm (or algorithm 'sha256))
   (setq salt (or salt ()))
 
-  (pcase-exhaustive (assoc algorithm kaesar-hmac-algorithms)
+  (pcase-exhaustive (assoc algorithm kaesar-pbkdf2-hmac-algorithms)
     (`(,_ ,_ ,hash-size)
      (when (< (* #xffffffff hash-size) size)
        (error "Invalid length of request %s" size))))
 
   (let* ((PRF (lambda (U)
-                (let ((digest (kaesar-pbkdf2-tiny-hmac algorithm password (apply 'unibyte-string U))))
+                (let* ((bytes (apply 'unibyte-string U))
+                       (digest (kaesar-pbkdf2-tiny-hmac algorithm password bytes)))
                   (string-to-list digest))))
          (F (lambda (i)
               (cl-loop with U0 = (funcall PRF (append salt (kaesar-pbkdf2--pack 4 i)))
