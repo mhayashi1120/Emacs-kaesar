@@ -5,7 +5,7 @@
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 24.3 or later
 ;; Version: 0.9.5
-;; Package-Requires: ((emacs "24.3"))
+;; Package-Requires: ((emacs "24.3") (kaesar-pbkdf2 "0.9.0"))
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -148,7 +148,8 @@ intend to use with locally bound."
 1 = openssl enc -*AES-ALGORITHM* -md md5
 2 = openssl enc -*AES-ALGORITHM* -pbkdf2
 
-More detailed about `openssl', you need read `man openssl` or  `man openssl-enc` .
+More detailed about `openssl', you need read `man openssl` or
+  `man openssl-enc` .
 "
   :group 'kaesar
   :type '(choice (const 1) (const 2)))
@@ -794,7 +795,7 @@ from memory."
     state))
 
 (eval-when-compile
-  (defsubst kaesar--adapt/sub/shift-row! (state row columns box)
+  (defsubst kaesar--adapt-sub-shift-row! (state row columns box)
     (let ((r0 (aref box (aref (aref state (aref columns 0)) row)))
           (r1 (aref box (aref (aref state (aref columns 1)) row)))
           (r2 (aref box (aref (aref state (aref columns 2)) row)))
@@ -806,12 +807,12 @@ from memory."
     state))
 
 (eval-when-compile
-  (defsubst kaesar--sub/shift-row! (state)
+  (defsubst kaesar--sub-shift-row! (state)
     ;; FIXME: first row only S-box
-    (kaesar--adapt/sub/shift-row! state 0 [0 1 2 3] kaesar--S-box)
-    (kaesar--adapt/sub/shift-row! state 1 [1 2 3 0] kaesar--S-box)
-    (kaesar--adapt/sub/shift-row! state 2 [2 3 0 1] kaesar--S-box)
-    (kaesar--adapt/sub/shift-row! state 3 [3 0 1 2] kaesar--S-box)
+    (kaesar--adapt-sub-shift-row! state 0 [0 1 2 3] kaesar--S-box)
+    (kaesar--adapt-sub-shift-row! state 1 [1 2 3 0] kaesar--S-box)
+    (kaesar--adapt-sub-shift-row! state 2 [2 3 0 1] kaesar--S-box)
+    (kaesar--adapt-sub-shift-row! state 3 [3 0 1 2] kaesar--S-box)
     state))
 
 (eval-and-compile
@@ -824,12 +825,12 @@ from memory."
                finally return ibox))))
 
 (eval-when-compile
-  (defsubst kaesar--inv-sub/shift-row! (state)
+  (defsubst kaesar--inv-sub-shift-row! (state)
     ;; FIXME: first row only inv-S-box
-    (kaesar--adapt/sub/shift-row! state 0 [0 1 2 3] kaesar--inv-S-box)
-    (kaesar--adapt/sub/shift-row! state 1 [3 0 1 2] kaesar--inv-S-box)
-    (kaesar--adapt/sub/shift-row! state 2 [2 3 0 1] kaesar--inv-S-box)
-    (kaesar--adapt/sub/shift-row! state 3 [1 2 3 0] kaesar--inv-S-box)
+    (kaesar--adapt-sub-shift-row! state 0 [0 1 2 3] kaesar--inv-S-box)
+    (kaesar--adapt-sub-shift-row! state 1 [3 0 1 2] kaesar--inv-S-box)
+    (kaesar--adapt-sub-shift-row! state 2 [2 3 0 1] kaesar--inv-S-box)
+    (kaesar--adapt-sub-shift-row! state 3 [1 2 3 0] kaesar--inv-S-box)
     state))
 
 (eval-when-compile
@@ -840,8 +841,8 @@ from memory."
     (aset word 3 (aref kaesar--inv-S-box (aref word 3)))
     word))
 
-;; No longer used, integrated to `kaesar--inv-sub/shift-row!'
-;;  `kaesar--sub/shift-row!'
+;; No longer used, integrated to `kaesar--inv-sub-shift-row!'
+;;  `kaesar--sub-shift-row!'
 ;; (defsubst kaesar--sub-bytes! (state)
 ;;   (mapc 'kaesar--sub-word! state))
 ;;
@@ -873,7 +874,7 @@ from memory."
   (defsubst kaesar--sub-shift-mix! (key state)
     (cl-loop for round from 1 to (1- kaesar--Nr)
              do (let ((part-key (kaesar--round-key key round)))
-                  (kaesar--sub/shift-row! state)
+                  (kaesar--sub-shift-row! state)
                   (kaesar--mix-columns-with-key! state part-key)))
     state))
 
@@ -881,7 +882,7 @@ from memory."
   (defsubst kaesar--cipher! (state key)
     (kaesar--add-round-key! state (kaesar--round-key key 0))
     (kaesar--sub-shift-mix! key state)
-    (kaesar--sub/shift-row! state)
+    (kaesar--sub-shift-row! state)
     (kaesar--add-round-key! state (kaesar--round-key key kaesar--Nr))
     state))
 
@@ -889,7 +890,7 @@ from memory."
   (defsubst kaesar--inv-shift-sub-mix! (state key)
     (cl-loop for round downfrom (1- kaesar--Nr) to 1
              do (let ((part-key (kaesar--round-key key round)))
-                  (kaesar--inv-sub/shift-row! state)
+                  (kaesar--inv-sub-shift-row! state)
                   (kaesar--inv-key-with-mix-columns! part-key state)))
     state))
 
@@ -897,7 +898,7 @@ from memory."
   (defsubst kaesar--inv-cipher! (state key)
     (kaesar--add-round-key! state (kaesar--round-key key kaesar--Nr))
     (kaesar--inv-shift-sub-mix! state key)
-    (kaesar--inv-sub/shift-row! state)
+    (kaesar--inv-sub-shift-row! state)
     (kaesar--add-round-key! state (kaesar--round-key key 0))
     state))
 

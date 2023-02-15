@@ -114,8 +114,7 @@ maintainer-clean: clean
 
 .PHONY: ci prepare-cicd
 
-# No need lint here. This package doesn't use as package
-ci: prepare-cicd
+ci: lint prepare-cicd
 
 prepare-cicd:
 	$(CI_BATCH)

@@ -468,7 +468,7 @@
 
     ;; Sub Bytes and Shift Row with inverse
     (kaesar-test-should (kaesar-test---unibytes-to-state "ABCDEFGHIJKLMNOP")
-      (kaesar--inv-sub/shift-row! (kaesar--sub/shift-row! (kaesar-test---unibytes-to-state "ABCDEFGHIJKLMNOP"))))
+      (kaesar--inv-sub-shift-row! (kaesar--sub-shift-row! (kaesar-test---unibytes-to-state "ABCDEFGHIJKLMNOP"))))
 
     (kaesar-test-should (kaesar-test---unibytes-to-state "ABCDEFGHIJKLMNOP")
       (let ((dummy-key [[0 0 0 0][0 0 0 0][0 0 0 0][0 0 0 0]]))
@@ -525,7 +525,7 @@
                               (kaesar-test---view-to-state kaesar-test---appendix-b-first-round-key)))
 
     (kaesar-test-should (kaesar-test---view-to-state kaesar-test---appendix-b-1-3)
-      (kaesar--sub/shift-row! (kaesar-test---view-to-state kaesar-test---appendix-b-1-1)))
+      (kaesar--sub-shift-row! (kaesar-test---view-to-state kaesar-test---appendix-b-1-1)))
 
     ;; This case originally just test MixColumns but now is merged with AddRoundKey.
     ;; xor with key which is filled by zero get same result of original case.
