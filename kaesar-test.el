@@ -12,9 +12,10 @@
              do (aset s i (random 256)))
     s))
 
-(defun kaesar-test---openssl-key&iv (algorithm pass)
+(defun kaesar-test---openssl-key&iv (algorithm pass key-derivation-opts)
   (let ((key&iv (shell-command-to-string
-                 (format "openssl %s -e -md md5 -pass pass:%s -P -nosalt" algorithm pass))))
+                 (format "openssl %s -e %s -pass pass:%s -P -nosalt"
+                         algorithm key-derivation-opts pass))))
     (when (string-match "^key *=\\(.*\\)\\(?:\niv *=\\(.*\\)\\)?" key&iv)
       (list (match-string 1 key&iv) (or (match-string 2 key&iv) "")))))
 
@@ -43,22 +44,22 @@
 (ert-deftest kaesar-test--openssl-compatibility ()
   :tags '(kaesar)
 
-  (kaesar-test-should (kaesar-test---openssl-key&iv "aes-128-cbc" "d")
+  (kaesar-test-should (kaesar-test---openssl-key&iv "aes-128-cbc" "d" "-pbkdf2")
     (kaesar--with-algorithm "aes-128-cbc"
       (cl-destructuring-bind (key iv) (kaesar--password-to-key (vconcat "d"))
         (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
 
-  (kaesar-test-should (kaesar-test---openssl-key&iv "aes-128-ecb" "d")
+  (kaesar-test-should (kaesar-test---openssl-key&iv "aes-128-ecb" "d" "-pbkdf2")
     (kaesar--with-algorithm "aes-128-ecb"
       (cl-destructuring-bind (key iv) (kaesar--password-to-key (vconcat "d"))
         (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
 
-  (kaesar-test-should (kaesar-test---openssl-key&iv "aes-256-ecb" "pass")
+  (kaesar-test-should (kaesar-test---openssl-key&iv "aes-256-ecb" "pass" "-pbkdf2")
     (kaesar--with-algorithm "aes-256-ecb"
       (cl-destructuring-bind (key iv) (kaesar--password-to-key (vconcat "pass"))
         (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
 
-  (kaesar-test-should (kaesar-test---openssl-key&iv "aes-256-cbc" "pass")
+  (kaesar-test-should (kaesar-test---openssl-key&iv "aes-256-cbc" "pass" "-pbkdf2")
     (kaesar--with-algorithm "aes-256-cbc"
       (cl-destructuring-bind (key iv) (kaesar--password-to-key (vconcat "pass"))
         (list (kaesar-test---unibytes-to-hex key) (kaesar-test---unibytes-to-hex iv)))))
@@ -265,6 +266,7 @@
   "Check constants of encrypted."
   :tags '(kaesar)
   ;; This is encrypted by Emacs 28
+  ;; Encrypted by base64 to keep literal in elisp.
   (dolist (encrypted '(
                        "U2FsdGVkX188Nz3PoDcWIOK/RGVQ0OEY5QAAv1Zl8Qbu7tEr7u/d0dq959kMoCWk"
                        "U2FsdGVkX19q+OmAU0ThAG6mZeI2xdCtLMlzIiiJaS84dnC9cQMYUapC1zHmhkia"
@@ -280,7 +282,10 @@
                        "U2FsdGVkX183BWC5a2ospYH/+u12Tsa21lIUqyvcBHBTw9+qKANI8g89DX+EhqnH"
                        ))
     (let ((kaesar-password (copy-sequence kaesar--test-password0001)))
-      (should (equal kaesar--test-secret0001 (kaesar-decrypt-string (base64-decode-string encrypted)))))))
+      (should (equal kaesar--test-secret0001 (kaesar-decrypt-string
+                                              (base64-decode-string encrypted)
+                                              nil nil
+                                              :version 1))))))
 
 (defun delimiterize->hex (l)
   (mapconcat
