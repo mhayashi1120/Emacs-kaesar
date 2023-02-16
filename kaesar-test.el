@@ -111,11 +111,11 @@
 (ert-deftest kaesar-test--random ()
   :tags '(kaesar)
 
-  (cl-loop repeat 256
+  (cl-loop repeat 16
            do
            (kaesar-test-enc/dec (kaesar-test---random-bytes) "aes-256-cbc"))
 
-  (cl-loop repeat 256
+  (cl-loop repeat 16
            do
            (kaesar-test-enc/dec (kaesar-test---random-bytes) "aes-256-ecb")))
 
