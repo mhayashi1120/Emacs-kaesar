@@ -1369,13 +1369,17 @@ This is a low level API to decrypt data that was encrypted
 ;;;###autoload
 (defun kaesar-change-password (encrypted-bytes
                                &optional algorithm callback
-                               &rest _keywords)
+                               decrypt-props encrypt-props)
   "Utility function to change ENCRYPTED-BYTES password to new one.
 ENCRYPTED-BYTES will be cleared immediately after decryption is done.
 CALLBACK is a function accept one arg which indicate decrypted bytes.
-  This bytes will be cleared after creating the new encrypted bytes."
+  This bytes will be cleared after creating the new encrypted bytes.
+DECRYPT-PROPS and ENCRYPT-PROPS are passed to each interfaces
+`kaesar-decrypt-bytes' and `kaesar-encrypt-bytes' as arguments.
+"
   (let ((old (let ((kaesar-decrypt-prompt "Old password: "))
-               (kaesar-decrypt-bytes encrypted-bytes algorithm))))
+               (apply #'kaesar-decrypt-bytes
+                      encrypted-bytes algorithm decrypt-props))))
     (when callback
       (funcall callback old))
     ;; Clear after CALLBACK is succeeded.
@@ -1383,7 +1387,8 @@ CALLBACK is a function accept one arg which indicate decrypted bytes.
     ;; encrypted bytes may eternally lost.
     (clear-string encrypted-bytes)
     (let ((new (let ((kaesar-encrypt-prompt "New password: "))
-                 (kaesar-encrypt-bytes old algorithm))))
+                 (apply #'kaesar-encrypt-bytes
+                        old algorithm decrypt-props))))
       (clear-string old)
       new)))
 
