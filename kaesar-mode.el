@@ -4,10 +4,10 @@
 ;; Keywords: data, convenience
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 24.3 or later
-;; Version: 0.9.3
+;; Version: 0.9.4
 ;; Package-Requires: ((emacs "24.3") (kaesar "0.1.4"))
 
-(defconst kaesar-mode-version "0.9.0")
+(defconst kaesar-mode-version "0.9.4")
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
