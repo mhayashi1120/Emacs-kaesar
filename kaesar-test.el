@@ -262,8 +262,8 @@
 ;;   (base64-encode-string (kaesar-encrypt-string kaesar--test-secret0001))
 ;;   )
 
-(ert-deftest kaesar-test--literal-encoded ()
-  "Check constants of encrypted."
+(ert-deftest kaesar-test--literal-encoded-md5 ()
+  "Check constants of encrypted version 1."
   :tags '(kaesar)
   ;; This is encrypted by Emacs 28
   ;; Encrypted by base64 to keep literal in elisp.
@@ -287,6 +287,28 @@
                                               nil nil
                                               :version 1))))))
 
+(ert-deftest kaesar-test--literal-encoded-pbkdf2 ()
+  "Check constants of encrypted version 2."
+  :tags '(kaesar)
+  (dolist (encrypted '(
+                       "U2FsdGVkX18h/qRemBJ2XJYeV3GbJmXzwgI9v3/b8aZxAr0XfTwWGCVEVTurcPwv"
+                       "U2FsdGVkX1+tctHhjQGnBhvkN+Gm2ycrx72PY18O8cKN6xJt489RUOBrtWAS+zQQ"
+                       "U2FsdGVkX19mciBpjUQqC6od9QJBk9wijIeJiZ7/XY9zTcOV9e8o/QuNurfnNvYF"
+                       "U2FsdGVkX19JnfBKwoQKHq2mPW8AQVBzY+kmTwL7W7V3+tBBQQdBc2RUl2E9biau"
+                       "U2FsdGVkX1+8xbpH5yy4SyXpkDXuDkU5vBr5SXkHwi5Rbz9su9H5XnbOsME7PEKt"
+                       "U2FsdGVkX1+Ucst2qrtVm78MJPEyGiLwBdiVECbcwDPvZjkoupXyRtPWOEIvwc40"
+                       "U2FsdGVkX1+2sOO1Yw6qLSvIfJzljrFmvM6ofnmdr6LMQdKq32fr/0o+cOVP/6UZ"
+                       "U2FsdGVkX1/ylnacnCHg8/QCdaFWYnkCvvhPRVscdIZCPXw1Lvv4Jfx30aUDeTzG"
+                       "U2FsdGVkX18uEN6zg0AASQ3lS68dmG57typj503k4oyVEEYRHoQM3gfwTnEZsOFa"
+                       "U2FsdGVkX1/5Jq1xEIHnYxUXc1zZlVn+haCjVX8iDt1vjEaggEnxkZTPc86+ZMKG"
+                       "U2FsdGVkX1/+D7ftuhduy7GcAzbRvsgy2i291ZMM/KL1VGJtHRXhLo8xUbAM0Yfk"
+                       "U2FsdGVkX18e4i6GYFC1pfkXK3rn223+/3gOxzOY8l0623MH5LjnRBjhi/1jq/2R"
+                       ))
+    (let ((kaesar-password (copy-sequence kaesar--test-password0001)))
+      (should (equal kaesar--test-secret0001 (kaesar-decrypt-string
+                                              (base64-decode-string encrypted)
+                                              nil nil
+                                              :version 2))))))
 (defun delimiterize->hex (l)
   (mapconcat
    (lambda (n) (format "%02x" n))
