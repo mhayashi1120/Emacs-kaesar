@@ -86,6 +86,7 @@
   (unless (and (integerp x) (plusp x))
     (error "Not a natural number %s" x)))
 
+;;;###autoload
 (defun kaesar-pbkdf2-hmac (password iter size &optional salt algorithm)
   "PASSWORD as string ITER as integer SIZE as integer. Return list of byte.
 Optional SALT as list (also allow string) of byte.

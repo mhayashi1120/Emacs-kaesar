@@ -499,6 +499,8 @@ from memory."
     (fillarray data nil)
     (list key iv)))
 
+(autoload 'kaesar-pbkdf2-hmac "kaesar-pbkdf2")
+
 ;; PBKDF2 implementation (kaesar version 2)
 (defun kaesar--openssl-pbkdf2-hmac (iv-length key-length data salt)
   (let ((pbkdf2 (kaesar-pbkdf2-hmac
