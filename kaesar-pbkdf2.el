@@ -83,7 +83,7 @@
        (secure-hash algorithm opad* nil nil t)))))
 
 (defun kaesar-pbkdf2--check-natural (x)
-  (unless (and (integerp x) (plusp x))
+  (unless (and (integerp x) (cl-plusp x))
     (error "Not a natural number %s" x)))
 
 ;;;###autoload

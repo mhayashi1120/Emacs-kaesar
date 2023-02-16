@@ -9,6 +9,7 @@ NEEDED-PACKAGES ?=
 EL := kaesar.el
 EL += kaesar-mode.el
 EL += kaesar-file.el
+EL += kaesar-pbkdf2.el
 
 TEST_EL := kaesar-test.el
 SUBTEST_EL := kaesar-subtest.el
