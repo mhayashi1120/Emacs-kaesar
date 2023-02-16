@@ -261,7 +261,7 @@
 ;;   (base64-encode-string (kaesar-encrypt-string kaesar--test-secret0001))
 ;;   )
 
-(ert-deftest kaesar-test--change-password ()
+(ert-deftest kaesar-test--literal-encoded ()
   "Check constants of encrypted."
   :tags '(kaesar)
   ;; This is encrypted by Emacs 28
