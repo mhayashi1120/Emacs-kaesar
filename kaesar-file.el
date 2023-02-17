@@ -4,7 +4,7 @@
 ;; Keywords: data, files
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 24.3 or later
-;; Version: 0.9.1
+;; Version: 0.9.2
 ;; Package-Requires: ((emacs "24.3") (kaesar "0.1.1"))
 
 ;; This program is free software; you can redistribute it and/or
@@ -125,7 +125,7 @@
     (insert decrypted)))
 
 ;;;###autoload
-(defun kaesar-encrypt-file (file &optional algorithm mode save-file)
+(defun kaesar-file-encrypt (file &optional algorithm mode save-file)
   "Encrypt a FILE by `kaesar-algorithm'
 which contents can be decrypted by `kaesar-decrypt-file-contents'.
 
@@ -137,7 +137,7 @@ MODE: `binary', `base64-with-header', `base64' default is `binary'
     (kaesar-file--write-buffer (or save-file file))))
 
 ;;;###autoload
-(defun kaesar-decrypt-file (file &optional algorithm save-file)
+(defun kaesar-file-decrypt (file &optional algorithm save-file)
   "Decrypt a FILE contents with getting string.
 FILE was encrypted by `kaesar-encrypt-file'."
   (with-temp-buffer
@@ -146,7 +146,7 @@ FILE was encrypted by `kaesar-encrypt-file'."
     (kaesar-file--write-buffer (or save-file file))))
 
 ;;;###autoload
-(defun kaesar-encrypt-write-region (start end file &optional algorithm coding-system mode)
+(defun kaesar-file-encrypt-region (start end file &optional algorithm coding-system mode)
   "Write START END region to FILE with encryption.
 Warning: this function may be changed in future release."
   (interactive "r\nF")
@@ -164,7 +164,7 @@ Warning: this function may be changed in future release."
       (kaesar-file--write-buffer file))))
 
 ;;;###autoload
-(defun kaesar-decrypt-file-contents (file &optional algorithm coding-system)
+(defun kaesar-file-decrypt-contents (file &optional algorithm coding-system)
   "Get decrypted FILE contents.
 FILE was encrypted by `kaesar-encrypt-file'.
 Warning: this function may be changed in future release."
@@ -174,6 +174,12 @@ Warning: this function may be changed in future release."
     (if coding-system
         (decode-coding-string (buffer-string) coding-system)
       (buffer-string))))
+
+;; Make obsolete to adjust package-lint warning
+(make-obsolete 'kaesar-decrypt-file-contents 'kaesar-file-decrypt-contents "0.9.2")
+(make-obsolete 'kaesar-encrypt-write-region 'kaesar-file-encrypt-region "0.9.2")
+(make-obsolete 'kaesar-encrypt-file 'kaesar-file-encrypt "0.9.2")
+(make-obsolete 'kaesar-decrypt-file 'kaesar-file-decrypt "0.9.2")
 
 (provide 'kaesar-file)
 
