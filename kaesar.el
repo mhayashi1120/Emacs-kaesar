@@ -1388,7 +1388,7 @@ DECRYPT-PROPS and ENCRYPT-PROPS are passed to each interfaces
     (clear-string encrypted-bytes)
     (let ((new (let ((kaesar-encrypt-prompt "New password: "))
                  (apply #'kaesar-encrypt-bytes
-                        old algorithm decrypt-props))))
+                        old algorithm encrypt-props))))
       (clear-string old)
       new)))
 
