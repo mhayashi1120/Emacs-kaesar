@@ -3,9 +3,9 @@
 ;; Author: Masahiro Hayashi <mhayashi1120@gmail.com>
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
-;; Emacs: GNU Emacs 24.3 or later
-;; Version: 0.9.0
-;; Package-Requires: ((emacs "25.1") (kaesar "0.9.5"))
+;; Emacs: GNU Emacs 25.1 or later
+;; Version: 0.9.1
+;; Package-Requires: ((emacs "25.1"))
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -24,8 +24,10 @@
 
 ;;; Commentary:
 
-;; TODO
-;; PBKDF2 is `Password-Based Key Derivation Function 2`
+;; Extension pacakge for kaesar.el . The latest (at least 2023-02-21) `openssl`
+;; key derivation use the algorithm.
+;;
+;; NOTE: PBKDF2 is `Password-Based Key Derivation Function 2`
 
 ;;; Code:
 
