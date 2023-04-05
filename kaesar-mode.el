@@ -4,7 +4,7 @@
 ;; Keywords: data, convenience
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 24.3 or later
-;; Version: 0.9.4
+;; Version: 0.9.5
 ;; Package-Requires: ((emacs "24.3") (kaesar "0.1.4"))
 
 (defconst kaesar-mode-version "0.9.4")
@@ -29,7 +29,7 @@
 ;; ## Install:
 
 ;; Put this file into load-path'ed directory, and byte compile it if
-;; desired. And put the following expression into your ~/.emacs.
+;; desired.  And put the following expression into your ~/.emacs.
 ;;
 ;;     (require 'kaesar-mode)
 
@@ -82,7 +82,7 @@
 
 (defface kaesar-mode-lighter-face
   '((t (:inherit font-lock-warning-face)))
-  "Face used for mode-line"
+  "Face used for mode-line."
   :group 'kaesar-mode)
 
 (defvar kaesar-mode)                    ; to suppress bytecomp warning
@@ -331,6 +331,7 @@
   (kaesar-mode 1))
 
 (defun kaesar-mode-clear-cache-password ()
+  "Unset `kaesar-mode-cache-password' variable."
   (interactive)
   (unless (and kaesar-mode-cache-password
                kaesar-mode--secure-password)
@@ -342,8 +343,7 @@
 
 ;;;###autoload
 (define-minor-mode kaesar-mode
-  "Automatically encrypt buffer with password.
- "
+  "Automatically encrypt buffer with password."
   :init-value nil
   :lighter (" [" (:propertize "KaesarEncrypt" face kaesar-mode-lighter-face) "]")
   :group 'kaesar-mode

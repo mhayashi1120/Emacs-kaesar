@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 24.3 or later
-;; Version: 0.9.5
+;; Version: 0.9.6
 ;; Package-Requires: ((emacs "24.3") (kaesar-pbkdf2 "0.9.0"))
 
 ;; This program is free software; you can redistribute it and/or
@@ -27,8 +27,8 @@
 ;; AES (Rijndael) implementations for Emacs
 
 ;; This package provides AES algorithm to encrypt/decrypt Emacs
-;; string. Supported algorithm desired to get interoperability with
-;; openssl command. You can get decrypted text by that command if
+;; string.  Supported algorithm desired to get interoperability with
+;; openssl command.  You can get decrypted text by that command if
 ;; you won't forget password.
 
 ;; ## Install:
@@ -70,15 +70,15 @@
 ;; Why kaesar?
 ;; This package previously named `cipher/aes` but ELPA cannot handle
 ;; such package name.  So, I had to change the name but `aes` package
-;; already exists. (That is faster than this package!)  I continue to
-;; consider the new name which contains "aes" string. There is the
+;; already exists.  (That is faster than this package!)  I continue to
+;; consider the new name which contains "aes" string.  There is the
 ;; ancient cipher algorithm caesar
 ;; http://en.wikipedia.org/wiki/Caesar_cipher
-;;  K`aes`ar is change the first character of Caesar. There is no
+;;  K`aes`ar is change the first character of Caesar.  There is no
 ;; meaning more than containing `aes` word.
 
 ;; How to suppress password prompt?
-;; There is no official way to suppress that prompt. If you want to
+;; There is no official way to suppress that prompt.  If you want to
 ;; know more information, please read `kaesar-password` doc string.
 
 ;;; TODO:
@@ -101,7 +101,7 @@
 (require 'cl-lib)
 
 (defgroup kaesar nil
-  "Encrypt/Decrypt string with password"
+  "Encrypt/Decrypt string with password."
   :prefix "kaesar-"
   :group 'data)
 
@@ -130,20 +130,20 @@ aes-256-ctr, aes-192-ctr, aes-128-ctr
           (const "aes-256-ctr")))
 
 (defcustom kaesar-encrypt-prompt nil
-  "Password prompt when read password to encrypt. This variable
-intend to use with locally bound."
+  "Password prompt when read password to encrypt.
+This variable is intended to use with locally bound."
   :group 'kaesar
   :type 'string)
 
 (defcustom kaesar-decrypt-prompt nil
-  "Password prompt when read password to decrypt.This variable
-intend to use with locally bound."
+  "Password prompt when read password to decrypt.
+This variable is intended to use with locally bound."
   :group 'kaesar
   :type 'string)
 
 (defcustom kaesar-encryption-version 2
   "The following table shows the correspondence between each
- version and the corresponding `openssl' command-line summary.
+version and the corresponding `openssl' command-line summary.
 
 1 = openssl enc -*AES-ALGORITHM* -md md5
 2 = openssl enc -*AES-ALGORITHM* -pbkdf2
@@ -1375,8 +1375,7 @@ ENCRYPTED-BYTES will be cleared immediately after decryption is done.
 CALLBACK is a function accept one arg which indicate decrypted bytes.
   This bytes will be cleared after creating the new encrypted bytes.
 DECRYPT-PROPS and ENCRYPT-PROPS are passed to each interfaces
-`kaesar-decrypt-bytes' and `kaesar-encrypt-bytes' as arguments.
-"
+`kaesar-decrypt-bytes' and `kaesar-encrypt-bytes' as arguments."
   (let ((old (let ((kaesar-decrypt-prompt "Old password: "))
                (apply #'kaesar-decrypt-bytes
                       encrypted-bytes algorithm decrypt-props))))

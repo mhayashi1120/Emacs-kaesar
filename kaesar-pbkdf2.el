@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 25.1 or later
-;; Version: 0.9.1
+;; Version: 0.9.2
 ;; Package-Requires: ((emacs "25.1"))
 
 ;; This program is free software; you can redistribute it and/or
@@ -90,7 +90,7 @@
 
 ;;;###autoload
 (defun kaesar-pbkdf2-hmac (password iter size &optional salt algorithm)
-  "PASSWORD as string ITER as integer SIZE as integer. Return list of byte.
+  "PASSWORD as string ITER as integer SIZE as integer return list of byte.
 Optional SALT as list (also allow string) of byte.
 Optional ALGORITHM should be listed in `hmac-algorithm-blocksizes` ."
   (kaesar-pbkdf2--check-natural iter)

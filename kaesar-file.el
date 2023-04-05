@@ -4,7 +4,7 @@
 ;; Keywords: data, files
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 24.3 or later
-;; Version: 0.9.2
+;; Version: 0.9.3
 ;; Package-Requires: ((emacs "24.3") (kaesar "0.1.1"))
 
 ;; This program is free software; you can redistribute it and/or
@@ -27,7 +27,7 @@
 ;; ## Install:
 
 ;; Put this file into load-path'ed directory, and byte compile it if
-;; desired. And put the following expression into your ~/.emacs.
+;; desired.  And put the following expression into your ~/.emacs.
 ;;
 ;;     (require 'kaesar-file)
 
@@ -45,7 +45,7 @@
 (require 'kaesar)
 
 (defgroup kaesar-file ()
-  "Encrypt/Decrypt a file"
+  "Encrypt/Decrypt a file."
   :prefix "kaesar-file-"
   :group 'kaesar)
 
@@ -129,8 +129,7 @@
   "Encrypt a FILE by `kaesar-algorithm'
 which contents can be decrypted by `kaesar-decrypt-file-contents'.
 
-MODE: `binary', `base64-with-header', `base64' default is `binary'
-"
+MODE: `binary', `base64-with-header', `base64' default is `binary'"
   (with-temp-buffer
     (kaesar-file--insert-file-contents file)
     (kaesar-file--prepare-encrypt-buffer algorithm mode)
