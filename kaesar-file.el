@@ -4,7 +4,7 @@
 ;; Keywords: data, files
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 24.3 or later
-;; Version: 0.9.3
+;; Version: 0.9.4
 ;; Package-Requires: ((emacs "24.3") (kaesar "0.1.1"))
 
 ;; This program is free software; you can redistribute it and/or
@@ -33,8 +33,15 @@
 
 ;; ## Usage:
 
-;; * Simply encrypt/decrypt file.
-;; `kaesar-encrypt-file` <-> `kaesar-decrypt-file`
+;; * Simply encrypt or decrypt file using `kaesar-file-encrypt` and `kaesar-file-encrypt`:
+
+;; ```
+;; (kaesar-file-encrypt "/path/to/file.txt")
+;; ```
+
+;; ```
+;; (kaesar-file-decrypt "/path/to/file.txt")
+;; ```
 
 ;;; TODO:
 ;; * brush up interface

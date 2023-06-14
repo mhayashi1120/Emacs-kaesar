@@ -83,12 +83,10 @@ desired. And put the following expression into your ~/.emacs.
 Simply encrypt or decrypt file using `kaesar-file-encrypt` and `kaesar-file-encrypt`:
 
 ```
-> (kaesar-file-encrypt "/path/to/file.txt")
-nil
+(kaesar-file-encrypt "/path/to/file.txt")
 ```
 
 ```
-> (kaesar-file-decrypt "/path/to/file.txt")
-nil
+(kaesar-file-decrypt "/path/to/file.txt")
 ```
 
