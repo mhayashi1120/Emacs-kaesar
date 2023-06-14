@@ -153,10 +153,10 @@
       (unwind-protect
           (progn
             (let ((kaesar-password (copy-sequence "d")))
-              (kaesar-encrypt-file file nil mode))
+              (kaesar-file-encrypt file nil mode))
             (let ((kaesar-password (copy-sequence "d")))
               ;; mode is detect automatically
-              (kaesar-decrypt-file file))
+              (kaesar-file-decrypt file))
             (should (equal string (kaesar-test--file-contents file)))
             ;; encrypt again. This time save file to another file.
             (let ((save-file (concat file ".save"))
@@ -165,9 +165,9 @@
                   ;; FILE -> [encrypt] -> SAVE-FILE -> [decrypt] -> RESTORE-FILE
                   (progn
                     (let ((kaesar-password (copy-sequence "d")))
-                      (kaesar-encrypt-file file nil mode save-file))
+                      (kaesar-file-encrypt file nil mode save-file))
                     (let ((kaesar-password (copy-sequence "d")))
-                      (kaesar-decrypt-file save-file nil restore-file))
+                      (kaesar-file-decrypt save-file nil restore-file))
                     (should (equal string (kaesar-test--file-contents restore-file))))
                 (delete-file save-file)
                 (delete-file restore-file))))
@@ -180,15 +180,15 @@
     (let* ((string "another multibyte string あいうえお")
            (file (kaesar-test--create-file string)))
       (let ((kaesar-password (copy-sequence "d")))
-        (kaesar-encrypt-write-region string nil file nil 'utf-8 mode))
+        (kaesar-file-encrypt-region string nil file nil 'utf-8 mode))
       (let ((kaesar-password (copy-sequence "d")))
-        (should (equal string (kaesar-decrypt-file-contents file nil 'utf-8))))
+        (should (equal string (kaesar-file-decrypt-contents file nil 'utf-8))))
       (with-temp-buffer
         (insert string)
         (let ((kaesar-password (copy-sequence "d")))
-          (kaesar-encrypt-write-region (point-min) (point-max) file nil 'utf-8 mode)))
+          (kaesar-file-encrypt-region (point-min) (point-max) file nil 'utf-8 mode)))
       (let ((kaesar-password (copy-sequence "d")))
-        (should (equal string (kaesar-decrypt-file-contents file nil 'utf-8)))))))
+        (should (equal string (kaesar-file-decrypt-contents file nil 'utf-8)))))))
 
 ;; TODO check decryption fail
 ;; TODO check cached password
