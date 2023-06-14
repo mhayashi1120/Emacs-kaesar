@@ -127,7 +127,7 @@
 ;;;###autoload
 (defun kaesar-file-encrypt (file &optional algorithm mode save-file)
   "Encrypt a FILE by `kaesar-algorithm'
-which contents can be decrypted by `kaesar-decrypt-file-contents'.
+which contents can be decrypted by `kaesar-file-decrypt-contents'.
 
 MODE: `binary', `base64-with-header', `base64' default is `binary'"
   (with-temp-buffer
@@ -138,7 +138,7 @@ MODE: `binary', `base64-with-header', `base64' default is `binary'"
 ;;;###autoload
 (defun kaesar-file-decrypt (file &optional algorithm save-file)
   "Decrypt a FILE contents with getting string.
-FILE was encrypted by `kaesar-encrypt-file'."
+FILE was encrypted by `kaesar-file-encrypt'."
   (with-temp-buffer
     (kaesar-file--insert-file-contents file)
     (kaesar-file--detect-encrypt-buffer algorithm)
@@ -165,7 +165,7 @@ Warning: this function may be changed in future release."
 ;;;###autoload
 (defun kaesar-file-decrypt-contents (file &optional algorithm coding-system)
   "Get decrypted FILE contents.
-FILE was encrypted by `kaesar-encrypt-file'.
+FILE was encrypted by `kaesar-file-encrypt'.
 Warning: this function may be changed in future release."
   (with-temp-buffer
     (kaesar-file--insert-file-contents file)
