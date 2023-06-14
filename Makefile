@@ -103,7 +103,7 @@ clean:
 lint:
 	$(LINT_BATCH) -f package-lint-batch-and-exit $(EL)
 
-package: lint compile check
+package: lint check
 
 
 maintainer-clean: clean
@@ -115,7 +115,7 @@ maintainer-clean: clean
 
 .PHONY: ci prepare-cicd
 
-ci: lint prepare-cicd
+ci: lint prepare-cicd package
 
 prepare-cicd:
 	$(CI_BATCH)
