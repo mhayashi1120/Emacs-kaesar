@@ -4,8 +4,8 @@ kaesar.el
 AES (Rijndael) implementations for Emacs
 
 This package provides AES algorithm to encrypt/decrypt Emacs
-string. Supported algorithm desired to get interoperability with
-openssl command. You can get decrypted text by that command if
+string.  Supported algorithm desired to get interoperability with
+openssl command.  You can get decrypted text by that command if
 you won't forget password.
 
 ## Install:
@@ -55,15 +55,15 @@ And put the following expression into your .emacs.
 Why kaesar?
 This package previously named `cipher/aes` but ELPA cannot handle
 such package name.  So, I had to change the name but `aes` package
-already exists. (That is faster than this package!)  I continue to
-consider the new name which contains "aes" string. There is the
+already exists.  (That is faster than this package!)  I continue to
+consider the new name which contains "aes" string.  There is the
 ancient cipher algorithm caesar
 http://en.wikipedia.org/wiki/Caesar_cipher
- K`aes`ar is change the first character of Caesar. There is no
+ K`aes`ar is change the first character of Caesar.  There is no
 meaning more than containing `aes` word.
 
 How to suppress password prompt?
-There is no official way to suppress that prompt. If you want to
+There is no official way to suppress that prompt.  If you want to
 know more information, please read `kaesar-password` doc string.
 
 kaesar-file.el
@@ -72,7 +72,7 @@ kaesar-file.el
 ## Install:
 
 Put this file into load-path'ed directory, and byte compile it if
-desired. And put the following expression into your ~/.emacs.
+desired.  And put the following expression into your ~/.emacs.
 
 ```
 (require 'kaesar-file)
@@ -89,4 +89,30 @@ Simply encrypt or decrypt file using `kaesar-file-encrypt` and `kaesar-file-encr
 ```
 (kaesar-file-decrypt "/path/to/file.txt")
 ```
+
+kaesar-mode.el
+==============
+
+## Install:
+
+Put this file into load-path'ed directory, and byte compile it if
+desired.  And put the following expression into your ~/.emacs.
+
+```
+(require 'kaesar-mode)
+```
+
+## Usage:
+
+This package intention to `enable-local-variables` as default value `t`
+If you change this variable to `nil` then you must execute M-x kaesar-mode
+explicitly.
+
+kaesar-pbkdf2.el
+================
+
+Extension pacakge for kaesar.el . The latest (at least 2023-02-21) `openssl`
+key derivation use the algorithm.
+
+NOTE: PBKDF2 is `Password-Based Key Derivation Function 2`
 

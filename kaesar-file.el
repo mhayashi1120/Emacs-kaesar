@@ -33,7 +33,7 @@
 
 ;; ## Usage:
 
-;; * Simply encrypt or decrypt file using `kaesar-file-encrypt` and `kaesar-file-encrypt`:
+;; Simply encrypt or decrypt file using `kaesar-file-encrypt` and `kaesar-file-encrypt`:
 
 ;; ```
 ;; (kaesar-file-encrypt "/path/to/file.txt")
