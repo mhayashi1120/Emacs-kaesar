@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 24.3 or later
-;; Version: 0.9.6
+;; Version: 0.9.7
 ;; Package-Requires: ((emacs "24.3") (kaesar-pbkdf2 "0.9.0"))
 
 ;; This program is free software; you can redistribute it and/or
@@ -112,8 +112,7 @@ Following algorithms are supported.
 aes-256-ecb, aes-192-ecb, aes-128-ecb,
 aes-256-cbc, aes-192-cbc, aes-128-cbc,
 aes-256-ofb, aes-192-ofb, aes-128-ofb,
-aes-256-ctr, aes-192-ctr, aes-128-ctr
-"
+aes-256-ctr, aes-192-ctr, aes-128-ctr"
   :group 'kaesar
   :type '(choice
           (const "aes-128-ecb")
@@ -149,8 +148,7 @@ version and the corresponding `openssl' command-line summary.
 2 = openssl enc -*AES-ALGORITHM* -pbkdf2
 
 More detailed about `openssl', you need read `man openssl` or
-  `man openssl-enc` .
-"
+  `man openssl-enc` ."
   :group 'kaesar
   :type '(choice (const 1) (const 2)))
 
