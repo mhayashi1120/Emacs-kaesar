@@ -39,5 +39,8 @@ jobs:
           version: ${{ matrix.emacs_version }}
 
       - uses: actions/checkout@v3
+      - name: Setup Emacs submodule packages
+        run: |
+          git submodule update --init
       - name: Run tests
         run: './run-ci.sh'
