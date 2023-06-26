@@ -359,8 +359,8 @@
     (message "Buffer has no physical file.")
     (kaesar-mode -1))
    ((not kaesar-mode)
-    (remove-hook 'write-contents-functions 'kaesar-mode-save-buffer t)
-    (remove-hook 'after-revert-hook 'kaesar-mode--after-revert t)
+    (remove-hook 'write-contents-functions #'kaesar-mode-save-buffer t)
+    (remove-hook 'after-revert-hook #'kaesar-mode--after-revert t)
     (kill-local-variable 'kaesar-mode-algorithm)
     (when (and (kaesar-mode--file-guessed-encrypted-p buffer-file-name)
                (not (kaesar-mode--buffer-have-header-p)))
@@ -389,8 +389,8 @@
           (quit
            (kaesar-mode -1)))))
     (when kaesar-mode
-      (add-hook 'write-contents-functions 'kaesar-mode-save-buffer nil t)
-      (add-hook 'after-revert-hook 'kaesar-mode--after-revert nil t)))))
+      (add-hook 'write-contents-functions #'kaesar-mode-save-buffer nil t)
+      (add-hook 'after-revert-hook #'kaesar-mode--after-revert nil t)))))
 
 (provide 'kaesar-mode)
 

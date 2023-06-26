@@ -70,7 +70,7 @@
      (when (< block-size (length password))
        (setq password (secure-hash algorithm password nil nil t)))
      (when (< (length password) block-size)
-       (setq password (apply 'unibyte-string
+       (setq password (apply #'unibyte-string
                              (append (string-to-list password)
                                      (make-list (- block-size (length password)) 0)))))
      (let* ((opad (cl-loop for p across password
@@ -79,9 +79,9 @@
             (ipad (cl-loop for p across password
                            for b in (make-list block-size #x36)
                            collect (logxor p b)))
-            (ipad* (apply 'unibyte-string (append ipad (string-to-list message))))
+            (ipad* (apply #'unibyte-string (append ipad (string-to-list message))))
             (digest (secure-hash algorithm ipad* nil nil t))
-            (opad* (apply 'unibyte-string (append opad (string-to-list digest)))))
+            (opad* (apply #'unibyte-string (append opad (string-to-list digest)))))
        (secure-hash algorithm opad* nil nil t)))))
 
 (defun kaesar-pbkdf2--check-natural (x)
@@ -104,7 +104,7 @@ Optional ALGORITHM should be listed in `hmac-algorithm-blocksizes` ."
        (error "Invalid length of request %s" size))))
 
   (let* ((PRF (lambda (U)
-                (let* ((bytes (apply 'unibyte-string U))
+                (let* ((bytes (apply #'unibyte-string U))
                        (digest (kaesar-pbkdf2-tiny-hmac algorithm password bytes)))
                   (string-to-list digest))))
          (F (lambda (i)
