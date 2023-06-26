@@ -99,6 +99,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'pcase)
 
 (defgroup kaesar nil
   "Encrypt/Decrypt string with password."

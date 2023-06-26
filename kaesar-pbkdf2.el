@@ -32,6 +32,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'pcase)
 
 (defun kaesar-pbkdf2--pack (size n)
   (cl-loop repeat size
