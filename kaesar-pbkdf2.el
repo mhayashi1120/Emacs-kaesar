@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 25.1 or later
-;; Version: 0.9.3
+;; Version: 0.9.4
 ;; Package-Requires: ((emacs "25.1"))
 
 ;; This program is free software; you can redistribute it and/or

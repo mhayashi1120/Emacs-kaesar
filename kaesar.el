@@ -4,7 +4,7 @@
 ;; Keywords: data
 ;; URL: https://github.com/mhayashi1120/Emacs-kaesar
 ;; Emacs: GNU Emacs 24.3 or later
-;; Version: 0.9.7
+;; Version: 0.9.8
 ;; Package-Requires: ((emacs "24.3") (kaesar-pbkdf2 "0.9.0"))
 
 ;; This program is free software; you can redistribute it and/or
