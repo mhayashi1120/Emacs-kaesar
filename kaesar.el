@@ -458,7 +458,7 @@ from memory."
 
 (defun kaesar--openssl-prepend-salt (salt encrypt-string)
   (concat
-   (encode-coding-string kaesar--openssl-magic-word 'ascii)
+   (encode-coding-string kaesar--openssl-magic-word 'us-ascii)
    (apply 'kaesar--unibyte-string (append salt nil))
    encrypt-string))
 
